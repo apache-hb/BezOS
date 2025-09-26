@@ -4,6 +4,7 @@
 
 #include "arch/xsave.hpp"
 #include "memory/layout.hpp"
+#include "memory/stack_mapping.hpp"
 #include "system/base.hpp"
 #include "system/create.hpp"
 #include "task/scheduler_queue.hpp"
@@ -23,7 +24,7 @@ namespace sys {
     class ThreadSchedulerEntry : public task::SchedulerEntry {
     protected:
         sm::RcuWeakPtr<Process> mProcess;
-        km::StackMapping mKernelStack;
+        km::StackMappingAllocation mKernelStack;
 
     public:
         sm::RcuSharedPtr<Process> getProcess() {
@@ -44,9 +45,9 @@ namespace sys {
         using Access = ThreadAccess;
         using Super = BaseObject;
 
-        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack);
-        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack);
-        Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack);
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMappingAllocation kernelStack);
+        Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMappingAllocation kernelStack);
+        Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMappingAllocation kernelStack);
 
         stdx::StringView getClassName() const override { return "Thread"; }
 
@@ -54,7 +55,7 @@ namespace sys {
 
         void loadState();
         reg_t getTlsAddress() const { return mTlsAddress; }
-        km::StackMapping getKernelStack() const { return mKernelStack; }
+        km::StackMapping getKernelStack() const { return mKernelStack.stackMapping(); }
 
         bool isSupervisor();
 

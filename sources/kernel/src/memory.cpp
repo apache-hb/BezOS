@@ -37,7 +37,7 @@ void km::SystemMemory::reserve(AddressMapping mapping) {
 }
 
 void km::SystemMemory::reservePhysical(MemoryRange range) {
-    TlsfAllocation allocation;
+    PmmAllocation allocation;
     if (OsStatus status = mPageAllocator.reserve(range, &allocation)) {
         MemLog.warnf("Failed to reserve physical memory ", range, ": ", OsStatusId(status));
         return;
@@ -77,7 +77,7 @@ OsStatus km::SystemMemory::mapStack(size_t size, PageFlags flags, StackMappingAl
         return OsStatusInvalidInput;
     }
 
-    TlsfAllocation memory = mPageAllocator.pageAlloc(Pages(size));
+    PmmAllocation memory = mPageAllocator.pageAlloc(Pages(size));
     if (memory.isNull()) {
         return OsStatusOutOfMemory;
     }
@@ -95,7 +95,7 @@ OsStatus km::SystemMemory::map(size_t size, PageFlags flags, MemoryType type, Ma
         return OsStatusInvalidInput;
     }
 
-    TlsfAllocation memory = mPageAllocator.pageAlloc(Pages(size));
+    PmmAllocation memory = mPageAllocator.pageAlloc(Pages(size));
     if (memory.isNull()) {
         return OsStatusOutOfMemory;
     }

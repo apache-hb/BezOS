@@ -4,6 +4,7 @@
 
 #include "memory/heap.hpp"
 #include "common/compiler/compiler.hpp"
+#include "memory/pmm_heap.hpp"
 #include "std/spinlock.hpp"
 
 namespace km {
@@ -16,7 +17,7 @@ namespace km {
 
         stdx::SpinLock mLock;
 
-        km::TlsfHeap mMemoryHeap GUARDED_BY(mLock);
+        km::PmmHeap mMemoryHeap GUARDED_BY(mLock);
 
     public:
         UTIL_NOCOPY(PageAllocator);
@@ -37,25 +38,26 @@ namespace km {
 
         constexpr PageAllocator() noexcept = default;
 
-        /// @brief Allocate a 4k page of memory above 1M.
+        /// @brief Allocate a number of contiguous physical pages.
         ///
-        /// @return The physical address of the page.
-        MemoryRange alloc4k(size_t count = 1) [[clang::allocating]];
+        /// @param count The number of contiguous pages to allocate.
+        ///
+        /// @return The allocation, or a null allocation on failure.
+        [[nodiscard]]
+        PmmAllocation pageAlloc(size_t count = 1) [[clang::allocating]];
 
-        TlsfAllocation pageAlloc(size_t count = 1) [[clang::allocating]];
-
-        TlsfAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
+        PmmAllocation aligned_alloc(size_t align, size_t size) [[clang::allocating]];
 
         [[nodiscard]]
-        OsStatus splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results);
+        OsStatus splitv(PmmAllocation ptr, std::span<const PhysicalAddress> points, std::span<PmmAllocation> results);
 
         [[nodiscard]]
-        OsStatus split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus split(PmmAllocation allocation, PhysicalAddress midpoint, PmmAllocation *lo [[outparam]], PmmAllocation *hi [[outparam]]) [[clang::allocating]];
 
-        void free(TlsfAllocation allocation) noexcept [[clang::nonallocating]];
+        void free(PmmAllocation allocation) noexcept [[clang::nonallocating]];
 
         [[nodiscard]]
-        OsStatus reserve(MemoryRange range, TlsfAllocation *allocation [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus reserve(MemoryRange range, PmmAllocation *allocation [[outparam]]) [[clang::allocating]];
 
         /// @brief Release a range of memory.
         ///
@@ -65,6 +67,6 @@ namespace km {
         PageAllocatorStats stats() noexcept;
 
         [[nodiscard]]
-        static OsStatus create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[outparam]]) [[clang::allocating]];
     };
 }

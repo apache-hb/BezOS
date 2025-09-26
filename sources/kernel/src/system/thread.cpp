@@ -1,5 +1,6 @@
 #include "system/thread.hpp"
 
+#include "memory/stack_mapping.hpp"
 #include "system/process.hpp"
 #include "system/system.hpp"
 
@@ -74,11 +75,11 @@ bool sys::Thread::isSupervisor() {
     return false;
 }
 
-sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMapping kernelStack)
+sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, x64::XSave *fpuState, km::StackMappingAllocation kernelStack)
     : Thread(createInfo, process, sys::XSaveState{fpuState, &km::DestroyXSave}, kernelStack)
 { }
 
-sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
+sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMappingAllocation kernelStack)
     : Super(createInfo.name)
     , mCpuState(createInfo.cpuState)
     , mFpuState(std::move(fpuState))
@@ -95,7 +96,7 @@ sys::Thread::Thread(const ThreadCreateInfo& createInfo, sm::RcuWeakPtr<Process> 
     }
 }
 
-sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMapping kernelStack)
+sys::Thread::Thread(OsThreadCreateInfo createInfo, sm::RcuWeakPtr<Process> process, sys::XSaveState fpuState, km::StackMappingAllocation kernelStack)
     : Super(createInfo.Name)
     , mCpuState(makeRegisterSet(createInfo.CpuState, isSupervisor()))
     , mFpuState(std::move(fpuState))
@@ -188,13 +189,13 @@ sys::XSaveState sys::NewXSaveState() {
 }
 
 static OsStatus CreateThreadInner(sys::System *system, const auto& info, sm::RcuSharedPtr<sys::Process> process, sm::RcuSharedPtr<sys::Process> parent, OsHandle id, sys::ThreadHandle **handle) {
-    km::StackMapping kernelStack{};
+    km::StackMappingAllocation kernelStack{};
     sys::XSaveState fpuState{nullptr, &km::DestroyXSave};
     sys::ThreadHandle *result = nullptr;
     sm::RcuSharedPtr<sys::Thread> thread;
     OsStatus status = OsStatusSuccess;
 
-    if ((status = system->mapSystemStack(&kernelStack))) {
+    if ((status = system->mapSystemStackEx(&kernelStack))) {
         return status;
     }
 

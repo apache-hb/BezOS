@@ -288,6 +288,9 @@ namespace km {
 
     template<typename T>
     class GenericTlsfHeap {
+        friend GenericTlsfHeapCommandList<T>;
+        friend GenericTlsfAllocation<T>;
+
         static_assert(sizeof(T) == sizeof(uintptr_t), "T must be the same size as an address");
 
         TlsfHeap mHeap;

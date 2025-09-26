@@ -105,7 +105,7 @@ OsStatus km::AddressSpace::map(MemoryRange range, const void *, PageFlags flags,
 }
 
 OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping) {
-    std::array<TlsfAllocation, 3> results;
+    std::array<VmemAllocation, 3> results;
     MemoryRangeEx stackRange = range.cast<km::PhysicalAddressEx>();
     if (OsStatus status = mapStack(stackRange, flags, &results)) {
         return status;
@@ -193,7 +193,7 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
+OsStatus km::AddressSpace::map(PmmAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
     VmemAllocation result;
 
     if (OsStatus status = map(memory.range().cast<km::PhysicalAddressEx>(), flags, type, &result)) {
@@ -221,8 +221,8 @@ OsStatus km::AddressSpace::map(AddressMapping mapping, PageFlags flags, MemoryTy
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation) {
-    std::array<TlsfAllocation, 3> results;
+OsStatus km::AddressSpace::mapStack(PmmAllocation memory, PageFlags flags, StackMappingAllocation *allocation) {
+    std::array<VmemAllocation, 3> results;
     MemoryRangeEx stackRange = memory.range().cast<km::PhysicalAddressEx>();
     if (OsStatus status = mapStack(stackRange, flags, &results)) {
         return status;
@@ -232,7 +232,7 @@ OsStatus km::AddressSpace::mapStack(TlsfAllocation memory, PageFlags flags, Stac
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations) {
+OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::array<VmemAllocation, 3> *allocations [[outparam]]) {
     stdx::LockGuard guard(mLock);
 
     std::array<VmemAllocation, 3> results;
@@ -269,11 +269,7 @@ OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::
         return status;
     }
 
-    *allocations = {
-        TlsfAllocation{results[0].getBlock()},
-        TlsfAllocation{results[1].getBlock()},
-        TlsfAllocation{results[2].getBlock()},
-    };
+    *allocations = results;
 
     return OsStatusSuccess;
 }

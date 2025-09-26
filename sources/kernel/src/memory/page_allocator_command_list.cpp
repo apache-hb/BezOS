@@ -7,7 +7,7 @@ PageAllocatorCommandList::PageAllocatorCommandList(PageAllocator *allocator [[gn
     : mList(&allocator->mMemoryHeap)
 { }
 
-OsStatus PageAllocatorCommandList::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]] {
+OsStatus PageAllocatorCommandList::split(km::PmmAllocation allocation, PhysicalAddress midpoint, km::PmmAllocation *lo [[outparam]], km::PmmAllocation *hi [[outparam]]) [[clang::allocating]] {
     return mList.split(allocation, midpoint, lo, hi);
 }
 

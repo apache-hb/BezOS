@@ -34,12 +34,12 @@ public:
         OsStatus status = km::AddressSpace::create(&pager, pteMemory, km::PageFlags::eAll, kTestVirtualRange, &space);
         ASSERT_EQ(status, OsStatusSuccess);
 
-        status = km::TlsfHeap::create(kTestMemoryRange.cast<km::PhysicalAddress>(), &heap);
+        status = km::PmmHeap::create(kTestMemoryRange.cast<km::PhysicalAddress>(), &heap);
         ASSERT_EQ(status, OsStatusSuccess);
     }
 
     AddressSpace space;
-    TlsfHeap heap;
+    PmmHeap heap;
 };
 
 TEST_F(AddressSpaceConstructTest, Construct) {
@@ -56,7 +56,7 @@ TEST_F(AddressSpaceTest, Map) {
 }
 
 TEST_F(AddressSpaceTest, MapAllocation) {
-    TlsfAllocation memory = heap.aligned_alloc(x64::kPageSize, 0x4000);
+    PmmAllocation memory = heap.alignedAlloc(x64::kPageSize, 0x4000);
     ASSERT_TRUE(memory.isValid());
 
     MappingAllocation allocation;
@@ -65,7 +65,7 @@ TEST_F(AddressSpaceTest, MapAllocation) {
 }
 
 TEST_F(AddressSpaceTest, UnmapAllocation) {
-    TlsfAllocation memory = heap.aligned_alloc(x64::kPageSize, 0x4000);
+    PmmAllocation memory = heap.alignedAlloc(x64::kPageSize, 0x4000);
     ASSERT_TRUE(memory.isValid());
 
     MappingAllocation allocation;

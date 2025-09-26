@@ -7,14 +7,14 @@
 OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandle, km::PageAllocator *pmm, km::AddressSpace *ptes, uint64_t front, uint64_t back, sm::RcuSharedPtr<FileMapping> *outMapping) {
     uint64_t size = back - front;
 
-    auto memory = pmm->alloc4k(km::Pages(size));
-    if (memory.isEmpty()) {
+    km::PmmAllocation allocation = pmm->pageAlloc(km::Pages(size));
+    if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
 
     km::AddressMapping mapping;
-    if (OsStatus status = ptes->map(memory, km::PageFlags::eData, km::MemoryType::eWriteBack, &mapping)) {
-        pmm->release(memory);
+    if (OsStatus status = ptes->map(allocation.range(), km::PageFlags::eData, km::MemoryType::eWriteBack, &mapping)) {
+        pmm->free(allocation);
         return status;
     }
 
@@ -28,21 +28,21 @@ OsStatus sys::MapFileToMemory(sm::RcuDomain *domain, vfs::IFileHandle *fileHandl
     vfs::ReadResult result {};
     if (OsStatus status = fileHandle->read(read, &result)) {
         MemLog.warnf("Failed to read file mapping from ", front, " to ", back, ": ", OsStatusId(status));
-        pmm->release(memory);
+        pmm->free(allocation);
         (void)ptes->unmap(mapping.virtualRange());
         return status;
     }
 
     if (result.read != size) {
         MemLog.warnf("[VMEM] Mapping could not be fully read: ", result.read, " != ", size);
-        pmm->release(memory);
+        pmm->free(allocation);
         (void)ptes->unmap(mapping.virtualRange());
         return OsStatusInvalidData;
     }
 
     auto object = sm::rcuMakeShared<FileMapping>(domain, mapping);
     if (!object) {
-        pmm->release(memory);
+        pmm->free(allocation);
         (void)ptes->unmap(mapping.virtualRange());
         return OsStatusOutOfMemory;
     }

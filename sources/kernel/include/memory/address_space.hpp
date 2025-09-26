@@ -2,6 +2,7 @@
 
 #include "memory/heap.hpp"
 #include "memory/paging.hpp"
+#include "memory/pmm_heap.hpp"
 #include "memory/pte.hpp"
 #include "memory/range.hpp"
 #include "memory/vmm_heap.hpp"
@@ -174,16 +175,16 @@ namespace km {
         OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
-        OsStatus map(TlsfAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
+        OsStatus map(PmmAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
         OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type, TlsfAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
-        OsStatus mapStack(TlsfAllocation memory, PageFlags flags, StackMappingAllocation *allocation [[gnu::nonnull]]);
+        OsStatus mapStack(PmmAllocation memory, PageFlags flags, StackMappingAllocation *allocation [[gnu::nonnull]]);
 
         [[nodiscard]]
-        OsStatus mapStack(MemoryRangeEx memory, PageFlags flags, std::array<TlsfAllocation, 3> *allocations [[gnu::nonnull]]);
+        OsStatus mapStack(MemoryRangeEx memory, PageFlags flags, std::array<VmemAllocation, 3> *allocations [[outparam]]);
 
         [[nodiscard]]
         OsStatus reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]);

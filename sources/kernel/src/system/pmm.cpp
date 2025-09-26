@@ -87,7 +87,7 @@ void sys::MemoryManager::addSegment(MemorySegment&& segment) {
 OsStatus sys::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
     auto& segment = it->second;
 
-    km::TlsfAllocation lo, hi;
+    km::PmmAllocation lo, hi;
     if (OsStatus status = mHeap->split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
@@ -118,7 +118,7 @@ OsStatus sys::MemoryManager::retainSegment(Iterator it, km::PhysicalAddress midp
 OsStatus sys::MemoryManager::splitSegment(Iterator it, km::PhysicalAddress midpoint, ReleaseSide side) {
     auto& segment = it->second;
 
-    km::TlsfAllocation lo, hi;
+    km::PmmAllocation lo, hi;
     if (OsStatus status = mHeap->split(segment.allocation, midpoint, &lo, &hi)) {
         return status;
     }
@@ -226,7 +226,7 @@ OsStatus sys::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]]
         } else if (seg.contains(range) && !km::innerAdjacent(seg, range)) {
             // |--------seg-------|
             //       |--range--|
-            std::array<km::TlsfAllocation, 3> allocations;
+            std::array<km::PmmAllocation, 3> allocations;
             std::array<km::PhysicalAddress, 2> points = {
                 range.front,
                 range.back,
@@ -286,8 +286,8 @@ OsStatus sys::MemoryManager::retain(km::MemoryRange range) [[clang::allocating]]
             bool rhsShouldSplit = rhs.back != range.back;
 
             km::PageAllocatorCommandList list { mHeap };
-            km::TlsfAllocation lhsLo, lhsHi;
-            km::TlsfAllocation rhsLo, rhsHi;
+            km::PmmAllocation lhsLo, lhsHi;
+            km::PmmAllocation rhsLo, rhsHi;
 
             if (lhsShouldSplit) {
                 if (OsStatus status = list.split(front.allocation, range.front, &lhsLo, &lhsHi)) {
@@ -417,7 +417,7 @@ OsStatus sys::MemoryManager::release(km::MemoryRange range) [[clang::allocating]
         } else if (seg.contains(range) && !km::innerAdjacent(seg, range)) {
             // |--------seg-------|
             //       |--range--|
-            std::array<km::TlsfAllocation, 3> allocations;
+            std::array<km::PmmAllocation, 3> allocations;
             std::array<km::PhysicalAddress, 2> points = {
                 range.front,
                 range.back,
@@ -494,8 +494,8 @@ OsStatus sys::MemoryManager::release(km::MemoryRange range) [[clang::allocating]
             bool rhsShouldSplit = rhs.back != range.back;
 
             km::PageAllocatorCommandList list { mHeap };
-            km::TlsfAllocation lhsLo, lhsHi;
-            km::TlsfAllocation rhsLo, rhsHi;
+            km::PmmAllocation lhsLo, lhsHi;
+            km::PmmAllocation rhsLo, rhsHi;
 
             if (lhsShouldSplit) {
                 if (OsStatus status = list.split(front.allocation, range.front, &lhsLo, &lhsHi)) {
@@ -599,7 +599,7 @@ OsStatus sys::MemoryManager::release(km::MemoryRange range) [[clang::allocating]
 OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
-    km::TlsfAllocation allocation = mHeap->aligned_alloc(align, size);
+    km::PmmAllocation allocation = mHeap->aligned_alloc(align, size);
     if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }

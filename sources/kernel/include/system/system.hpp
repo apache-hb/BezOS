@@ -18,6 +18,7 @@
 #include <compare> // IWYU pragma: keep
 
 namespace km {
+    class StackMappingAllocation;
     class PageTables;
     class PageAllocator;
     class AddressSpace;
@@ -73,10 +74,11 @@ namespace sys {
 
         OsStatus mapProcessPageTables(km::AddressMapping *mapping);
         OsStatus mapSystemStack(km::StackMapping *mapping);
+        OsStatus mapSystemStackEx(km::StackMappingAllocation *mapping);
 
         void releaseMemory(km::MemoryRange range);
         OsStatus releaseMapping(km::AddressMapping mapping);
-        OsStatus releaseStack(km::StackMapping mapping);
+        OsStatus releaseStack(km::StackMappingAllocation mapping);
 
         km::AddressSpace *pageTables() { return mSystemTables; }
 

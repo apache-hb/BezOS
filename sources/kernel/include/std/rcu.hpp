@@ -188,6 +188,15 @@ namespace sm {
         /// @param fn The function to call during reclaimation.
         void enqueue(RcuObject *object [[gnu::nonnull]], RetireCallback fn [[gnu::nonnull]]) noexcept [[clang::reentrant, clang::nonblocking]];
 
+        /// @brief Add a deferred call to be executed during reclaimation.
+        ///
+        /// @param data Argument to provide to @p fn
+        /// @param fn Function to call during reclaimation
+        ///
+        /// @return The status of the operation.
+        /// @retval OsStatusSuccess The call was successfully enqueued.
+        /// @retval OsStatusOutOfMemory There was not enough memory to enqueue the call.
+        [[nodiscard]]
         OsStatus call(void *data, RetireCallback fn [[gnu::nonnull]]) noexcept [[clang::allocating]];
 
         constexpr bool operator==(const RcuGuard& other) const noexcept [[clang::reentrant, clang::nonblocking]] {

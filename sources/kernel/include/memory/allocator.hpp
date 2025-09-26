@@ -4,13 +4,15 @@
 #include "logger/categories.hpp"
 #include "memory/detail/tlsf.hpp"
 #include "memory/layout.hpp"
+#include "memory/pmm_heap.hpp"
+#include "memory/vmm_heap.hpp"
 
 namespace km {
     class MappingAllocation {
-        km::TlsfAllocation mMemoryAllocation;
+        km::PmmAllocation mMemoryAllocation;
         km::TlsfAllocation mAddressAllocation;
 
-        constexpr MappingAllocation(km::TlsfAllocation memory, km::TlsfAllocation address) noexcept
+        constexpr MappingAllocation(km::PmmAllocation memory, km::TlsfAllocation address) noexcept
             : mMemoryAllocation(memory)
             , mAddressAllocation(address)
         { }
@@ -45,7 +47,7 @@ namespace km {
             };
         }
 
-        km::TlsfAllocation memoryAllocation() const noexcept [[clang::nonblocking]] {
+        km::PmmAllocation memoryAllocation() const noexcept [[clang::nonblocking]] {
             return mMemoryAllocation;
         }
 
@@ -54,7 +56,7 @@ namespace km {
         }
 
         [[nodiscard]]
-        static OsStatus create(TlsfAllocation memory, TlsfAllocation address, MappingAllocation *result [[clang::noescape, gnu::nonnull]]) {
+        static OsStatus create(PmmAllocation memory, TlsfAllocation address, MappingAllocation *result [[clang::noescape, gnu::nonnull]]) {
             bool valid = memory.isValid() && address.isValid() && (memory.size() == address.size());
             if (!valid) {
                 return OsStatusInvalidInput;
@@ -63,7 +65,7 @@ namespace km {
             return OsStatusSuccess;
         }
 
-        static MappingAllocation unchecked(TlsfAllocation memory, TlsfAllocation address) {
+        static MappingAllocation unchecked(PmmAllocation memory, TlsfAllocation address) {
             KM_ASSERT(memory.isValid());
             KM_ASSERT(address.isValid());
             if (memory.size() != address.size()) {

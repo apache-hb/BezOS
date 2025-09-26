@@ -10,40 +10,31 @@ using namespace km;
 
 /// page allocator
 
-MemoryRange PageAllocator::alloc4k(size_t count) [[clang::allocating]] {
-    TlsfAllocation allocation = pageAlloc(count);
-    if (allocation.isNull()) {
-        return MemoryRange{};
-    }
-
-    return allocation.range();
-}
-
-TlsfAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
+PmmAllocation PageAllocator::pageAlloc(size_t count) [[clang::allocating]] {
     return aligned_alloc(alignof(x64::page), count * x64::kPageSize);
 }
 
-TlsfAllocation PageAllocator::aligned_alloc(size_t align, size_t size) [[clang::allocating]] {
+PmmAllocation PageAllocator::aligned_alloc(size_t align, size_t size) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
-    return mMemoryHeap.aligned_alloc(align, size);
+    return mMemoryHeap.alignedAlloc(align, size);
 }
 
-OsStatus PageAllocator::splitv(TlsfAllocation ptr, std::span<const PhysicalAddress> points, std::span<TlsfAllocation> results) {
+OsStatus PageAllocator::splitv(PmmAllocation ptr, std::span<const PhysicalAddress> points, std::span<PmmAllocation> results) {
     stdx::LockGuard guard(mLock);
     return mMemoryHeap.splitv(ptr, points, results);
 }
 
-OsStatus PageAllocator::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]] {
+OsStatus PageAllocator::split(PmmAllocation allocation, PhysicalAddress midpoint, PmmAllocation *lo [[outparam]], PmmAllocation *hi [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     return mMemoryHeap.split(allocation, midpoint.address, lo, hi);
 }
 
-void PageAllocator::free(TlsfAllocation allocation) noexcept [[clang::nonallocating]] {
+void PageAllocator::free(PmmAllocation allocation) noexcept [[clang::nonallocating]] {
     stdx::LockGuard guard(mLock);
     mMemoryHeap.free(allocation);
 }
 
-OsStatus PageAllocator::reserve(MemoryRange range, TlsfAllocation *allocation) {
+OsStatus PageAllocator::reserve(MemoryRange range, PmmAllocation *allocation [[outparam]]) {
     if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
@@ -58,7 +49,7 @@ OsStatus PageAllocator::reserve(MemoryRange range, TlsfAllocation *allocation) {
 
 void PageAllocator::release(MemoryRange range) {
     stdx::LockGuard guard(mLock);
-    mMemoryHeap.freeAddress(range.front);
+    // mMemoryHeap.freeAddress(range.front);
 }
 
 PageAllocatorStats PageAllocator::stats() noexcept {
@@ -68,8 +59,8 @@ PageAllocatorStats PageAllocator::stats() noexcept {
     };
 }
 
-OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
-    km::TlsfHeap memoryHeap;
+OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageAllocator *allocator [[outparam]]) [[clang::allocating]] {
+    km::PmmHeap memoryHeap;
 
     sm::InlinedVector<MemoryRange, 16> memory;
 
@@ -85,7 +76,7 @@ OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageA
         }
     }
 
-    if (OsStatus status = km::TlsfHeap::create(memory, &memoryHeap)) {
+    if (OsStatus status = km::PmmHeap::create(memory, &memoryHeap)) {
         return status;
     }
 

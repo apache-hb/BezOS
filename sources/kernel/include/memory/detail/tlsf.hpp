@@ -16,6 +16,15 @@ namespace km {
     class TlsfHeapCommandList;
     class TlsfHeap;
 
+    template<typename T>
+    class GenericTlsfHeap;
+
+    template<typename T>
+    class GenericTlsfAllocation;
+
+    template<typename T>
+    class GenericTlsfHeapCommandList;
+
     namespace detail {
         enum {
             kSmallBufferSize = 0x100,

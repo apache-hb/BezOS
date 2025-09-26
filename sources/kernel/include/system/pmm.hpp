@@ -1,12 +1,13 @@
 #pragma once
 
-#include "log.hpp"
+#include "arch/paging.hpp"
 #include "logger/categories.hpp"
 #include "memory/heap.hpp"
 #include "memory/range.hpp"
 #include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
 #include "common/compiler/compiler.hpp"
+#include "memory/pmm_heap.hpp"
 
 #include <atomic>
 
@@ -27,13 +28,13 @@ namespace sys {
 
     struct MemorySegment {
         std::atomic<uint8_t> owners;
-        km::TlsfAllocation allocation;
+        km::PmmAllocation allocation;
 
-        MemorySegment(km::TlsfAllocation handle)
+        MemorySegment(km::PmmAllocation handle)
             : MemorySegment(1, handle)
         { }
 
-        MemorySegment(uint8_t owners, km::TlsfAllocation handle)
+        MemorySegment(uint8_t owners, km::PmmAllocation handle)
             : owners(owners)
             , allocation(handle)
         { }

@@ -5,6 +5,7 @@
 #include "memory/layout.hpp"
 #include "memory/page_allocator.hpp"
 
+#include "memory/stack_mapping.hpp"
 #include "system/create.hpp"
 #include "system/process.hpp"
 #include "system/schedule.hpp"
@@ -36,13 +37,13 @@ void sys::System::removeProcessObject(sm::RcuWeakPtr<Process> object) {
 }
 
 OsStatus sys::System::mapProcessPageTables(km::AddressMapping *mapping) {
-    km::MemoryRange range = mPageAllocator->alloc4k(kDefaultPtePageCount);
-    if (range.isEmpty()) {
+    km::PmmAllocation allocation = mPageAllocator->pageAlloc(kDefaultPtePageCount);
+    if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mSystemTables->map(range, km::PageFlags::eData, km::MemoryType::eWriteBack, mapping)) {
-        mPageAllocator->release(range);
+    if (OsStatus status = mSystemTables->map(allocation.range(), km::PageFlags::eData, km::MemoryType::eWriteBack, mapping)) {
+        mPageAllocator->free(allocation);
         return status;
     }
 
@@ -50,15 +51,33 @@ OsStatus sys::System::mapProcessPageTables(km::AddressMapping *mapping) {
 }
 
 OsStatus sys::System::mapSystemStack(km::StackMapping *mapping) {
-    km::MemoryRange stack = mPageAllocator->alloc4k(kDefaultKernelStackSize);
-    if (stack.isEmpty()) {
+    km::PmmAllocation allocation = mPageAllocator->pageAlloc(kDefaultKernelStackSize);
+    if (allocation.isNull()) {
         return OsStatusOutOfMemory;
     }
 
-    if (OsStatus status = mSystemTables->mapStack(stack, km::PageFlags::eData, mapping)) {
-        mPageAllocator->release(stack);
+    if (OsStatus status = mSystemTables->mapStack(allocation.range(), km::PageFlags::eData, mapping)) {
+        mPageAllocator->free(allocation);
         return status;
     }
+
+    return OsStatusSuccess;
+}
+
+OsStatus sys::System::mapSystemStackEx(km::StackMappingAllocation *mapping) {
+    km::PmmAllocation allocation = mPageAllocator->pageAlloc(kDefaultKernelStackSize);
+    if (allocation.isNull()) {
+        return OsStatusOutOfMemory;
+    }
+
+    std::array<km::VmemAllocation, 3> results;
+
+    if (OsStatus status = mSystemTables->mapStack(allocation.range().cast<sm::PhysicalAddress>(), km::PageFlags::eData, &results)) {
+        mPageAllocator->free(allocation);
+        return status;
+    }
+
+    *mapping = km::StackMappingAllocation::unchecked(allocation, results[1], results[0], results[2]);
 
     return OsStatusSuccess;
 }
@@ -76,13 +95,21 @@ OsStatus sys::System::releaseMapping(km::AddressMapping mapping) {
     return OsStatusSuccess;
 }
 
-OsStatus sys::System::releaseStack(km::StackMapping mapping) {
-    OsStatus status = mSystemTables->unmapStack(mapping);
-    if (status != OsStatusSuccess) {
-        return status;
+OsStatus sys::System::releaseStack(km::StackMappingAllocation mapping) {
+    OsStatus status = mSystemTables->unmap(mapping.stackAllocation());
+    KM_ASSERT(status == OsStatusSuccess);
+
+    if (mapping.hasGuardHead()) {
+        status = mSystemTables->unmap(mapping.guardHead());
+        KM_ASSERT(status == OsStatusSuccess);
     }
 
-    mPageAllocator->release(mapping.stack.physicalRange());
+    if (mapping.hasGuardTail()) {
+        status = mSystemTables->unmap(mapping.guardTail());
+        KM_ASSERT(status == OsStatusSuccess);
+    }
+
+    mPageAllocator->free(mapping.memoryAllocation());
     return OsStatusSuccess;
 }
 

@@ -27,7 +27,7 @@ TlsfHeapCommandList& TlsfHeapCommandList::operator=(TlsfHeapCommandList&& other)
     return *this;
 }
 
-OsStatus TlsfHeapCommandList::split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo, TlsfAllocation *hi) noexcept [[clang::allocating]] {
+OsStatus TlsfHeapCommandList::split(TlsfAllocation allocation, uintptr_t midpoint, TlsfAllocation *lo [[outparam]], TlsfAllocation *hi [[outparam]]) noexcept [[clang::allocating]] {
     if (OsStatus status = mCommands.ensureExtra(1)) {
         return status;
     }

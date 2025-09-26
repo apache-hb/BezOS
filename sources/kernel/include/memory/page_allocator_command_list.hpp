@@ -1,18 +1,19 @@
 #pragma once
 
 #include "memory/heap_command_list.hpp"
+#include "memory/pmm_heap.hpp"
 
 namespace km {
     class PageAllocator;
 
     class PageAllocatorCommandList {
-        TlsfHeapCommandList mList;
+        GenericTlsfHeapCommandList<km::PhysicalAddress> mList;
 
     public:
         PageAllocatorCommandList(PageAllocator *allocator [[gnu::nonnull]]) noexcept;
 
         [[nodiscard]]
-        OsStatus split(TlsfAllocation allocation, PhysicalAddress midpoint, TlsfAllocation *lo [[gnu::nonnull]], TlsfAllocation *hi [[gnu::nonnull]]) [[clang::allocating]];
+        OsStatus split(PmmAllocation allocation, PhysicalAddress midpoint, PmmAllocation *lo [[outparam]], PmmAllocation *hi [[outparam]]) [[clang::allocating]];
 
         void commit() noexcept [[clang::nonallocating]];
     };
