@@ -212,8 +212,14 @@ sources/kernel/include
 │   ├── table_allocator.hpp
 │   ├── tables.hpp
 │   └── vmm_heap.hpp
+
+=== Probably needs to be rewritten ===
 ├── memory.hpp
+
+=== Needs documentation, testing, and to be usable from an interrupt ===
 ├── notify.hpp
+
+=== Currently unused, either use or delete ===
 ├── objects
 │   ├── event.hpp
 │   ├── generic
@@ -222,8 +228,12 @@ sources/kernel/include
 │   │   └── event.hpp
 │   └── kernel
 │       └── event.hpp
+
+=== Update to fit style guide ===
 ├── panic.hpp
 ├── pat.hpp
+
+=== Comment and test ===
 ├── pci
 │   ├── config.hpp
 │   ├── pci.hpp
@@ -253,6 +263,8 @@ sources/kernel/include
 │   ├── memory.hpp
 │   ├── mutex.h
 │   ├── queue.hpp
+
+=== The rcu stuff needs some real testing, im still unsure if its 100% correct ===
 │   ├── rcu
 │   │   ├── atomic.hpp
 │   │   ├── base.hpp
@@ -276,7 +288,11 @@ sources/kernel/include
 │   ├── string_view.hpp
 │   ├── traits.hpp
 │   └── vector.hpp
+
+=== Very middling code, probably needs rewriting ===
 ├── syscall.hpp
+
+=== This all needs to go, real catastrophe ===
 ├── system
 │   ├── access.hpp
 │   ├── base.hpp
@@ -305,29 +321,47 @@ sources/kernel/include
 │   ├── vmem.hpp
 │   ├── vmm.hpp
 │   └── vmm_map_request.hpp
+
+=== Also needs to go ===
 ├── system2
 │   ├── process.hpp
 │   ├── system.hpp
 │   └── thread.hpp
+
+=== Mostly fine, needs support for destroying the current thread ===
 ├── task
 │   ├── mutex.hpp
 │   ├── runtime.hpp
 │   ├── scheduler.hpp
 │   └── scheduler_queue.hpp
+
+=== Rename this ===
 ├── thread.hpp
+
+=== Needs testing ===
 ├── timer
 │   ├── apic_timer.hpp
 │   ├── hpet.hpp
 │   ├── pit.hpp
 │   ├── tick_source.hpp
 │   └── tsc_timer.hpp
+
+=== Probably remove this ===
 ├── tsc.hpp
+
+=== Should probably go somewhere else ===
 ├── uart.hpp
+
+=== Needs deleting ===
 ├── units.hpp
+
+=== Another mess, try and rip all this out ===
 ├── user
 │   ├── context.hpp
 │   ├── sysapi.hpp
 │   └── user.hpp
+
+=== See what can be pulled out of here ===
 ├── util
 │   ├── absl.hpp
 │   ├── combine.hpp
@@ -344,6 +378,8 @@ sources/kernel/include
 │   ├── util.hpp
 │   └── uuid.hpp
 └── xsave.hpp
+
+
 sources/kernel/src
 ├── acpi
 │   ├── acpi.cpp
