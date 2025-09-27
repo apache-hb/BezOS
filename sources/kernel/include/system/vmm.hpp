@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/allocator.hpp"
 #include "memory/heap.hpp"
 #include "memory/layout.hpp"
 #include "memory/memory.hpp"
@@ -7,11 +8,12 @@
 #include "memory/page_tables.hpp"
 
 #include "memory/vmm_heap.hpp"
-#include "std/detail/sticky_counter.hpp"
 #include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
+#include "system/detail/address_segment.hpp"
 
 #include "common/compiler/compiler.hpp"
+#include "system/vmm_map_request.hpp"
 
 namespace km {
     class AddressSpace;
@@ -20,74 +22,17 @@ namespace km {
 namespace sys {
     class MemoryManager;
 
-    class AddressSegment {
-        sm::detail::StickyCounter<size_t> mRefCount { 1 };
-        km::MemoryRange mBackingMemory;
-        km::VmemAllocation mVmemAllocation;
-
-    public:
-        constexpr AddressSegment() noexcept = default;
-
-        constexpr AddressSegment(km::MemoryRange backingMemory, km::VmemAllocation vmemAllocation) noexcept
-            : mBackingMemory(backingMemory)
-            , mVmemAllocation(vmemAllocation)
-        {
-            KM_ASSERT(!vmemAllocation.isNull());
-        }
-
-        constexpr AddressSegment(const AddressSegment& other) noexcept
-            : AddressSegment(other.getBackingMemory(), other.getVmemAllocation())
-        { }
-
-        constexpr AddressSegment& operator=(const AddressSegment& other) noexcept {
-            if (this != &other) {
-                mBackingMemory = other.getBackingMemory();
-                mVmemAllocation = other.getVmemAllocation();
-            }
-
-            return *this;
-        }
-
-        km::MemoryRange getBackingMemory() const noexcept [[clang::nonallocating]] {
-            return mBackingMemory;
-        }
-
-        km::VmemAllocation getVmemAllocation() const noexcept [[clang::nonallocating]] {
-            return mVmemAllocation;
-        }
-
-        km::AddressMapping mapping() const noexcept [[clang::nonallocating]] {
-            auto front = mVmemAllocation.address();
-            const void *vaddr = std::bit_cast<const void*>(front);
-            return km::MappingOf(mBackingMemory, vaddr);
-        }
-
-        /// @brief Does this segment have physical memory backing it?
-        ///
-        /// If the segment has no backing memory, accessing it will result in a SIGBUS.
-        /// This is distinct from a segment being mapped to a page with no access, which generates a SIGSEGV.
-        ///
-        /// @return True if the segment has backing memory, false otherwise.
-        bool hasBackingMemory() const noexcept [[clang::nonblocking]] {
-            return !mBackingMemory.isEmpty();
-        }
-
-        km::VirtualRange range() const noexcept [[clang::nonallocating]] {
-            return mVmemAllocation.range().cast<const void*>();
-        }
-    };
-
     struct AddressSpaceManagerStats {
         km::TlsfHeapStats heapStats;
         size_t segments;
 
         constexpr size_t controlMemory() const noexcept [[clang::nonallocating]] {
-            return segments * sizeof(AddressSegment);
+            return segments * sizeof(detail::AddressSegment);
         }
     };
 
     class AddressSpaceManager {
-        using Table = sys::detail::RangeTable<AddressSegment>;
+        using Table = sys::detail::RangeTable<detail::AddressSegment>;
         using Map = typename Table::Map;
         using Iterator = typename Map::iterator;
 
@@ -113,13 +58,13 @@ namespace sys {
             kHigh,
         };
 
-        void deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void deleteSegment(MemoryManager *manager, detail::AddressSegment&& segment) noexcept [[clang::allocating]] REQUIRES(mLock);
 
         Iterator eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] REQUIRES(mLock);
         void eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]] REQUIRES(mLock);
         void eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]] REQUIRES(mLock);
 
-        void addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] REQUIRES(mLock);
+        void addSegment(detail::AddressSegment &&segment) noexcept [[clang::allocating]] REQUIRES(mLock);
         void addNoAccessSegment(km::VmemAllocation allocation) noexcept [[clang::allocating]] REQUIRES(mLock);
 
         /// @param manager The memory manager to use.
@@ -211,10 +156,13 @@ namespace sys {
         OsStatus allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result [[outparam]]) [[clang::allocating]];
 
         [[nodiscard]]
+        OsStatus map(const AddressSpaceMappingRequest& request, km::AddressMapping *result [[outparam]]) [[clang::allocating]];
+
+        [[nodiscard]]
         OsStatus unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]];
 
         [[nodiscard]]
-        OsStatus querySegment(const void *address, AddressSegment *result) noexcept [[clang::nonallocating]];
+        OsStatus querySegment(const void *address, detail::AddressSegment *result) noexcept [[clang::nonallocating]];
 
         AddressSpaceManagerStats stats() noexcept [[clang::nonallocating]];
 
@@ -224,7 +172,7 @@ namespace sys {
             return mPteMemory;
         }
 
-        km::PhysicalAddress getPageMap() const noexcept [[clang::nonallocating]];
+        km::PhysicalAddressEx getPageMap() const noexcept [[clang::nonallocating]];
 
         void dump() noexcept;
 

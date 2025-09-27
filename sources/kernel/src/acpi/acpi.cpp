@@ -184,7 +184,7 @@ static void PrintXsdt(const acpi::Xsdt *xsdt, const acpi::RsdpLocator *locator) 
     AcpiLog.println("| /SYS/ACPI/XSDT     | Signature                   | '", stdx::StringView(xsdt->header.signature), "'");
 }
 
-OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]) {
+OsStatus acpi::AcpiTables::setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[outparam]]) {
     km::VmemAllocation rsdpAllocation;
 
     const acpi::RsdpLocator *locator = memory.mapConst<acpi::RsdpLocator>(options.rsdpBaseAddress, &rsdpAllocation);

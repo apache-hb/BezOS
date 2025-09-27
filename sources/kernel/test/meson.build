@@ -53,6 +53,7 @@ system_test_src = [
     '../src/system/transaction.cpp',
     '../src/system/pmm.cpp',
     '../src/system/vmm.cpp',
+    '../src/system/detail/address_segment.cpp',
     '../src/system/sanitize.cpp',
 
     '../src/system/vm/mapping.cpp',

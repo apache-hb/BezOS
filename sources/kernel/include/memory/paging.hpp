@@ -141,7 +141,7 @@ namespace km {
             return (__get_cr3() & mAddressMask);
         }
 
-        void setActiveMap(PhysicalAddress map) const noexcept {
+        void setActiveMap(PhysicalAddressEx map) const noexcept {
             x64::Cr3 cr3 = x64::Cr3::load();
             cr3.setAddress(map.address & mAddressMask);
             x64::Cr3::store(cr3);

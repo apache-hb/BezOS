@@ -122,7 +122,7 @@ static SmpInfoHeader SetupSmpInfoHeader(
 ) {
     km::PageTables& vmm = memory->systemTables();
 
-    km::PhysicalAddress pml4 = vmm.root();
+    km::PhysicalAddressEx pml4 = vmm.root();
     KM_CHECK(pml4 < UINT32_MAX, "PML4 address is above the 4G range.");
 
     return SmpInfoHeader {

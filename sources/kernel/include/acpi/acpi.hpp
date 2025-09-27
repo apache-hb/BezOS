@@ -96,7 +96,7 @@ namespace acpi {
         const RsdtHeader *dsdt() const { return mDsdt; }
 
         [[nodiscard]]
-        static OsStatus setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[gnu::nonnull, clang::noescape]]);
+        static OsStatus setup(const AcpiSetupOptions& options, km::AddressSpace& memory, AcpiTables *tables [[outparam]]);
     };
 
     acpi::AcpiTables setupAcpi(sm::PhysicalAddress rsdpBaseAddress, km::AddressSpace& memory);

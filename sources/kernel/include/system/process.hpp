@@ -73,7 +73,7 @@ namespace sys {
         OsStatus removeHandle(IHandle *handle);
         OsStatus removeHandle(OsHandle handle);
         OsStatus findHandle(OsHandle handle, OsHandleType type, IHandle **result);
-        km::PhysicalAddress getPageMap() const;
+        km::PhysicalAddressEx getPageMap() const;
 
         AddressSpaceManager *getAddressSpaceManager() { return &mAddressSpace; }
 

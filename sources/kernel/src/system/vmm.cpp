@@ -5,7 +5,10 @@
 
 #include "common/util/defer.hpp"
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
+using sys::AddressSpaceManager;
+using sys::detail::AddressSegment;
+
+OsStatus AddressSpaceManager::map(MemoryManager *manager, size_t size, size_t align, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::VmemAllocation allocation = mHeap.alignedAlloc(align, size);
@@ -34,14 +37,14 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, size_t size, size
 
     MemLog.infof("Mapped physical memory: ", result);
 
-    auto segment = AddressSegment { range, allocation };
+    auto segment = AddressSegment { range.cast<km::PhysicalAddressEx>(), allocation };
     addSegment(std::move(segment));
 
     *mapping = result;
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange range, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::VmemAllocation allocation = mHeap.alignedAlloc(x64::kPageSize, range.size());
@@ -64,14 +67,14 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, km::MemoryRange r
 
     MemLog.infof("Mapped physical memory: ", result);
 
-    auto segment = AddressSegment { range, allocation };
+    auto segment = AddressSegment { range.cast<km::PhysicalAddressEx>(), allocation };
     addSegment(std::move(segment));
 
     *mapping = result;
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::mapSegment(
+OsStatus AddressSpaceManager::mapSegment(
     MemoryManager *manager, Iterator it,
     km::VirtualRange src, km::VirtualRange dst,
     km::PageFlags flags, km::MemoryType type,
@@ -86,7 +89,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     size_t frontOffset = (uintptr_t)subrange.front - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)subrange.back;
     auto backing = segment.getBackingMemory();
-    km::MemoryRange memory = { backing.front + frontOffset, backing.back - backOffset };
+    km::MemoryRangeEx memory = { backing.front + frontOffset, backing.back - backOffset };
 
     size_t totalFrontOffset = (uintptr_t)subrange.front - (uintptr_t)src.front;
     size_t totalBackOffset = (uintptr_t)src.back - (uintptr_t)subrange.back;
@@ -94,11 +97,11 @@ OsStatus sys::AddressSpaceManager::mapSegment(
 
     km::AddressMapping mapping {
         .vaddr = dstRange.front,
-        .paddr = memory.front,
+        .paddr = memory.front.address,
         .size = memory.size(),
     };
 
-    status = manager->retain(memory);
+    status = manager->retain(memory.cast<km::PhysicalAddress>());
     if (status != OsStatusSuccess) {
         MemLog.warnf("[VMM] Failed to retain memory: ", memory, " ", seg, " ", src, " ", OsStatusId(status), "\n");
         KM_ASSERT(status == OsStatusSuccess);
@@ -143,7 +146,7 @@ OsStatus sys::AddressSpaceManager::mapSegment(
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManager *other, km::VirtualRange range, km::PageFlags flags, km::MemoryType type, km::VirtualRange *result [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     stdx::LockGuard guard2(other->mLock); // TODO: this can deadlock
 
@@ -163,14 +166,14 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
         auto seg = segment.range();
         if (seg == range) {
             OsStatus status = OsStatusSuccess;
-            km::MemoryRange memory = segment.getBackingMemory();
+            km::MemoryRangeEx memory = segment.getBackingMemory();
             km::AddressMapping mapping {
                 .vaddr = std::bit_cast<const void*>(allocation.address()),
-                .paddr = memory.front,
+                .paddr = memory.front.address,
                 .size = memory.size(),
             };
 
-            status = manager->retain(memory);
+            status = manager->retain(memory.cast<km::PhysicalAddress>());
             if (status != OsStatusSuccess) {
                 MemLog.fatalf("Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status));
                 KM_ASSERT(status == OsStatusSuccess);
@@ -193,14 +196,14 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
             OsStatus status = OsStatusSuccess;
             size_t offset = (uintptr_t)range.front - (uintptr_t)seg.front;
             auto backing = segment.getBackingMemory();
-            km::MemoryRange memory = { backing.front + offset, backing.back };
+            km::MemoryRangeEx memory = { backing.front + offset, backing.back };
             km::AddressMapping mapping {
                 .vaddr = std::bit_cast<const void*>(allocation.address()),
-                .paddr = memory.front,
+                .paddr = memory.front.address,
                 .size = memory.size(),
             };
 
-            status = manager->retain(memory);
+            status = manager->retain(memory.cast<km::PhysicalAddress>());
             if (status != OsStatusSuccess) {
                 MemLog.fatalf("Failed to retain memory: ", memory, " ", seg, " ", range, " ", OsStatusId(status));
                 KM_ASSERT(status == OsStatusSuccess);
@@ -248,19 +251,19 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, AddressSpaceManag
     return OsStatusSuccess;
 }
 
-void sys::AddressSpaceManager::addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] {
+void AddressSpaceManager::addSegment(AddressSegment &&segment) noexcept [[clang::allocating]] {
     mTable.insert(std::move(segment));
 }
 
-void sys::AddressSpaceManager::addNoAccessSegment(km::VmemAllocation allocation) noexcept [[clang::allocating]] {
-    auto segment = AddressSegment { km::MemoryRange{}, allocation };
+void AddressSpaceManager::addNoAccessSegment(km::VmemAllocation allocation) noexcept [[clang::allocating]] {
+    auto segment = AddressSegment { km::MemoryRangeEx{}, allocation };
     addSegment(std::move(segment));
 }
 
-OsStatus sys::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]] {
+OsStatus AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator it, const void *midpoint, ReleaseSide side) [[clang::allocating]] {
     auto& segment = it->second;
 
-    km::MemoryRange memory = segment.getBackingMemory();
+    km::MemoryRangeEx memory = segment.getBackingMemory();
     auto seg = segment.range();
     size_t frontOffset = (uintptr_t)midpoint - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)midpoint;
@@ -270,8 +273,8 @@ OsStatus sys::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator
         return status;
     }
 
-    km::MemoryRange loRange = { memory.front, memory.front + frontOffset };
-    km::MemoryRange hiRange = { memory.back - backOffset, memory.back };
+    km::MemoryRangeEx loRange = { memory.front, memory.front + frontOffset };
+    km::MemoryRangeEx hiRange = { memory.back - backOffset, memory.back };
 
     auto loSegment = AddressSegment { loRange, lo };
     auto hiSegment = AddressSegment { hiRange, hi };
@@ -295,7 +298,7 @@ OsStatus sys::AddressSpaceManager::splitSegment(MemoryManager *manager, Iterator
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] {
+OsStatus AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] {
     auto& segment = it->second;
     OsStatus status = OsStatusSuccess;
     km::VirtualRange seg = segment.range();
@@ -308,7 +311,7 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
     size_t frontOffset = (uintptr_t)subrange.front - (uintptr_t)seg.front;
     size_t backOffset = (uintptr_t)seg.back - (uintptr_t)subrange.back;
     auto backing = segment.getBackingMemory();
-    km::MemoryRange srcMemory = { backing.front + frontOffset, backing.back - backOffset };
+    km::MemoryRangeEx srcMemory = { backing.front + frontOffset, backing.back - backOffset };
     if (range.contains(seg)) {
         // |-----seg-----|
         // |--------range-----|
@@ -318,7 +321,7 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
         //
         //    |-----seg-----|
         // |--------range-----|
-        status = manager->release(srcMemory);
+        status = manager->release(srcMemory.cast<km::PhysicalAddress>());
         KM_ASSERT(status == OsStatusSuccess);
 
         status = mPageTables.unmap(seg);
@@ -351,11 +354,11 @@ OsStatus sys::AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator
     }
 }
 
-OsStatus sys::AddressSpaceManager::splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] {
-    return OsStatusNotSupported;
+OsStatus AddressSpaceManager::splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] {
+    KM_PANIC("Not implemented");
 }
 
-OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress address, km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     // TODO: on the error case memory is a bit busted
     km::VirtualRange range = { address, address + memory.size() };
     if (OsStatus status = unmap(manager, range)) {
@@ -382,14 +385,14 @@ OsStatus sys::AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddres
         return status;
     }
 
-    auto segment = AddressSegment { memory, allocation };
+    auto segment = AddressSegment { memory.cast<km::PhysicalAddressEx>(), allocation };
     addSegment(std::move(segment));
 
     *mapping = result;
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageFlags flags, km::MemoryType type, km::AddressMapping *mapping [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::VmemAllocation allocation = mHeap.alignedAlloc(alignof(x64::page), memory.size());
@@ -405,14 +408,14 @@ OsStatus sys::AddressSpaceManager::mapExternal(km::MemoryRange memory, km::PageF
         return status;
     }
 
-    auto segment = AddressSegment { km::MemoryRange{}, allocation };
+    auto segment = AddressSegment { km::MemoryRangeEx{}, allocation };
     addSegment(std::move(segment));
 
     *mapping = result;
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::VirtualAddress address, size_t size, size_t align, bool addressIsHint, km::PageFlags flags, km::AddressMapping *result [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::VmemAllocation allocation;
@@ -447,18 +450,22 @@ OsStatus sys::AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::V
         return status;
     }
 
-    auto segment = AddressSegment { memory, allocation };
+    auto segment = AddressSegment { memory.cast<km::PhysicalAddressEx>(), allocation };
     addSegment(std::move(segment));
 
     *result = mapping;
     return OsStatusSuccess;
 }
 
-void sys::AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] {
+OsStatus AddressSpaceManager::map(const AddressSpaceMappingRequest& request, km::AddressMapping *result [[outparam]]) {
+    KM_PANIC("Not implemented");
+}
+
+void AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegment&& segment) noexcept [[clang::allocating]] {
     OsStatus status = OsStatusSuccess;
 
     if (segment.hasBackingMemory()) {
-        status = manager->release(segment.getBackingMemory());
+        status = manager->release(segment.getBackingMemory().cast<km::PhysicalAddress>());
         KM_ASSERT(status == OsStatusSuccess);
     }
 
@@ -468,7 +475,7 @@ void sys::AddressSpaceManager::deleteSegment(MemoryManager *manager, AddressSegm
     mHeap.free(segment.getVmemAllocation());
 }
 
-sys::AddressSpaceManager::Iterator sys::AddressSpaceManager::eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] {
+AddressSpaceManager::Iterator AddressSpaceManager::eraseSegment(MemoryManager *manager, Iterator it) noexcept [[clang::allocating]] {
     auto& segment = it->second;
 
     deleteSegment(manager, std::move(segment));
@@ -476,13 +483,13 @@ sys::AddressSpaceManager::Iterator sys::AddressSpaceManager::eraseSegment(Memory
     return mTable.erase(it);
 }
 
-void sys::AddressSpaceManager::eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]] {
+void AddressSpaceManager::eraseSegment(MemoryManager *manager, km::VirtualRange segment) noexcept [[clang::allocating]] {
     auto it = segments().find(segment.back);
     KM_ASSERT(it != segments().end());
     eraseSegment(manager, it);
 }
 
-void sys::AddressSpaceManager::eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]] {
+void AddressSpaceManager::eraseMany(MemoryManager *manager, km::VirtualRange range) noexcept [[clang::allocating]] {
     auto begin = segments().upper_bound(range.front);
     auto end = segments().upper_bound(range.back);
 
@@ -494,7 +501,7 @@ void sys::AddressSpaceManager::eraseMany(MemoryManager *manager, km::VirtualRang
     }
 }
 
-OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]] {
+OsStatus AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRange range) [[clang::allocating]] {
     KM_ASSERT(range.isValid());
 
     stdx::LockGuard guard(mLock);
@@ -505,8 +512,9 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
         CLANG_DIAGNOSTIC_PUSH();
         CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety-analysis"); // The lock is held, but the compiler doesn't know it
 
-        auto upper = segments().upper_bound(range.front);
-        if (upper != segments().end()) {
+        auto& s = segments();
+        auto upper = s.upper_bound(range.front);
+        if (upper != s.end()) {
             auto inner = upper->second.range();
             auto intersect = km::intersection(range, inner);
             if (!intersect.isEmpty()) {
@@ -679,7 +687,7 @@ OsStatus sys::AddressSpaceManager::unmap(MemoryManager *manager, km::VirtualRang
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::querySegment(const void *address, AddressSegment *result) noexcept [[clang::nonallocating]] {
+OsStatus AddressSpaceManager::querySegment(const void *address, AddressSegment *result) noexcept [[clang::nonallocating]] {
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
@@ -701,7 +709,7 @@ OsStatus sys::AddressSpaceManager::querySegment(const void *address, AddressSegm
     CLANG_DIAGNOSTIC_POP();
 }
 
-sys::AddressSpaceManagerStats sys::AddressSpaceManager::stats() noexcept [[clang::nonallocating]] {
+sys::AddressSpaceManagerStats AddressSpaceManager::stats() noexcept [[clang::nonallocating]] {
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
@@ -715,7 +723,7 @@ sys::AddressSpaceManagerStats sys::AddressSpaceManager::stats() noexcept [[clang
     CLANG_DIAGNOSTIC_POP();
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
     km::VmemHeap heap;
     km::PageTables pt;
 
@@ -731,7 +739,7 @@ OsStatus sys::AddressSpaceManager::create(const km::PageBuilder *pm, km::Address
     return OsStatusSuccess;
 }
 
-OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
+OsStatus AddressSpaceManager::create(const km::AddressSpace *pt, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]] {
     if (OsStatus status = AddressSpaceManager::create(pt->pageManager(), pteMemory, flags, vmem, manager)) {
         return status;
     }
@@ -740,7 +748,7 @@ OsStatus sys::AddressSpaceManager::create(const km::AddressSpace *pt, km::Addres
     return OsStatusSuccess;
 }
 
-void sys::AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noexcept {
+void AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noexcept {
     CLANG_DIAGNOSTIC_PUSH();
     CLANG_DIAGNOSTIC_IGNORE("-Wthread-safety");
 
@@ -750,18 +758,18 @@ void sys::AddressSpaceManager::setActiveMap(const AddressSpaceManager *map) noex
     CLANG_DIAGNOSTIC_POP();
 }
 
-km::PhysicalAddress sys::AddressSpaceManager::getPageMap() const noexcept [[clang::nonallocating]] {
+km::PhysicalAddressEx AddressSpaceManager::getPageMap() const noexcept [[clang::nonallocating]] {
     return mPageTables.root();
 }
 
-void sys::AddressSpaceManager::dump() noexcept {
+void AddressSpaceManager::dump() noexcept {
     stdx::LockGuard guard(mLock);
     for (const auto& [_, segment] : segments()) {
         MemLog.dbgf("Segment: ", segment.getBackingMemory(), " ", segment.range());
     }
 }
 
-void sys::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
+void AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     auto it = segments().begin();
     while (it != segments().end()) {

@@ -363,6 +363,24 @@ liblogging_nosanitize = static_library('logging_nosanitize', logging_src,
     dependencies : deps,
 )
 
+# Audit
+
+audit_src = files(
+    'src/audit/limit.cpp',
+)
+
+libaudit_kernel = static_library('audit', audit_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libaudit_native = static_library('audit_native', audit_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
 # Paging
 
 paging_src = files(
@@ -537,6 +555,8 @@ system_src = files(
     'src/system/transaction.cpp',
     'src/system/pmm.cpp',
     'src/system/vmm.cpp',
+    'src/system/vmm_map_request.cpp',
+    'src/system/detail/address_segment.cpp',
     'src/system/sanitize.cpp',
 
     'src/system/vm/mapping.cpp',
@@ -740,6 +760,7 @@ kernel_libs = [
     libutil_kernel,
     libformat_kernel,
     liblogging_kernel,
+    libaudit_kernel,
     libmemory_kernel,
     libacpi_kernel,
     libapic_kernel,

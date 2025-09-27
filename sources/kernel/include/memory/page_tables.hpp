@@ -168,7 +168,7 @@ namespace km {
 
         [[gnu::returns_nonnull]]
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
-        PhysicalAddress root() const noexcept [[clang::nonblocking]] { return PhysicalAddress{asPhysical(pml4()).address}; }
+        PhysicalAddressEx root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
 
         /// @brief Map a range of virtual address space to physical memory.
         ///
