@@ -359,7 +359,7 @@ static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer
     uintptr_t framebufferBase = (uintptr_t)range.front;
     for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
-        km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr, framebuffer.size() };
+        km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr.address, framebuffer.size() };
         if (OsStatus status = vmm.map(fb, PageFlags::eData, MemoryType::eWriteCombine)) {
             InitLog.fatalf("Failed to map framebuffer: ", fb, " ", OsStatusId(status));
             KM_PANIC("Failed to map framebuffer.");
