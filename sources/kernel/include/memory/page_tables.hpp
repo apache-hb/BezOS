@@ -40,7 +40,7 @@ namespace km {
         /// @param addr The physical address of the page table.
         /// @return The virtual address of the page table.
         template<typename T>
-        T *asVirtual(PhysicalAddress addr) const noexcept [[clang::nonblocking]] {
+        T *asVirtual(PhysicalAddressEx addr) const noexcept [[clang::nonblocking]] {
             return (T*)(addr.address + mSlide);
         }
 
@@ -50,7 +50,7 @@ namespace km {
         ///
         /// @param ptr The virtual address of the page table.
         /// @return The physical address of the page table.
-        PhysicalAddress asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
+        PhysicalAddressEx asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
 
         /// @brief Get the virtual address of a sub-table from a table entry.
         ///
@@ -62,11 +62,11 @@ namespace km {
         /// @return The virtual address of the sub-table.
         template<typename U, typename T>
         auto *getPageEntry(const T *table, uint16_t index) const noexcept [[clang::nonallocating]] {
-            PhysicalAddress address = mPageManager->address(table->entries[index]);
+            PhysicalAddressEx address = mPageManager->address(table->entries[index]);
             return asVirtual<U>(address);
         }
 
-        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddress address) noexcept [[clang::nonblocking]];
+        void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddressEx address) noexcept [[clang::nonblocking]];
 
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         x64::PageMapLevel2 *getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdpte, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
@@ -79,11 +79,11 @@ namespace km {
         void mapRange2m(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
         void mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
-        void map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
-        void map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
-        void map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
+        void map4k(PhysicalAddressEx paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        void map2m(PhysicalAddressEx paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
+        void map1g(PhysicalAddressEx paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer);
 
-        void partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type);
+        void partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddressEx paddr, MemoryType type);
 
         /// @brief Split a 2m page mapping into 4k pages.
         ///
@@ -121,7 +121,7 @@ namespace km {
         OsStatus earlyUnmap(VirtualRange range, VirtualRange *remaining);
         void earlyUnmapWithList(int earlyAllocations, VirtualRange range, VirtualRange *remaining, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
 
-        PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
+        PhysicalAddressEx getBackingAddressUnlocked(const void *ptr) const;
 
         void reclaim2m(x64::pdte& pde);
 
@@ -168,7 +168,7 @@ namespace km {
 
         [[gnu::returns_nonnull]]
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
-        PhysicalAddress root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
+        PhysicalAddress root() const noexcept [[clang::nonblocking]] { return PhysicalAddress{asPhysical(pml4()).address}; }
 
         /// @brief Map a range of virtual address space to physical memory.
         ///
@@ -239,7 +239,7 @@ namespace km {
         ///
         /// @return The physical address that backs the given virtual address.
         [[nodiscard]]
-        PhysicalAddress getBackingAddress(const void *ptr);
+        PhysicalAddressEx getBackingAddress(const void *ptr);
 
         /// @brief Get the memory flags for a given address.
         ///

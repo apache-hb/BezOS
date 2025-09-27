@@ -17,6 +17,10 @@ namespace sm {
 
     struct PhysicalAddress : public sm::Address<detail::PhysicalAddressSpace> {
         using Address::Address;
+
+        static constexpr PhysicalAddress invalid() noexcept {
+            return PhysicalAddress { UINTPTR_MAX };
+        }
     };
 }
 

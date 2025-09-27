@@ -149,7 +149,7 @@ static km::LocalApic MapLocalApic(uint64_t msr, km::AddressSpace& memory) {
     return km::LocalApic { allocation, addr };
 }
 
-static uint64_t EnableLocalApic(km::PhysicalAddress baseAddress = 0uz) {
+static uint64_t enableLocalApic(km::PhysicalAddressEx baseAddress = 0uz) {
     uint64_t msr = IA32_APIC_BASE.load();
 
     IA32_APIC_BASE.update(msr, [&](uint64_t& value) {
@@ -321,7 +321,7 @@ km::Apic km::InitBspApic(km::AddressSpace& memory, bool useX2Apic) {
         km::EnableX2Apic();
         return km::X2Apic::get();
     } else {
-        uint64_t msr = EnableLocalApic();
+        uint64_t msr = enableLocalApic();
         return MapLocalApic(msr, memory);
     }
 }
@@ -337,8 +337,8 @@ km::Apic km::InitApApic(km::AddressSpace& memory, const km::IApic *bsp) {
 
         // Move every AP lapic at the same address as the BSP lapic.
         // This lets us reuse the same virtual address space allocation for all APs.
-        km::PhysicalAddress bspBaseAddress = memory.getBackingAddress(vaddr);
-        EnableLocalApic(bspBaseAddress);
+        km::PhysicalAddressEx bspBaseAddress = memory.getBackingAddress(vaddr);
+        enableLocalApic(bspBaseAddress);
 
         return auto{*lapic};
     }

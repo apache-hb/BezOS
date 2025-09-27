@@ -164,7 +164,7 @@ namespace km {
         auto pageManager(this auto&& self) { return self.mTables.pageManager(); }
 
         [[nodiscard]]
-        PhysicalAddress getBackingAddress(this auto&& self, const void *ptr) {
+        PhysicalAddressEx getBackingAddress(this auto&& self, const void *ptr) {
             return self.mTables.getBackingAddress(ptr);
         }
 

@@ -50,7 +50,7 @@ TEST_F(PtCommandListTest, ValidateEmptyMapping) {
         .size = 0,
     };
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     {
         km::PageTableCommandList list { &pt };
@@ -66,7 +66,7 @@ TEST_F(PtCommandListTest, ValidateEmptyMapping) {
         ASSERT_EQ(list.validate(), OsStatusSuccess);
     }
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
     ASSERT_EQ(stats1.freeBlocks, stats0.freeBlocks);
@@ -81,7 +81,7 @@ TEST_F(PtCommandListTest, ValidateEmptyUnmap) {
         .size = 0,
     };
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     {
         km::PageTableCommandList list { &pt };
@@ -97,7 +97,7 @@ TEST_F(PtCommandListTest, ValidateEmptyUnmap) {
         ASSERT_EQ(list.validate(), OsStatusSuccess);
     }
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
     ASSERT_EQ(stats1.freeBlocks, stats0.freeBlocks);
@@ -112,7 +112,7 @@ TEST_F(PtCommandListTest, RecordMap) {
         .size = 0x1000,
     };
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     // the destructor will discard uncommited mappings
     {
@@ -127,7 +127,7 @@ TEST_F(PtCommandListTest, RecordMap) {
         ASSERT_EQ(list.validate(), OsStatusSuccess);
     }
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
     ASSERT_EQ(stats1.freeBlocks, stats0.freeBlocks);
@@ -142,7 +142,7 @@ TEST_F(PtCommandListTest, CommitMap) {
         .size = 0x1000,
     };
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
     {
         km::PageTableCommandList list { &pt };
@@ -158,7 +158,7 @@ TEST_F(PtCommandListTest, CommitMap) {
         list.commit();
     }
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr.address);
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
     ASSERT_NE(stats1.freeBlocks, stats0.freeBlocks);
@@ -179,7 +179,7 @@ TEST_F(PtCommandListTest, CommitMapMany) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
     }
 
     for (size_t i = 0; i < count; i++) {
@@ -189,7 +189,7 @@ TEST_F(PtCommandListTest, CommitMapMany) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
         OsStatus status = list.map(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack);
         ASSERT_EQ(status, OsStatusSuccess);
@@ -209,7 +209,7 @@ TEST_F(PtCommandListTest, CommitMapMany) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr.address);
     }
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
@@ -233,7 +233,7 @@ TEST_F(PtCommandListTest, CommitMapManyPteOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
     }
 
     size_t last = 0;
@@ -244,7 +244,7 @@ TEST_F(PtCommandListTest, CommitMapManyPteOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
         auto inner0 = pt.TESTING_getPageTableAllocator().stats();
         auto list0 = list.stats();
@@ -286,7 +286,7 @@ TEST_F(PtCommandListTest, CommitMapManyPteOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr.address);
     }
 
     for (size_t i = last + 1; i < count; i++) {
@@ -296,7 +296,7 @@ TEST_F(PtCommandListTest, CommitMapManyPteOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY) << "vaddr: " << mapping.vaddr;
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid()) << "vaddr: " << mapping.vaddr;
     }
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
@@ -318,7 +318,7 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
     }
 
     size_t last = 0;
@@ -329,7 +329,7 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 
         GetGlobalAllocator()->mFailAfter = 0;
         OsStatus status = list.map(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack);
@@ -363,7 +363,7 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr.address);
     }
 
     for (size_t i = last + 1; i < count; i++) {
@@ -373,7 +373,7 @@ TEST_F(PtCommandListTest, CommitMapManyListOom) {
             .size = 0x1000,
         };
 
-        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY) << "vaddr: " << mapping.vaddr;
+        ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid()) << "vaddr: " << mapping.vaddr;
     }
 
     auto stats1 = pt.TESTING_getPageTableAllocator().stats();
@@ -403,7 +403,7 @@ TEST_F(PtCommandListTest, CommitUnmap) {
 
     ASSERT_EQ(pt.map(mapping, km::PageFlags::eUserAll, km::MemoryType::eWriteBack), OsStatusSuccess);
 
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), mapping.paddr.address);
 
     {
         km::PageTableCommandList list { &pt };
@@ -415,5 +415,5 @@ TEST_F(PtCommandListTest, CommitUnmap) {
     }
 
     (void)pt.compact();
-    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), KM_INVALID_MEMORY);
+    ASSERT_EQ(pt.getBackingAddress(mapping.vaddr), km::PhysicalAddressEx::invalid());
 }
