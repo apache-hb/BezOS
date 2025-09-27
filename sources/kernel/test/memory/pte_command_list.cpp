@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 #include "memory/pt_command_list.hpp"
 #include "setup.hpp"
 #include "new_shim.hpp"

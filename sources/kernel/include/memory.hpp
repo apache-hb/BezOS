@@ -2,7 +2,7 @@
 
 #include "memory/address_space.hpp"
 #include "memory/page_allocator.hpp"
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 #include "memory/paging.hpp"
 #include "memory/tables.hpp"
 

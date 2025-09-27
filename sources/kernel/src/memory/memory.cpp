@@ -3,8 +3,8 @@
 /// @brief The amount of memory a single pml4 entry can cover.
 static constexpr auto kPml4MemorySize = x64::kHugePageSize * 512;
 
-km::PageWalkIndices km::GetAddressParts(const void *ptr) noexcept [[clang::nonblocking]] {
-    return GetAddressParts(reinterpret_cast<uintptr_t>(ptr));
+km::PageWalkIndices km::getAddressParts(const void *ptr) noexcept [[clang::nonblocking]] {
+    return getAddressParts(reinterpret_cast<uintptr_t>(ptr));
 }
 
 km::AddressMapping km::detail::AlignLargeRangeHead(AddressMapping mapping) noexcept [[clang::nonblocking]] {

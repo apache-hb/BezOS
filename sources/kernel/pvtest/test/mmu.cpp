@@ -3,7 +3,7 @@
 #include "pvtest/cpu.hpp"
 #include "pvtest/machine.hpp"
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include <sys/mman.h>
 #include <thread>

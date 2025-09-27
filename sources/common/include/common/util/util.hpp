@@ -26,6 +26,12 @@ namespace sm {
         return value / multiple * multiple;
     }
 
+    template<std::integral T>
+    constexpr bool isAlignedTo(T value, T alignment) {
+        [[assume(alignment > 0)]];
+        return (value % alignment) == 0;
+    }
+
     constexpr bool isPowerOf2(std::integral auto value) {
         return value && !(value & (value - 1));
     }

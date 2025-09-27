@@ -16,7 +16,7 @@ static OsCallResult NewVmemCreate(km::System *system, km::CallContext *context, 
         return km::CallError(status);
     }
 
-    SysLog.dbgf("VmemCreate(", sys::GetCurrentProcess()->getName(), "): BaseAddress: ", createInfo.BaseAddress, ", Size: ", km::Hex(createInfo.Size),
+    SysLog.dbgf("VmemCreate(", sys::GetCurrentProcess()->getName(), "): BaseAddress: ", createInfo.BaseAddress, ", Size: ", sm::Memory(createInfo.Size),
                   ", Alignment: ", km::Hex(createInfo.Alignment), ", Access: ", km::Hex(createInfo.Access),
                   ", Process: ", km::Hex(createInfo.Process));
 
@@ -50,7 +50,7 @@ OsCallResult um::VmemMap(km::System *system, km::CallContext *context, km::Syste
     }
 
     SysLog.dbgf("VmemMap: SrcAddress: ", km::Hex(mapInfo.SrcAddress), ", DstAddress: ", km::Hex(mapInfo.DstAddress),
-                  ", Size: ", km::Hex(mapInfo.Size), ", Access: ", km::Hex(mapInfo.Access), ", Source: ",
+                  ", Size: ", sm::Memory(mapInfo.Size), ", Access: ", km::Hex(mapInfo.Access), ", Source: ",
                   km::Hex(mapInfo.Source), ", Process: ", km::Hex(mapInfo.Process));
 
     sys::InvokeContext invoke { system->sys, sys::GetCurrentProcess() };

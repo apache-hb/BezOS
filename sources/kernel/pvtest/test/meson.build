@@ -15,7 +15,7 @@ pvtest_testcases = {
 
             '../../src/util/memory.cpp',
 
-            '../../src/memory/pte.cpp',
+            '../../src/memory/page_tables.cpp',
             '../../src/memory/table_allocator.cpp',
             '../../src/memory/memory.cpp',
             '../../src/memory/detail/table_list.cpp',
@@ -28,7 +28,13 @@ pvtest_testcases = {
         'c_args': [ ],
         'cpp_args': [ ],
         'link_args' : [ ],
-        'link_with': [ liblogging_nosanitize ],
+        'link_with': [
+            libutil_nosanitize,
+            libformat_nosanitize,
+            libpaging_nosanitize,
+            libmemory_nosanitize,
+            liblogging_nosanitize
+        ],
     },
     'msr': {
         'sources': files('msr.cpp')

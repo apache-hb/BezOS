@@ -2,7 +2,7 @@
 
 #include <bezos/status.h>
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include <cstddef>
 

@@ -1,6 +1,6 @@
 #include "memory/tables.hpp"
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 using namespace km;
 

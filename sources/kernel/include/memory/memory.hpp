@@ -7,12 +7,21 @@
 #include "memory/layout.hpp"
 
 namespace km {
+    /// @brief Flags for page table entries.
     enum class PageFlags : uint8_t {
+        /// @brief Memory is inaccessible.
         eNone = 0,
 
+        /// @brief Memory is readable.
         eRead = 1 << 0,
+
+        /// @brief Memory is writeable.
         eWrite = 1 << 1,
+
+        /// @brief Memory is executable.
         eExecute = 1 << 2,
+
+        /// @brief Memory is accessible from user mode.
         eUser = 1 << 3,
 
         eCode = eRead | eExecute,
@@ -29,17 +38,33 @@ namespace km {
     namespace detail {
         /// @brief Create the head of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
+        ///
+        /// @param mapping The mapping to align.
+        ///
+        /// @return The head mapping.
         AddressMapping AlignLargeRangeHead(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Create the body of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
+        ///
+        /// @param mapping The mapping to align.
+        ///
+        /// @return The body mapping.
         AddressMapping AlignLargeRangeBody(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Create the tail of a large page mapping.
         /// @pre @p mapping must be @ref AlignLargeRangeEligible.
+        ///
+        /// @param mapping The mapping to align.
+        ///
+        /// @return The tail mapping.
         AddressMapping AlignLargeRangeTail(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Check if a mapping is eligible for large pages.
+        ///
+        /// @param mapping The mapping to check.
+        ///
+        /// @return true if the mapping is eligible for large pages, false otherwise.
         bool IsLargePageEligible(AddressMapping mapping) noexcept [[clang::nonblocking]];
 
         /// @brief Calculate the maximum possible number of pages required to map a range of memory.
@@ -53,6 +78,12 @@ namespace km {
         /// @return The maximum number of pages required to map the range.
         size_t MaxPagesForMapping(VirtualRange range) noexcept [[clang::nonblocking]];
 
+        /// @brief Calculate the number of page table entries required to map a range of memory.
+        ///
+        /// @param range The range to map.
+        /// @param segment The size that each page table entry can map.
+        ///
+        /// @return The number of page table entries required to map the range.
         size_t GetCoveredSegments(VirtualRange range, size_t segment) noexcept [[clang::nonblocking]];
     }
 
@@ -70,7 +101,7 @@ namespace km {
         uint16_t pte;
     };
 
-    constexpr PageWalkIndices GetAddressParts(uintptr_t address) noexcept [[clang::nonblocking]] {
+    constexpr PageWalkIndices getAddressParts(uintptr_t address) noexcept [[clang::nonblocking]] {
         uint16_t pml4e = (address >> 39) & 0b0001'1111'1111;
         uint16_t pdpte = (address >> 30) & 0b0001'1111'1111;
         uint16_t pdte = (address >> 21) & 0b0001'1111'1111;
@@ -79,7 +110,7 @@ namespace km {
         return PageWalkIndices { pml4e, pdpte, pdte, pte };
     }
 
-    PageWalkIndices GetAddressParts(const void *ptr) noexcept [[clang::nonblocking]];
+    PageWalkIndices getAddressParts(const void *ptr) noexcept [[clang::nonblocking]];
 
     /// @brief The result of walking page tables to a virtual address.
     ///

@@ -83,7 +83,7 @@ namespace km {
             Trigger trigger = Trigger::eEdge;
             Level level = Level::eAssert;
 
-            static constexpr IpiAlert sipi(km::PhysicalAddressEx address) {
+            static constexpr IpiAlert sipi(sm::PhysicalAddress address) {
                 return IpiAlert {
                     .vector = uint8_t(address.address / x64::kPageSize),
                     .mode = IcrMode::eStartup,

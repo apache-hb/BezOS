@@ -1,4 +1,4 @@
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include "memory/paging.hpp"
 #include "logger/categories.hpp"

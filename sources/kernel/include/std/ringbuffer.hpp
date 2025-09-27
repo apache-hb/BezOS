@@ -50,7 +50,7 @@ namespace sm {
         ///
         /// @param value The value to push.
         ///
-        /// @return true if the value was pushed, false if the queue is full.
+        /// @return true if the value was pushed, false if the queue was full.
         bool tryPush(T& value) noexcept [[clang::reentrant, clang::nonblocking]] {
             uint32_t producerHead;
             uint32_t producerTail;
@@ -85,7 +85,7 @@ namespace sm {
         ///
         /// @param value The value to pop into.
         ///
-        /// @return true if a value was popped, false if the queue is empty.
+        /// @return true if a value was popped, false if the queue was empty.
         bool tryPop(T& value) noexcept [[clang::reentrant, clang::nonblocking]] {
             uint32_t consumerHead = mConsumerHead.load();
             uint32_t producerTail = mProducerTail.load();

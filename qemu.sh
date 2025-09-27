@@ -65,6 +65,14 @@ else
     QEMUARGS="$QEMUARGS -smp 4"
 fi
 
+echo $ARGS | grep -q "\-m"
+if [ $? -eq 0 ]; then
+    # Get the amount of memory requested
+    MEMORY=$(echo $ARGS | grep -o "\-m\s[0-9]*[GgMmKk]*" | awk '{print $2}')
+    ARGS="$(echo $ARGS | sed s/\-m\s[0-9]*[GgMmKk]*//)"
+    QEMUARGS="$QEMUARGS -m $MEMORY"
+fi
+
 if [ "$MODE" = "ovmf" ]; then
     ARGS=$(echo $ARGS | sed s/ovmf//)
     repobld ovmf kernel || exit 1

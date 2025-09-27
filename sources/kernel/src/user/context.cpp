@@ -1,11 +1,11 @@
 #include "user/context.hpp"
 
 #include "memory/paging.hpp"
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include <bezos/facility/process.h>
 
-static constexpr bool IsAlignedTo(uint64_t address, size_t alignment) {
+static constexpr bool isAlignedTo(uint64_t address, size_t alignment) {
     return (address & (alignment - 1)) == 0;
 }
 
@@ -13,7 +13,7 @@ OsStatus km::VerifyUserPointer(const VerifyRules& rules, uintptr_t address, size
     //
     // Pointer must be aligned to the specified alignment.
     //
-    if (!IsAlignedTo(address, rules.alignment)) {
+    if (!isAlignedTo(address, rules.alignment)) {
         return OsStatusInvalidAddress;
     }
 

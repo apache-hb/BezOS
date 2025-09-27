@@ -176,7 +176,7 @@ TEST(MemoryDetailTest, AlignLargeRangeWithTail) {
 
 TEST(MemoryDetailTest, AddressParts) {
     uintptr_t address = 0xFFFF800000000000;
-    PageWalkIndices indices = GetAddressParts(address);
+    PageWalkIndices indices = getAddressParts(address);
 
     ASSERT_EQ(indices.pml4e, 256);
     ASSERT_EQ(indices.pdpte, 0x0);

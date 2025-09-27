@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 namespace x64 {
     template<typename F>

@@ -1,5 +1,5 @@
 #include "memory/pt_command_list.hpp"
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 #include "panic.hpp"
 
 using PtCommandList = km::PageTableCommandList;

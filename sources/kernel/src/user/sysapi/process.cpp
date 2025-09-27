@@ -80,5 +80,4 @@ OsCallResult um::ProcessCurrent(km::System *system, km::CallContext *context, km
 
 OsCallResult um::ProcessStat(km::System *system, km::CallContext *context, km::SystemCallRegisterSet *regs) {
     return NewProcessStat(system, context, regs);
-
 }

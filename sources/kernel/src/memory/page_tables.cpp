@@ -1,4 +1,4 @@
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include "common/util/defer.hpp"
 #include "logger/categories.hpp"
@@ -29,15 +29,14 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
-OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
-    tables->mSlide = pteMemory.slide();
-    tables->mPageManager = pm;
-    tables->mMiddleFlags = flags;
-
+OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]] {
     if (OsStatus status = PageTableAllocator::create(pteMemory.virtualRangeEx(), x64::kPageSize, &tables->mAllocator)) {
         return status;
     }
 
+    tables->mSlide = pteMemory.slide();
+    tables->mPageManager = pm;
+    tables->mMiddleFlags = flags;
     tables->mRootPageTable = (x64::PageMapLevel4*)tables->alloc4k();
     KM_ASSERT(tables->mRootPageTable != nullptr);
 
@@ -120,7 +119,7 @@ void PageTables::mapRange1g(AddressMapping mapping, PageFlags flags, MemoryType 
 }
 
 void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
-    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(vaddr);
+    auto [pml4e, pdpte, pdte, pte] = getAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
@@ -151,7 +150,7 @@ void PageTables::map4k(PhysicalAddress paddr, const void *vaddr, PageFlags flags
 }
 
 void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) noexcept [[clang::nonallocating]] {
-    auto [pml4e, pdpte, pdte, _] = GetAddressParts(vaddr);
+    auto [pml4e, pdpte, pdte, _] = getAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
@@ -173,7 +172,7 @@ void PageTables::map2m(PhysicalAddress paddr, const void *vaddr, PageFlags flags
 }
 
 void PageTables::map1g(PhysicalAddress paddr, const void *vaddr, PageFlags flags, MemoryType type, detail::PageTableList& buffer) {
-    auto [pml4e, pdpte, _, _] = GetAddressParts(vaddr);
+    auto [pml4e, pdpte, _, _] = getAddressParts(vaddr);
 
     x64::PageMapLevel4 *l4 = pml4();
     x64::PageMapLevel3 *l3 = getPageMap3(l4, pml4e, buffer);
@@ -211,7 +210,7 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
         constexpr static auto kTopPageSize = x64::kHugePageSize * 512;
         VirtualRange aligned = km::alignedOut(range, kTopPageSize);
         for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += kTopPageSize) {
-            auto [pml4e, _, _, _] = GetAddressParts((void*)i);
+            auto [pml4e, _, _, _] = getAddressParts((void*)i);
             const x64::pml4e& t4 = l4->entries[pml4e];
             if (!t4.present()) {
                 count += 1;
@@ -225,7 +224,7 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
         //
         VirtualRange aligned = km::alignedOut(range, x64::kHugePageSize);
         for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += x64::kHugePageSize) {
-            auto [pml4e, pdpte, _, _] = GetAddressParts((void*)i);
+            auto [pml4e, pdpte, _, _] = getAddressParts((void*)i);
             const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
             if (l3 == nullptr) {
                 count += 1;
@@ -245,7 +244,7 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
         //
         VirtualRange aligned = km::alignedOut(range, x64::kLargePageSize);
         for (uintptr_t i = (uintptr_t)aligned.front; i < (uintptr_t)aligned.back; i += x64::kLargePageSize) {
-            auto [pml4e, pdpte, pdte, _] = GetAddressParts((void*)i);
+            auto [pml4e, pdpte, pdte, _] = getAddressParts((void*)i);
             const x64::PageMapLevel3 *l3 = findPageMap3(l4, pml4e);
             if (l3 == nullptr) {
                 count += 1;
@@ -294,6 +293,12 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     // figure out the exact number of tables we need to allocate.
     //
     MemLog.warnf("Low memory, failed to allocate ", requiredPages, " page tables. Retrying with conservative page count.");
+
+    auto stats = mAllocator.stats();
+    MemLog.warnf("  Total pages: ", stats.totalBlocks);
+    MemLog.warnf("   Free pages: ", stats.freeBlocks);
+    MemLog.warnf("Largest block: ", stats.largestBlock);
+
     requiredPages = countPagesForMapping(range);
     if (mAllocator.allocateList(requiredPages, list)) {
         return OsStatusSuccess;
@@ -416,9 +421,18 @@ bool PageTables::verifyMapping(AddressMapping mapping) const noexcept [[clang::n
 }
 
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
-    if (!verifyMapping(mapping)) [[unlikely]] {
-        return OsStatusInvalidInput;
+    PageMappingRequest request;
+    if (OsStatus status = PageMappingRequest::create(mapping, flags, type, &request)) [[unlikely]] {
+        return status;
     }
+
+    return map(request);
+}
+
+OsStatus PageTables::map(const PageMappingRequest& request) {
+    km::AddressMapping mapping = request.mapping();
+    km::PageFlags flags = request.flags();
+    km::MemoryType type = request.type();
 
     detail::PageTableList buffer;
     if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
@@ -439,15 +453,11 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     return OsStatusSuccess;
 }
 
-OsStatus PageTables::map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type) {
-    return map(MappingOf(range, vaddr), flags, type);
-}
-
 void PageTables::partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddress paddr, MemoryType type) {
     KM_CHECK(!range.isEmpty(), "Cannot remap empty range.");
 
     for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back; i += x64::kPageSize) {
-        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
+        auto [pml4e, pdpte, pdte, pte] = getAddressParts(i);
         x64::pte& t1 = pt->entries[pte];
         mPageManager->setMemoryType(t1, type);
         setEntryFlags(t1, mMiddleFlags, paddr + (i - (uintptr_t)range.front));
@@ -554,7 +564,7 @@ int PageTables::countRequiredPageTables(VirtualRange range) noexcept [[clang::no
 }
 
 x64::pdte& PageTables::getLargePageEntry(const void *address) noexcept [[clang::nonallocating]] {
-    auto [pml4e, pdpte, pdte, _] = GetAddressParts(address);
+    auto [pml4e, pdpte, pdte, _] = getAddressParts(address);
 
     x64::PageMapLevel4 *l4 = pml4();
 
@@ -568,7 +578,7 @@ x64::pdte& PageTables::getLargePageEntry(const void *address) noexcept [[clang::
 }
 
 PageWalk PageTables::walkUnlocked(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]] {
-    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = GetAddressParts(ptr);
+    auto [pml4eIndex, pdpteIndex, pdteIndex, pteIndex] = getAddressParts(ptr);
     x64::pml4e pml4e{};
     x64::pdpte pdpte{};
     x64::pdte pdte{};
@@ -713,7 +723,7 @@ void PageTables::unmapUnlocked(VirtualRange range) noexcept [[clang::nonallocati
     // Iterate over the range we want to unmap and unmap the pages.
     //
     while (i < end) {
-        auto [pml4e, pdpte, pdte, pte] = GetAddressParts(i);
+        auto [pml4e, pdpte, pdte, pte] = getAddressParts(i);
 
         //
         // If we can't find the page table for this range, then skip over the inaccessable address space.
@@ -787,7 +797,7 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
     x64::PageMapLevel4 *l4 = pml4();
 
     for (uintptr_t i = (uintptr_t)range.front; i < (uintptr_t)range.back;) {
-        auto [pml4e, pdpte, pdte, _] = GetAddressParts(i);
+        auto [pml4e, pdpte, pdte, _] = getAddressParts(i);
 
         //
         // If we can't find the page table for this range, then skip over the inaccessable address space.
@@ -824,7 +834,7 @@ OsStatus PageTables::unmap2m(VirtualRange range) {
 
 PhysicalAddress PageTables::getBackingAddressUnlocked(const void *ptr) const {
     uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-    auto [pml4e, pdpte, pdte, pte] = GetAddressParts(ptr);
+    auto [pml4e, pdpte, pdte, pte] = getAddressParts(ptr);
     uintptr_t offset = address & 0xFFF;
 
     const x64::PageMapLevel4 *l4 = pml4();

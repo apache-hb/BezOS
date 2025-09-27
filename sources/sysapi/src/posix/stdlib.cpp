@@ -308,7 +308,7 @@ static CxaExitNode *TakeExitNode() {
 static CxaExitNode *gHeadNode = nullptr;
 
 extern "C" int __cxa_atexit(void (*callback)(void *), void *object, void *dso) {
-    DebugLog(eOsLogInfo, "POSIX __cxa_atexit: %p %p %p\n", callback, object, dso);
+    DebugLog(eOsLogInfo, "POSIX __cxa_atexit: %p %p %p", callback, object, dso);
     if (callback == nullptr) {
         return -1;
     }

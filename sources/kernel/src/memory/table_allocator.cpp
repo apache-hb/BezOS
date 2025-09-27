@@ -57,7 +57,7 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
     }
 }
 
-km::detail::PageTableList km::detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining) {
+km::detail::PageTableList km::detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining [[outparam]]) {
     auto *block = allocator.mHead;
     size_t size = (*remaining * allocator.mBlockSize);
 
@@ -104,14 +104,14 @@ void km::PageTableAllocator::setHead(detail::ControlBlock *block) noexcept [[cla
     }
 }
 
-constexpr bool VerifyMemoryRange(km::VirtualRangeEx memory, size_t blockSize) {
+constexpr bool isPageTableAllocatorInputValid(km::VirtualRangeEx memory, size_t blockSize) {
     return (blockSize > 0) // The block size must be greater than 0.
         && (memory.size() >= blockSize) // The memory range must be at least the size of a block.
         && km::aligned(memory, blockSize) == memory; // The memory range must be aligned to the block size.
 }
 
 OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[clang::noescape, gnu::nonnull]]) noexcept [[clang::allocating]] {
-    if (!VerifyMemoryRange(memory, blockSize)) {
+    if (!isPageTableAllocatorInputValid(memory, blockSize)) {
         return OsStatusInvalidInput;
     }
 
@@ -248,13 +248,15 @@ void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
 
 km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonblocking]] {
     PteAllocatorStats stats{};
+    stats.blockSize = mBlockSize;
+    stats.totalBlocks = mMemory.size() / mBlockSize;
 
     for (detail::ControlBlock *block = mHead; block != nullptr; block = block->next) {
-        size_t blockSize = block->size / mBlockSize;
+        size_t blockCount = block->size / mBlockSize;
 
-        stats.freeBlocks += blockSize;
+        stats.freeBlocks += blockCount;
         stats.chainLength += 1;
-        stats.largestBlock = std::max(stats.largestBlock, blockSize);
+        stats.largestBlock = std::max(stats.largestBlock, blockCount);
     }
 
     return stats;

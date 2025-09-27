@@ -41,23 +41,6 @@ fs_test_src = [
     '../src/util/uuid.cpp',
 ]
 
-memory_test_src = [
-    '../src/memory/pte.cpp',
-    '../src/memory/pte_command_list.cpp',
-    '../src/memory/tables.cpp',
-    '../src/memory/memory.cpp',
-    '../src/memory/table_allocator.cpp',
-    '../src/memory/page_allocator.cpp',
-    '../src/memory/page_allocator_command_list.cpp',
-    '../src/memory/address_space.cpp',
-    '../src/memory/detail/table_list.cpp',
-    '../src/memory/detail/control_block.cpp',
-    '../src/memory/heap.cpp',
-    '../src/memory/heap_command_list.cpp',
-
-    '../src/util/memory.cpp',
-]
-
 system_test_src = [
     '../src/system/system.cpp',
     '../src/system/schedule.cpp',
@@ -146,16 +129,6 @@ system_test_lib = static_library('system_test', system_test_src,
     native : true,
 )
 
-memory_test_shim = static_library('memory_test_shim', memory_test_src,
-    include_directories : inc,
-    c_args : test_c_args + test_sanitize_args,
-    cpp_args : test_cpp_args + test_sanitize_args,
-    link_args : test_sanitize_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options : native_kwargs['override_options'],
-    native : true,
-)
-
 test_exe_kwargs = {
     'include_directories': [ inc, include_directories('.') ],
     'c_args': test_c_args + test_sanitize_args,
@@ -164,7 +137,18 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, sysapi, concurrentqueue, mp_units, common ],
     'override_options': native_kwargs['override_options'],
     'native': true,
-    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, libmemory_nosanitize, liblogging_native, libtask_native ],
+    'link_with': [
+        libtest_shim,
+        fs_test_shim,
+        system_test_lib,
+
+        libutil_native,
+        libformat_native,
+        libpaging_native,
+        libmemory_native,
+        liblogging_native,
+        libtask_native
+    ],
 }
 
 # Benchmarks
@@ -316,8 +300,8 @@ testcases = {
     #     ],
     # },
     'page table': {
-        'sources': files('memory/pte.cpp'),
-        'link_with': [ libtest_shim, libpaging_native, liblogging_native, ],
+        'sources': files('memory/page_tables.cpp'),
+        'link_with': [ libtest_shim, libutil_native, libpaging_native, liblogging_native, ],
     },
     'rcu': {
         'sources': [
@@ -820,15 +804,6 @@ no_sanitize_fs_test_lib = static_library('no_sanitize_fs_test', fs_test_src,
     native : true,
 )
 
-no_sanitize_memory_test_shim = static_library('no_sanitize_memory_test_shim', memory_test_src,
-    include_directories : inc,
-    c_args : test_c_args,
-    cpp_args : test_cpp_args,
-    dependencies : [ gtest, sysapi, concurrentqueue, mp_units, common ],
-    override_options : nosan_kwargs['override_options'],
-    native : true,
-)
-
 testcases = {
     'terminal': {
         'sources': [
@@ -854,7 +829,14 @@ testcases += {
         ],
         'dependencies': [ capstone, common ],
         'override_options': nosan_kwargs['override_options'],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, libmemory_nosanitize, liblogging_nosanitize ]
+        'link_with' : [
+            no_sanitize_test_shim,
+            libutil_nosanitize,
+            libformat_nosanitize,
+            libpaging_nosanitize,
+            libmemory_nosanitize,
+            liblogging_nosanitize,
+        ]
     },
     'apic': {
         'sources': [
@@ -870,8 +852,10 @@ testcases += {
         'override_options': nosan_kwargs['override_options'],
         'link_with' : [
             no_sanitize_test_shim,
-            no_sanitize_memory_test_shim,
             mmio_test_shim,
+            libutil_nosanitize,
+            libformat_nosanitize,
+            libpaging_nosanitize,
             libmemory_nosanitize,
             liblogging_nosanitize
         ],

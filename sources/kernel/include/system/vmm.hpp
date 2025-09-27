@@ -4,7 +4,7 @@
 #include "memory/layout.hpp"
 #include "memory/memory.hpp"
 #include "memory/paging.hpp"
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 
 #include "memory/vmm_heap.hpp"
 #include "std/detail/sticky_counter.hpp"

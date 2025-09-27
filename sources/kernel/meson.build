@@ -367,7 +367,8 @@ liblogging_nosanitize = static_library('logging_nosanitize', logging_src,
 
 paging_src = files(
     'src/memory/memory.cpp',
-    'src/memory/pte.cpp',
+    'src/memory/page_tables.cpp',
+    'src/memory/page_mapping_request.cpp',
     'src/memory/table_allocator.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',

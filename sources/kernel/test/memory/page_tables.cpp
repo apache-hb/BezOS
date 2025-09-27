@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <memory_resource>
 
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 #include "arch/paging.hpp"
 #include "setup.hpp"
 
@@ -508,9 +508,8 @@ TEST_F(PageTableTest, MapSmallRange) {
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
     size_t pages = 64;
-    km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
-
-    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    km::AddressMapping mapping { vaddr, paddr, pages * x64::kPageSize };
+    OsStatus status = pt.map(PageMappingRequest{mapping, km::PageFlags::eAll, MemoryType::eWriteBack});
     ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
@@ -602,9 +601,8 @@ TEST_F(PageTableTest, MapRangeLarge) {
     ASSERT_EQ(paddr.address % x64::kLargePageSize, 0);
 
     size_t pages = 1024;
-    km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
-
-    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    km::AddressMapping mapping { vaddr, paddr, pages * x64::kPageSize };
+    OsStatus status = pt.map({mapping, km::PageFlags::eAll, MemoryType::eWriteBack});
     ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
@@ -658,9 +656,8 @@ TEST_F(PageTableTest, MemoryFlagsOnRange) {
     const void *vaddr = (void*)0xFFFF800000000000;
     km::PhysicalAddress paddr = 0x1000000;
     size_t pages = 64;
-    km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
-
-    OsStatus status = pt.map(range, vaddr, km::PageFlags::eAll);
+    km::AddressMapping mapping { vaddr, paddr, pages * x64::kPageSize };
+    OsStatus status = pt.map({mapping, km::PageFlags::eAll, MemoryType::eWriteBack});
     ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {
@@ -680,9 +677,8 @@ TEST_F(PageTableTest, MemoryFlagsOnLargeRange) {
     ASSERT_EQ(paddr.address % x64::kLargePageSize, 0);
 
     size_t pages = 1024;
-    km::MemoryRange range { paddr, paddr + (pages * x64::kPageSize) };
-
-    OsStatus status = pt.map(range, vaddr, km::PageFlags::eCode);
+    km::AddressMapping mapping { vaddr, paddr, pages * x64::kPageSize };
+    OsStatus status = pt.map({mapping, km::PageFlags::eCode, MemoryType::eWriteBack});
     ASSERT_EQ(OsStatusSuccess, status);
 
     for (size_t i = 0; i < pages; i++) {

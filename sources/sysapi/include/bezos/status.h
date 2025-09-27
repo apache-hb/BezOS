@@ -124,6 +124,9 @@ enum OsStatusId {
 
     /// @brief The thread was terminated.
     OsStatusThreadTerminated = 0x001f,
+
+    /// @brief The operation could not be completed due to a lack of virtual address space.
+    OsStatusOutOfAddressSpace = 0x0020,
 };
 
 #define OS_SUCCESS(status) ((status) == OsStatusSuccess)

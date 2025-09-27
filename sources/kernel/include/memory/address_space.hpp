@@ -3,7 +3,7 @@
 #include "memory/heap.hpp"
 #include "memory/paging.hpp"
 #include "memory/pmm_heap.hpp"
-#include "memory/pte.hpp"
+#include "memory/page_tables.hpp"
 #include "memory/range.hpp"
 #include "memory/vmm_heap.hpp"
 

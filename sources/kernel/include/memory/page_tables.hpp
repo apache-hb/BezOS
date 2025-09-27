@@ -8,6 +8,7 @@
 #include "memory/paging.hpp"
 #include "memory/range.hpp"
 #include "memory/table_allocator.hpp"
+#include "memory/page_mapping_request.hpp"
 
 namespace km {
     class PageTableCommandList;
@@ -258,23 +259,36 @@ namespace km {
 
         /// @brief Map a range of memory to a virtual address.
         ///
-        /// @note Equivalent to @c map(AddressMapping::of(range, vaddr), flags, type).
-        ///
-        /// @param range The range to map.
-        /// @param vaddr The virtual address to map to.
-        /// @param flags The flags to use for the mapping.
-        /// @param type The type of memory to map.
-        ///
-        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
-        /// @retval OsStatusOutOfMemory There was not enough memory to map the range, no memory has been mapped.
-        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped.
+        /// @param request The mapping request.
         ///
         /// @return The status of the operation.
+        ///
+        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+        /// @retval OsStatusOutOfMemory There was not enough physical memory to map the range, no memory has been mapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
         [[nodiscard]]
-        OsStatus map(MemoryRange range, const void *vaddr, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
+        OsStatus map(const PageMappingRequest& request);
 
+        /// @brief Create a new page table manager.
+        ///
+        /// @pre @p pm must not be null.
+        /// @pre @p pteMemory.size must be non-zero and a multiple of @a x64::kPageSize.
+        /// @pre @p pteMemory.vaddr must be aligned to @a x64::kPageSize.
+        /// @pre @p pteMemory.paddr must be aligned to @a x64::kPageSize.
+        /// @pre @p pteMemory.vaddr must be a canonical address.
+        ///
+        /// @param pm The page builder to query system information from.
+        /// @param pteMemory The memory to use for page table allocations.
+        /// @param flags The flags to use for intermediate page tables.
+        /// @param tables The newly created page table manager.
+        ///
+        /// @return The status of the operation.
+        ///
+        /// @retval OsStatusSuccess The page tables were created successfully, @p tables is initialized.
+        /// @retval OsStatusInvalidInput The input parameters were malformed, no page tables have been created.
+        /// @retval OsStatusOutOfMemory There was not enough memory to create the page tables, no page tables have been created.
         [[nodiscard]]
-        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, PageTables *tables [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]];
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

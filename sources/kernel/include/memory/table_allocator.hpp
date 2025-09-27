@@ -1,5 +1,6 @@
 #pragma once
 
+#include "std/std.hpp"
 #include "arch/paging.hpp"
 #include "memory/range.hpp"
 
@@ -12,10 +13,16 @@ namespace km {
     namespace detail {
         void *AllocateBlock(PageTableAllocator& allocator, size_t size);
         bool CanAllocateBlocks(const ControlBlock *head, size_t size);
-        detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining [[gnu::nonnull]]);
+        detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining [[outparam]]);
     }
 
     struct PteAllocatorStats {
+        /// @brief The granularity of blocks managed by the allocator.
+        size_t blockSize;
+
+        /// @brief The total number of blocks managed by the allocator.
+        size_t totalBlocks;
+
         /// @brief The number of blocks currently available.
         size_t freeBlocks;
 
@@ -24,6 +31,18 @@ namespace km {
 
         /// @brief Size of the largest free block.
         size_t largestBlock;
+
+        size_t getTotalSize() const noexcept [[clang::nonallocating]] {
+            return totalBlocks * blockSize;
+        }
+
+        size_t getFreeSize() const noexcept [[clang::nonallocating]] {
+            return freeBlocks * blockSize;
+        }
+
+        size_t getUsedSize() const noexcept [[clang::nonallocating]] {
+            return getTotalSize() - getFreeSize();
+        }
     };
 
     /// @brief An allocator for page tables.
@@ -35,7 +54,7 @@ namespace km {
         detail::ControlBlock *mHead{nullptr};
 
         friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
-        friend detail::PageTableList detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining);
+        friend detail::PageTableList detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining [[outparam]]);
 
         void setHead(detail::ControlBlock *block) noexcept [[clang::nonblocking]];
 
@@ -44,11 +63,11 @@ namespace km {
         UTIL_NOCOPY(PageTableAllocator);
         UTIL_DEFAULT_MOVE(PageTableAllocator);
 
-        [[gnu::malloc]]
+        [[gnu::malloc, nodiscard]]
         void *allocate(size_t blocks) [[clang::allocating]];
 
         [[gnu::nonnull]]
-        void deallocate(void *ptr, size_t blocks) noexcept [[clang::nonallocating]];
+        void deallocate(void *ptr [[gnu::nonnull]], size_t blocks) noexcept [[clang::nonallocating]];
 
         /// @brief Allocates a list of blocks rather than a single block.
         ///
@@ -69,11 +88,14 @@ namespace km {
 
         void defragment() noexcept [[clang::nonallocating]];
 
+        [[nodiscard]]
         PteAllocatorStats stats() const noexcept [[clang::nonblocking]];
 
+        [[nodiscard]]
         bool contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
 
-        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[clang::noescape, gnu::nonnull]]) noexcept [[clang::allocating]];
+        [[nodiscard]]
+        static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[outparam]]) noexcept [[clang::allocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {

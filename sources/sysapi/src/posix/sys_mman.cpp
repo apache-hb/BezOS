@@ -38,7 +38,7 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
     }
 
     OsMemoryAccess access = ConvertMmapAccess(prot);
-    if ((flags & MAP_FIXED) == 0) {
+    if (((flags & MAP_FIXED) == 0) && addr != nullptr) {
         access |= eOsMemoryAddressHint;
     }
 

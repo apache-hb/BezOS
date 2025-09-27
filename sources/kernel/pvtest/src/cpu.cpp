@@ -111,7 +111,7 @@ OsStatus pv::CpuCore::resolveVirtualAddress(sm::VirtualAddress address, sm::Phys
         SignalAssert("virtual address %p escapes guest memory %p-%p\n",
                      (void*)address, (void*)range.front, (void*)range.back);
     }
-    auto [pml4e, pdpte, pdte, pte] = km::GetAddressParts(address.address);
+    auto [pml4e, pdpte, pdte, pte] = km::getAddressParts(address.address);
 
     sm::VirtualAddress l4Address = mMemory->getHostAddress(x64::Cr3::of(cr3).address());
     x64::PageMapLevel4 *l4 = std::bit_cast<x64::PageMapLevel4*>(l4Address);
