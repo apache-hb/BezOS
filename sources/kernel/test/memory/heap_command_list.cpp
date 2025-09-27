@@ -36,7 +36,7 @@ TEST_F(TlsfCommandListTest, DiscardSplit) {
 
     km::TlsfAllocation allocation = heap.malloc(0x1000);
     km::TlsfAllocation lo, hi;
-    auto base = allocation.address();
+    auto base = allocation.offset();
 
     auto stats0 = heap.stats();
 
@@ -65,7 +65,7 @@ TEST_F(TlsfCommandListTest, CommitSplit) {
     ASSERT_FALSE(allocation.isNull());
 
     km::TlsfAllocation lo, hi;
-    auto base = allocation.address();
+    auto base = allocation.offset();
 
     auto stats0 = heap.stats();
 
@@ -84,8 +84,8 @@ TEST_F(TlsfCommandListTest, CommitSplit) {
     ASSERT_EQ(stats0.freeMemory, stats1.freeMemory);
     ASSERT_LT(stats0.blockCount, stats1.blockCount);
 
-    ASSERT_EQ(lo.address(), base);
-    ASSERT_EQ(hi.address(), base + 0x100);
+    ASSERT_EQ(lo.offset(), base);
+    ASSERT_EQ(hi.offset(), base + 0x100);
 }
 
 TEST_F(TlsfCommandListTest, CommitSplitVector) {
@@ -96,7 +96,7 @@ TEST_F(TlsfCommandListTest, CommitSplitVector) {
 
     km::TlsfAllocation allocation = heap.malloc(0x1000);
     ASSERT_FALSE(allocation.isNull());
-    auto base = allocation.address();
+    auto base = allocation.offset();
 
     std::array<km::TlsfAllocation, 5> results;
     std::array<km::PhysicalAddress, 4> points = {
@@ -123,9 +123,9 @@ TEST_F(TlsfCommandListTest, CommitSplitVector) {
     ASSERT_EQ(stats0.freeMemory, stats1.freeMemory);
     ASSERT_LT(stats0.blockCount, stats1.blockCount);
 
-    ASSERT_EQ(results[0].address(), base);
-    ASSERT_EQ(results[1].address(), base + 0x100);
-    ASSERT_EQ(results[2].address(), base + 0x200);
-    ASSERT_EQ(results[3].address(), base + 0x300);
-    ASSERT_EQ(results[4].address(), base + 0x400);
+    ASSERT_EQ(results[0].offset(), base);
+    ASSERT_EQ(results[1].offset(), base + 0x100);
+    ASSERT_EQ(results[2].offset(), base + 0x200);
+    ASSERT_EQ(results[3].offset(), base + 0x300);
+    ASSERT_EQ(results[4].offset(), base + 0x400);
 }

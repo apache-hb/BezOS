@@ -10,13 +10,13 @@ dev::DisplayHandle::DisplayHandle(sm::RcuSharedPtr<DisplayDevice> node, const vo
 {
     km::Canvas canvas = mNode->getCanvas();
 
-    km::MemoryRange range = {
+    km::MemoryRangeEx range = {
         .front = canvas.physical(),
         .back = canvas.physical() + canvas.size() * canvas.bytesPerPixel(),
     };
 
     auto& pm = km::GetProcessPageManager();
-    if (OsStatus status = pm.mapExternal(range, km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine, &mUserCanvas)) {
+    if (OsStatus status = pm.mapExternal(range.cast<km::PhysicalAddress>(), km::PageFlags::eUser | km::PageFlags::eWrite, km::MemoryType::eWriteCombine, &mUserCanvas)) {
         UserLog.fatalf("Failed to map display canvas: ", OsStatusId(status));
         KM_PANIC("Failed to map display canvas.");
     }

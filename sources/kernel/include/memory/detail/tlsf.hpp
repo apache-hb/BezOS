@@ -218,8 +218,8 @@ namespace km {
             return mBlock->size;
         }
 
-        constexpr PhysicalAddress address() const noexcept [[clang::nonblocking]] {
-            return PhysicalAddress(mBlock->offset);
+        constexpr size_t offset() const noexcept [[clang::nonblocking]] {
+            return mBlock->offset;
         }
 
         constexpr MemoryRange range() const noexcept [[clang::nonblocking]] {

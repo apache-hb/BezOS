@@ -60,7 +60,7 @@ static boot::FrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
     limine_framebuffer_response response = *gFramebufferRequest.response;
     limine_framebuffer framebuffer = *response.framebuffers[index];
 
-    km::PhysicalAddress edidAddress = km::PhysicalAddress { (uintptr_t)framebuffer.edid };
+    km::PhysicalAddressEx edidAddress{ (uintptr_t)framebuffer.edid };
 
     return boot::FrameBuffer {
         .width = framebuffer.width,
@@ -73,7 +73,7 @@ static boot::FrameBuffer BootGetDisplay(int index, uintptr_t hhdmOffset) {
         .greenMaskShift = framebuffer.green_mask_shift,
         .blueMaskSize = framebuffer.blue_mask_size,
         .blueMaskShift = framebuffer.blue_mask_shift,
-        .paddr = km::PhysicalAddress { (uintptr_t)framebuffer.address - hhdmOffset },
+        .paddr = km::PhysicalAddressEx { (uintptr_t)framebuffer.address - hhdmOffset },
         .vaddr = framebuffer.address,
         .edid = { edidAddress, edidAddress + framebuffer.edid_size }
     };

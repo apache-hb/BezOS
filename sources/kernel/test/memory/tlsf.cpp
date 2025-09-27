@@ -46,12 +46,12 @@ public:
     }
 
     static void EnsureHeapSize(TlsfHeap& heap, size_t size) {
-        std::map<km::PhysicalAddress, km::TlsfAllocation> allocations;
+        std::map<uintptr_t, km::TlsfAllocation> allocations;
         for (size_t i = 0; i < size / 0x100; i++) {
             km::TlsfAllocation addr = heap.aligned_alloc(0x10, 0x100);
             EXPECT_TRUE(addr.isValid());
-            EXPECT_FALSE(allocations.contains(addr.address()));
-            allocations.emplace(addr.address(), addr);
+            EXPECT_FALSE(allocations.contains(addr.offset()));
+            allocations.emplace(addr.offset(), addr);
         }
 
         auto stats = heap.stats();
@@ -315,13 +315,13 @@ TEST_F(TlsfHeapTest, Split) {
 
     heap.validate();
 
-    auto base = addr.address();
+    auto base = addr.offset();
     TlsfAllocation lo, hi;
-    status = heap.split(addr, base.address + 0x50, &lo, &hi);
+    status = heap.split(addr, base + 0x50, &lo, &hi);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    EXPECT_EQ(lo.address(), base);
-    EXPECT_EQ(hi.address(), base + 0x50);
+    EXPECT_EQ(lo.offset(), base);
+    EXPECT_EQ(hi.offset(), base + 0x50);
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -342,14 +342,14 @@ TEST_F(TlsfHeapTest, SplitRelease) {
     EXPECT_EQ(stats.freeMemory, range.size() - 0x100);
     EXPECT_EQ(stats.usedMemory, 0x100);
 
-    auto base = addr.address();
+    auto base = addr.offset();
 
     TlsfAllocation lo, hi;
-    status = heap.split(addr, base.address + 0x50, &lo, &hi);
+    status = heap.split(addr, base + 0x50, &lo, &hi);
     ASSERT_EQ(status, OsStatusSuccess);
 
-    EXPECT_EQ(lo.address(), base);
-    EXPECT_EQ(hi.address(), base + 0x50);
+    EXPECT_EQ(lo.offset(), base);
+    EXPECT_EQ(hi.offset(), base + 0x50);
 
     auto stats1 = heap.stats();
     EXPECT_EQ(stats1.freeMemory, range.size() - 0x100);
@@ -359,7 +359,7 @@ TEST_F(TlsfHeapTest, SplitRelease) {
     auto stats2 = heap.stats();
     EXPECT_EQ(stats2.freeMemory, range.size() - 0x100 + 0x50);
     EXPECT_EQ(stats2.usedMemory, 0x100 - 0x50);
-    EXPECT_EQ(hi.address(), base + 0x50);
+    EXPECT_EQ(hi.offset(), base + 0x50);
 
     heap.validate();
 }
@@ -379,15 +379,15 @@ TEST_F(TlsfHeapTest, SplitVector) {
     std::array<km::PhysicalAddress, 15> points;
     std::array<TlsfAllocation, 16> results;
     for (size_t i = 0; i < points.size(); i++) {
-        points[i] = addr.address() + 0x100 + (i * 0x100);
+        points[i] = addr.offset() + 0x100 + (i * 0x100);
     }
 
-    auto base = addr.address();
+    auto base = addr.offset();
 
     status = heap.splitv(addr, points, results);
     ASSERT_EQ(status, OsStatusSuccess);
     for (size_t i = 0; i < results.size(); i++) {
-        EXPECT_EQ(results[i].address().address, base.address + (i * 0x100)) << "i: " << i;
+        EXPECT_EQ(results[i].offset(), base + (i * 0x100)) << "i: " << i;
     }
 
     heap.validate();
@@ -408,7 +408,7 @@ TEST_F(TlsfHeapTest, SplitVectorOom) {
     std::vector<km::PhysicalAddress> points;
     std::vector<TlsfAllocation> results;
     for (size_t i = 0; i < (0x2000 / 0x10) - 1; i++) {
-        points.push_back(addr.address() + 0x10 + (i * 0x10));
+        points.push_back(addr.offset() + 0x10 + (i * 0x10));
     }
     results.resize(points.size() + 1);
 
@@ -618,7 +618,7 @@ TEST_F(TlsfHeapTest, AllocFree) {
         TlsfAllocation addr = heap.aligned_alloc(0x10, 0x200);
         EXPECT_TRUE(addr.isValid());
 
-        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
         pointers.insert(addr);
     }
 
@@ -646,7 +646,7 @@ TEST_F(TlsfHeapTest, AllocFree) {
         auto addr = heap.aligned_alloc(0x10, 0x100);
         EXPECT_TRUE(addr.isValid());
 
-        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
         pointers.insert(addr);
     }
 }
@@ -672,7 +672,7 @@ TEST_F(TlsfHeapTest, AllocFreeSlots) {
 
         EXPECT_TRUE(addr.isValid());
 
-        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
         pointers.insert(addr);
     }
 
@@ -684,7 +684,7 @@ TEST_F(TlsfHeapTest, AllocFreeSlots) {
         std::advance(it, index);
         alloc = *it;
         EXPECT_TRUE(alloc.isValid());
-        EXPECT_TRUE(pointers.contains(alloc)) << "Pointer not found: " << (void*)alloc.address().address;
+        EXPECT_TRUE(pointers.contains(alloc)) << "Pointer not found: " << (void*)alloc.offset();
 
         GetGlobalAllocator()->mNoAlloc = true;
         heap.free(alloc);
@@ -704,7 +704,7 @@ TEST_F(TlsfHeapTest, AllocFreeSlots) {
         auto addr = heap.aligned_alloc(0x10, 0x100);
         EXPECT_TRUE(addr.isValid());
 
-        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+        ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
         pointers.insert(addr);
     }
 }
@@ -923,7 +923,7 @@ TEST_F(TlsfHeapTest, AllocFreeRandom) {
 
             EXPECT_TRUE(addr.isValid());
 
-            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
             pointers.insert(addr);
         }
     }
@@ -967,7 +967,7 @@ TEST_F(TlsfHeapTest, AllocFreeRandomAlign) {
 
             EXPECT_TRUE(addr.isValid());
 
-            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.address().address;
+            ASSERT_FALSE(pointers.contains(addr)) << "Duplicate pointer: " << (void*)addr.offset();
             pointers.insert(addr);
         }
     }
@@ -997,7 +997,7 @@ TEST_F(TlsfHeapTest, AllocChunk) {
             }
 
             EXPECT_TRUE(ptr.isValid());
-            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.address().address;
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.offset();
             pointers.push_back(ptr);
         }
 
@@ -1046,10 +1046,10 @@ TEST_F(TlsfHeapTest, AllocChunkRandomSize) {
             }
 
             EXPECT_TRUE(ptr.isValid());
-            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.address().address;
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.offset();
             pointers.push_back(ptr);
 
-            EXPECT_TRUE(ptr.address().address % align == 0) << "Pointer not aligned: " << align << " ptr " << (void*)ptr.address().address;
+            EXPECT_TRUE(ptr.offset() % align == 0) << "Pointer not aligned: " << align << " ptr " << (void*)ptr.offset();
         }
 
         if (distribution(random) < 24) {
@@ -1100,10 +1100,10 @@ TEST_F(TlsfHeapTest, AllocChunkRandomSizeOom) {
             }
 
             EXPECT_TRUE(ptr.isValid());
-            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.address().address;
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.offset();
             pointers.push_back(ptr);
 
-            EXPECT_TRUE(ptr.address().address % align == 0) << "Pointer not aligned: " << align << " ptr " << (void*)ptr.address().address;
+            EXPECT_TRUE(ptr.offset() % align == 0) << "Pointer not aligned: " << align << " ptr " << (void*)ptr.offset();
         }
 
         if (distribution(random) < 24) {
@@ -1159,7 +1159,7 @@ TEST_F(TlsfHeapTest, OomDoesntLeakBlocks) {
             }
 
             EXPECT_TRUE(ptr.isValid());
-            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.address().address;
+            ASSERT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.offset();
             pointers.push_back(ptr);
         }
 
@@ -1195,7 +1195,7 @@ TEST_F(TlsfHeapTest, AllocateAt) {
 
     TlsfAllocation addr = heap.allocateAt(0x2000, 0x100);
     EXPECT_TRUE(addr.isValid());
-    EXPECT_EQ(addr.address().address, 0x2000);
+    EXPECT_EQ(addr.offset(), 0x2000);
 
     auto stats = heap.stats();
     EXPECT_EQ(stats.usedMemory, 0x100);
@@ -1370,16 +1370,16 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
                 break;
             }
 
-            auto base = ptr.address();
+            auto base = ptr.offset();
 
             if (distribution(random) % 10 == 0) {
                 size_t newSize = (size / 2);
                 TlsfAllocation lo, hi;
-                if (heap.split(ptr, base.address + newSize, &lo, &hi) == OsStatusSuccess) {
+                if (heap.split(ptr, base + newSize, &lo, &hi) == OsStatusSuccess) {
                     EXPECT_TRUE(lo.isValid());
                     EXPECT_TRUE(hi.isValid());
-                    EXPECT_EQ(lo.address().address, base.address);
-                    EXPECT_EQ(hi.address().address, base.address + newSize);
+                    EXPECT_EQ(lo.offset(), base);
+                    EXPECT_EQ(hi.offset(), base + newSize);
                     heap.free(lo);
                     heap.free(hi);
                 } else {
@@ -1390,10 +1390,10 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
                 break;
             }
 
-            ASSERT_TRUE(range.contains(ptr.address())) << "Pointer not in range: " << (void*)ptr.address().address << " (iteration: " << i << ")";
+            ASSERT_TRUE(range.contains(ptr.offset())) << "Pointer not in range: " << (void*)ptr.offset() << " (iteration: " << i << ")";
 
             EXPECT_TRUE(ptr.isValid());
-            EXPECT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.address().address << " (iteration: " << i << ")";
+            EXPECT_TRUE(std::ranges::find(pointers, ptr) == pointers.end()) << "Duplicate pointer: " << (void*)ptr.offset() << " (iteration: " << i << ")";
             pointers.push_back(ptr);
         }
 
@@ -1406,10 +1406,10 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
                     if (heap.resize(pointers[index], sizeDistribution(random) * 0x10, &newPtr) == OsStatusSuccess) {
                         EXPECT_TRUE(newPtr.isValid());
                         pointers.erase(std::remove(pointers.begin(), pointers.end(), pointers[index]), pointers.end());
-                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)newPtr.address().address;
+                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)newPtr.offset();
                         pointers.push_back(newPtr);
                     } else {
-                        EXPECT_FALSE(newPtr.isValid()) << "Failed to resize pointer: " << (void*)pointers[index].address().address;
+                        EXPECT_FALSE(newPtr.isValid()) << "Failed to resize pointer: " << (void*)pointers[index].offset();
                     }
                     break;
                 }
@@ -1421,7 +1421,7 @@ TEST_F(TlsfHeapTest, ResizeAllocSingle) {
                         EXPECT_TRUE(newPtr.isValid());
 
                         pointers.erase(std::remove(pointers.begin(), pointers.end(), pointers[index]), pointers.end());
-                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)newPtr.address().address;
+                        EXPECT_TRUE(std::ranges::find(pointers, newPtr) == pointers.end()) << "Duplicate pointer: " << (void*)newPtr.offset();
                         pointers.push_back(newPtr);
                     } else {
                         EXPECT_FALSE(newPtr.isValid());

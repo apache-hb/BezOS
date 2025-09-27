@@ -28,7 +28,7 @@ namespace km {
         }
 
         sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]] {
-            return std::bit_cast<sm::VirtualAddress>(mAddressAllocation.address());
+            return sm::VirtualAddress{mAddressAllocation.offset()};
         }
 
         km::VirtualRangeEx range() const noexcept [[clang::nonblocking]] {

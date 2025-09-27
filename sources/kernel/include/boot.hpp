@@ -34,17 +34,17 @@ namespace boot {
         uint8_t blueMaskSize;
         uint8_t blueMaskShift;
 
-        km::PhysicalAddress paddr;
+        km::PhysicalAddressEx paddr;
         void *vaddr;
 
-        km::MemoryRange edid;
+        km::MemoryRangeEx edid;
 
         size_t size() const {
             return pitch * height;
         }
 
         km::AddressMapping mapping() const {
-            return { vaddr, paddr, size() };
+            return { vaddr, paddr.address, size() };
         }
     };
 
