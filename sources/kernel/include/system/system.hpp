@@ -76,7 +76,6 @@ namespace sys {
         OsStatus mapSystemStack(km::StackMapping *mapping);
         OsStatus mapSystemStackEx(km::StackMappingAllocation *mapping);
 
-        void releaseMemory(km::MemoryRange range);
         OsStatus releaseMapping(km::AddressMapping mapping);
         OsStatus releaseStack(km::StackMappingAllocation mapping);
 

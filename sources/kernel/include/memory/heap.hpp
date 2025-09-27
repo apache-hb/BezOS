@@ -263,6 +263,9 @@ namespace km {
         /// @warning Invalidates all outstanding allocations.
         void reset() noexcept [[clang::nonallocating]];
 
+        /// @brief Dump the internal state of the heap to the log.
+        void dump() const noexcept [[clang::nonallocating]];
+
         /// @brief Create a heap from a single contiguous range.
         ///
         /// @param range The range to create the heap from.
@@ -276,6 +279,7 @@ namespace km {
         /// @brief Create a heap from multiple discontiguous ranges.
         ///
         /// @pre @p ranges must not be empty, and must be sorted in ascending order.
+        /// @pre elements in @p ranges must not be empty.
         ///
         /// @param ranges The ranges to create the heap from.
         /// @param[out] heap The resulting heap.
@@ -544,6 +548,11 @@ namespace km {
         /// @warning Invalidates all outstanding allocations.
         void reset() noexcept [[clang::nonallocating]] {
             mHeap.reset();
+        }
+
+        /// @brief Dump the internal state of the heap to the log.
+        void dump() const noexcept [[clang::nonallocating]] {
+            mHeap.dump();
         }
 
         /// @brief Create a heap from a single contiguous range.

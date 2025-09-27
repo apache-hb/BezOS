@@ -1307,6 +1307,7 @@ TEST_F(TlsfHeapTest, CreateManyOom) {
         }
     }
 }
+#endif
 
 TEST_F(TlsfHeapTest, CreateManyEmpty) {
     km::MemoryRange empty{ 0x1000, 0x1000 };
@@ -1335,7 +1336,6 @@ TEST_F(TlsfHeapTest, CreateManyEmptyElement) {
     OsStatus status = TlsfHeap::create(list, &heap);
     EXPECT_EQ(status, OsStatusInvalidInput) << "Empty ranges should not be valid";
 }
-#endif
 
 TEST_F(TlsfHeapTest, ResizeAllocSingle) {
     std::mt19937 random{0x1234};

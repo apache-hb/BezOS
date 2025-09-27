@@ -1,5 +1,6 @@
 #include "memory/page_allocator.hpp"
 
+#include "logger/categories.hpp"
 #include "memory/layout.hpp"
 #include "std/inlined_vector.hpp"
 #include "std/spinlock.hpp"
@@ -49,6 +50,7 @@ OsStatus PageAllocator::reserve(MemoryRange range, PmmAllocation *allocation [[o
 
 void PageAllocator::release(MemoryRange range) {
     stdx::LockGuard guard(mLock);
+    MemLog.infof("Releasing memory range: ", range);
     // mMemoryHeap.freeAddress(range.front);
 }
 

@@ -8,6 +8,7 @@
 #include "memory/pte.hpp"
 
 #include "memory/vmm_heap.hpp"
+#include "std/detail/sticky_counter.hpp"
 #include "std/spinlock.hpp"
 #include "system/detail/range_table.hpp"
 
@@ -20,14 +21,46 @@ namespace km {
 namespace sys {
     class MemoryManager;
 
-    struct AddressSegment {
-        km::MemoryRange backing;
-        km::VmemAllocation allocation;
+    class AddressSegment {
+        sm::detail::StickyCounter<size_t> mRefCount { 1 };
+        km::MemoryRange mBackingMemory;
+        km::VmemAllocation mVmemAllocation;
+
+    public:
+        constexpr AddressSegment() noexcept = default;
+
+        constexpr AddressSegment(km::MemoryRange backingMemory, km::VmemAllocation vmemAllocation) noexcept
+            : mBackingMemory(backingMemory)
+            , mVmemAllocation(vmemAllocation)
+        {
+            KM_ASSERT(!vmemAllocation.isNull());
+        }
+
+        constexpr AddressSegment(const AddressSegment& other) noexcept
+            : AddressSegment(other.getBackingMemory(), other.getVmemAllocation())
+        { }
+
+        constexpr AddressSegment& operator=(const AddressSegment& other) noexcept {
+            if (this != &other) {
+                mBackingMemory = other.getBackingMemory();
+                mVmemAllocation = other.getVmemAllocation();
+            }
+
+            return *this;
+        }
+
+        km::MemoryRange getBackingMemory() const noexcept [[clang::nonallocating]] {
+            return mBackingMemory;
+        }
+
+        km::VmemAllocation getVmemAllocation() const noexcept [[clang::nonallocating]] {
+            return mVmemAllocation;
+        }
 
         km::AddressMapping mapping() const noexcept [[clang::nonallocating]] {
-            auto front = allocation.address();
+            auto front = mVmemAllocation.address();
             const void *vaddr = std::bit_cast<const void*>(front);
-            return km::MappingOf(backing, vaddr);
+            return km::MappingOf(mBackingMemory, vaddr);
         }
 
         /// @brief Does this segment have physical memory backing it?
@@ -37,11 +70,11 @@ namespace sys {
         ///
         /// @return True if the segment has backing memory, false otherwise.
         bool hasBackingMemory() const noexcept [[clang::nonblocking]] {
-            return !backing.isEmpty();
+            return !mBackingMemory.isEmpty();
         }
 
         km::VirtualRange range() const noexcept [[clang::nonallocating]] {
-            return allocation.range().cast<const void*>();
+            return mVmemAllocation.range().cast<const void*>();
         }
     };
 
@@ -197,7 +230,7 @@ namespace sys {
         void dump() noexcept {
             stdx::LockGuard guard(mLock);
             for (const auto& [_, segment] : segments()) {
-                MemLog.dbgf("Segment: ", segment.backing, " ", segment.range());
+                MemLog.dbgf("Segment: ", segment.getBackingMemory(), " ", segment.range());
             }
         }
 

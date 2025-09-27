@@ -107,9 +107,9 @@ public:
             << std::string_view(km::format(segment.range()))
             << " != " << std::string_view(km::format(range));
 
-        ASSERT_EQ(segment.backing, memory.cast<km::PhysicalAddress>())
+        ASSERT_EQ(segment.getBackingMemory(), memory.cast<km::PhysicalAddress>())
             << "Backing memory mismatch: "
-            << std::string_view(km::format(segment.backing))
+            << std::string_view(km::format(segment.getBackingMemory()))
             << " != " << std::string_view(km::format(memory));
     }
 
@@ -263,7 +263,7 @@ TEST_F(AddressSpaceManagerTest, UnmapFront) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping.physicalRange());
     ASSERT_EQ(seg0.range(), mapping.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -302,7 +302,7 @@ TEST_F(AddressSpaceManagerTest, UnmapBack) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping.physicalRange());
     ASSERT_EQ(seg0.range(), mapping.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -336,7 +336,7 @@ TEST_F(AddressSpaceManagerTest, UnmapSpill) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping.physicalRange());
     ASSERT_EQ(seg0.range(), mapping.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -367,7 +367,7 @@ TEST_F(AddressSpaceManagerTest, UnmapSpillFront) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping.physicalRange());
     ASSERT_EQ(seg0.range(), mapping.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -402,7 +402,7 @@ TEST_F(AddressSpaceManagerTest, UnmapSpillBack) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping.physicalRange());
     ASSERT_EQ(seg0.range(), mapping.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -441,7 +441,7 @@ TEST_F(AddressSpaceManagerTest, UnmapMany) {
         sys::AddressSegment seg0;
         status = asManager0.querySegment(mappings[i].vaddr, &seg0);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_EQ(seg0.backing, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.getBackingMemory(), mappings[i].physicalRange());
         ASSERT_EQ(seg0.range(), mappings[i].virtualRange());
     }
 
@@ -484,7 +484,7 @@ TEST_F(AddressSpaceManagerTest, UnmapManyInner) {
         sys::AddressSegment seg0;
         status = asManager0.querySegment(mappings[i].vaddr, &seg0);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_EQ(seg0.backing, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.getBackingMemory(), mappings[i].physicalRange());
         ASSERT_EQ(seg0.range(), mappings[i].virtualRange());
     }
 
@@ -538,7 +538,7 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillFront) {
         sys::AddressSegment seg0;
         status = asManager0.querySegment(mappings[i].vaddr, &seg0);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_EQ(seg0.backing, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.getBackingMemory(), mappings[i].physicalRange());
         ASSERT_EQ(seg0.range(), mappings[i].virtualRange());
     }
 
@@ -584,7 +584,7 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack) {
         sys::AddressSegment seg0;
         status = asManager0.querySegment(mappings[i].vaddr, &seg0);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_EQ(seg0.backing, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.getBackingMemory(), mappings[i].physicalRange());
         ASSERT_EQ(seg0.range(), mappings[i].virtualRange());
     }
 
@@ -630,7 +630,7 @@ TEST_F(AddressSpaceManagerTest, UnmapManySpillBack2) {
         sys::AddressSegment seg0;
         status = asManager0.querySegment(mappings[i].vaddr, &seg0);
         ASSERT_EQ(status, OsStatusSuccess);
-        ASSERT_EQ(seg0.backing, mappings[i].physicalRange());
+        ASSERT_EQ(seg0.getBackingMemory(), mappings[i].physicalRange());
         ASSERT_EQ(seg0.range(), mappings[i].virtualRange());
     }
 
@@ -672,7 +672,7 @@ TEST_F(AddressSpaceManagerTest, MapRemote) {
     sys::AddressSegment seg0;
     status = asManager0.querySegment(mapping0.vaddr, &seg0);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg0.backing, mapping0.physicalRange());
+    ASSERT_EQ(seg0.getBackingMemory(), mapping0.physicalRange());
     ASSERT_EQ(seg0.range(), mapping0.virtualRange());
 
     auto stats0 = asManager0.stats();
@@ -689,7 +689,7 @@ TEST_F(AddressSpaceManagerTest, MapRemote) {
     sys::AddressSegment seg1;
     status = asManager1.querySegment(range1.front, &seg1);
     ASSERT_EQ(status, OsStatusSuccess);
-    ASSERT_EQ(seg1.backing, mapping0.physicalRange());
+    ASSERT_EQ(seg1.getBackingMemory(), mapping0.physicalRange());
     ASSERT_EQ(seg1.range(), range1);
 }
 

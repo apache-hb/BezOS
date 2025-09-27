@@ -67,3 +67,17 @@ namespace sys {
         return Sanitize<T>::sanitize(context, info, result);
     }
 }
+
+template<>
+struct km::Format<sys::VmemCreateMode> {
+    constexpr static void format(km::IOutStream& out, sys::VmemCreateMode value) noexcept {
+        switch (value) {
+        case sys::VmemCreateMode::eCommit:
+            out.write("Commit");
+            break;
+        case sys::VmemCreateMode::eReserve:
+            out.write("Reserve");
+            break;
+        }
+    }
+};

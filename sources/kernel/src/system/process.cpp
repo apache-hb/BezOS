@@ -268,11 +268,16 @@ OsStatus sys::Process::destroy(System *system, const ProcessDestroyInfo& info) {
 }
 
 OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::AddressMapping *mapping) {
-    km::MemoryRange memory;
+    SysLog.dbgf("VmemCreate: Size: ", km::Hex(info.size), ", Alignment: ", km::Hex(info.alignment),
+                  ", BaseAddress: ", info.baseAddress, ", AddressIsHint: ", info.addressIsHint,
+                  ", Flags: ", info.flags, ", ZeroMemory: ", info.zeroMemory,
+                  ", Mode: ", info.mode);
 
     if (info.addressIsHint && info.baseAddress.isNull()) {
         return OsStatusInvalidInput;
     }
+
+    km::MemoryRange memory;
 
     //
     // Allocate the physical memory backing the virtual memory range.
@@ -312,6 +317,8 @@ OsStatus sys::Process::vmemCreate(System *system, VmemCreateInfo info, km::Addre
             KM_ASSERT(status == OsStatusSuccess);
         }
     }
+
+    SysLog.dbgf("VmemCreate: Created vmem ", result);
 
     *mapping = result;
     return OsStatusSuccess;

@@ -115,7 +115,7 @@ TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t
     init();
 }
 
-OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
+OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[outparam]]) [[clang::allocating]] {
     size_t size = range.size();
     uint8_t memoryClass = detail::SizeToMemoryClass(size);
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
@@ -143,9 +143,15 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[clang::noescape, g
     return OsStatusSuccess;
 }
 
-OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[clang::noescape, gnu::nonnull]]) [[clang::allocating]] {
+OsStatus TlsfHeap::create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[outparam]]) [[clang::allocating]] {
     if (ranges.empty()) {
         return OsStatusInvalidInput;
+    }
+
+    for (const MemoryRange& range : ranges) {
+        if (range.isEmpty()) {
+            return OsStatusInvalidInput;
+        }
     }
 
     if (ranges.size() == 1) {
@@ -1021,4 +1027,12 @@ void TlsfHeap::reset() noexcept [[clang::nonallocating]] {
 
     mMallocCount = 0;
     mFreeCount = 0;
+}
+
+void TlsfHeap::dump() const noexcept [[clang::nonallocating]] {
+    TlsfBlock *block = mNullBlock;
+    while (block != nullptr) {
+        MemLog.infof("Block: ", sm::VirtualAddress(block->offset), " (", block->size, ") ", block->isFree() ? "Free" : "Used");
+        block = block->prev;
+    }
 }

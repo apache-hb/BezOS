@@ -82,10 +82,6 @@ OsStatus sys::System::mapSystemStackEx(km::StackMappingAllocation *mapping) {
     return OsStatusSuccess;
 }
 
-void sys::System::releaseMemory(km::MemoryRange range) {
-    mPageAllocator->release(range);
-}
-
 OsStatus sys::System::releaseMapping(km::AddressMapping mapping) {
     if (OsStatus status = mSystemTables->unmap(mapping.virtualRange())) {
         return status;

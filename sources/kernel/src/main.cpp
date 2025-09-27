@@ -1168,13 +1168,15 @@ static void AddProcessSystemCalls() {
 static void AddVmemSystemCalls() {
     AddSystemCall(eOsCallVmemCreate, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         System system = GetSystem();
-        return um::VmemCreate(&system, context, regs);
+        auto result = um::VmemCreate(&system, context, regs);
+        SysLog.dbgf("VmemCreate result: ", OsStatusId(result.Status));
+        return result;
     });
 
     AddSystemCall(eOsCallVmemMap, [](CallContext *context, SystemCallRegisterSet *regs) -> OsCallResult {
         System system = GetSystem();
         auto result = um::VmemMap(&system, context, regs);
-        InitLog.dbgf("VmemMap result: ", OsStatusId(result.Status));
+        SysLog.dbgf("VmemMap result: ", OsStatusId(result.Status));
         return result;
     });
 
