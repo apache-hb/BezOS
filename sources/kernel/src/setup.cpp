@@ -6,6 +6,7 @@
 #include "debug/packet.hpp"
 #include "isr/isr.hpp"
 #include "kernel.hpp"
+#include "logger/categories.hpp"
 #include "logger/logger.hpp"
 #include "processor.hpp"
 #include "system/create.hpp"

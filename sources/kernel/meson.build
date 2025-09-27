@@ -468,6 +468,7 @@ memory_src = files(
     'src/memory/address_space.cpp',
     'src/memory/heap.cpp',
     'src/memory/heap_command_list.cpp',
+    'src/memory/stack_mapping.cpp',
 )
 
 libmemory_kernel = static_library('memory', memory_src,

@@ -132,6 +132,7 @@ namespace sys {
 
     OsStatus SysProcessCreate(InvokeContext *context, OsProcessCreateInfo info, OsProcessHandle *handle);
     OsStatus SysProcessDestroy(InvokeContext *context, OsProcessHandle handle, int64_t exitCode, OsProcessStateFlags reason);
+    OsStatus SysProcessDestroyCurrent(InvokeContext *context, int64_t exitCode, OsProcessStateFlags reason);
     OsStatus SysProcessStat(InvokeContext *context, OsProcessHandle handle, OsProcessInfo *result);
     OsStatus SysProcessCurrent(InvokeContext *context, OsProcessAccess access, OsProcessHandle *handle);
 

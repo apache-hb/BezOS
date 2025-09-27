@@ -1,6 +1,5 @@
 #pragma once
 
-#include "logger/categories.hpp"
 #include "memory/heap.hpp"
 #include "memory/layout.hpp"
 #include "memory/memory.hpp"
@@ -227,12 +226,7 @@ namespace sys {
 
         km::PhysicalAddress getPageMap() const noexcept [[clang::nonallocating]];
 
-        void dump() noexcept {
-            stdx::LockGuard guard(mLock);
-            for (const auto& [_, segment] : segments()) {
-                MemLog.dbgf("Segment: ", segment.getBackingMemory(), " ", segment.range());
-            }
-        }
+        void dump() noexcept;
 
         [[nodiscard]]
         static OsStatus create(const km::PageBuilder *pm, km::AddressMapping pteMemory, km::PageFlags flags, km::VirtualRange vmem, AddressSpaceManager *manager [[outparam]]) [[clang::allocating]];

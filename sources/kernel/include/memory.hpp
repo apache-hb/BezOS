@@ -13,7 +13,10 @@ namespace km {
     class StackMappingAllocation;
 
     inline VirtualRange DefaultUserArea() {
-        return VirtualRange { (void*)sm::megabytes(1).bytes(), (void*)sm::gigabytes(4).bytes() };
+        //
+        // TODO: this is a bad hack to work around me being lazy when writing the rtld
+        //
+        return VirtualRange { (void*)(x64::kPageSize * 4), (void*)sm::gigabytes(4).bytes() };
     }
 
     class SystemMemory {

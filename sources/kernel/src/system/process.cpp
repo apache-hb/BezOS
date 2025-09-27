@@ -174,13 +174,15 @@ void sys::SetProcessInitArgs(sys::System *system, sys::Process *process, std::sp
     } else {
         km::AddressMapping data;
 
-        OsStatus status = process->vmemCreate(system, VmemCreateInfo {
+        VmemCreateInfo info {
             .size = sm::roundup(args.size(), x64::kPageSize),
             .alignment = x64::kPageSize,
             .flags = km::PageFlags::eUser | km::PageFlags::eRead,
             .zeroMemory = true,
             .mode = sys::VmemCreateMode::eCommit,
-        }, &data);
+        };
+
+        OsStatus status = process->vmemCreate(system, info, &data);
         KM_ASSERT(status == OsStatusSuccess);
 
         km::VmemAllocation allocation;

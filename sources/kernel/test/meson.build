@@ -164,7 +164,7 @@ test_exe_kwargs = {
     'dependencies': [ gtest_main, sysapi, concurrentqueue, mp_units, common ],
     'override_options': native_kwargs['override_options'],
     'native': true,
-    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, liblogging_native, libtask_native ],
+    'link_with': [ libtest_shim, fs_test_shim, memory_test_shim, system_test_lib, libmemory_nosanitize, liblogging_native, libtask_native ],
 }
 
 # Benchmarks
@@ -854,7 +854,7 @@ testcases += {
         ],
         'dependencies': [ capstone, common ],
         'override_options': nosan_kwargs['override_options'],
-        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, liblogging_nosanitize ]
+        'link_with' : [ no_sanitize_test_shim, no_sanitize_memory_test_shim, libmemory_nosanitize, liblogging_nosanitize ]
     },
     'apic': {
         'sources': [
@@ -872,6 +872,7 @@ testcases += {
             no_sanitize_test_shim,
             no_sanitize_memory_test_shim,
             mmio_test_shim,
+            libmemory_nosanitize,
             liblogging_nosanitize
         ],
     },

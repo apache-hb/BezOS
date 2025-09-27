@@ -1,8 +1,6 @@
 #pragma once
 
-#include "log.hpp"
-#include "logger/categories.hpp"
-#include "memory/detail/tlsf.hpp"
+#include "memory/layout.hpp"
 #include "memory/pmm_heap.hpp"
 #include "memory/vmm_heap.hpp"
 
@@ -13,134 +11,41 @@ namespace km {
         km::VmemAllocation mGuardHead;
         km::VmemAllocation mGuardTail;
 
-        StackMappingAllocation(km::PmmAllocation memory, km::VmemAllocation address, km::VmemAllocation head, km::VmemAllocation tail) noexcept
-            : mMemoryAllocation(memory)
-            , mAddressAllocation(address)
-            , mGuardHead(head)
-            , mGuardTail(tail)
-        {
-            KM_ASSERT(memory.isValid());
-            KM_ASSERT(address.isValid());
-
-            if (memory.size() != address.size()) {
-                MemLog.fatalf("Memory size: ", memory.size(), " != total size: ", address.size());
-                KM_ASSERT(memory.size() == address.size());
-            }
-
-            if (head.isValid()) {
-                if (head.range().back != address.range().front) {
-                    MemLog.fatalf("Head: ", head.range(), " != Address: ", address.range());
-                }
-
-                KM_ASSERT(head.range().back == address.range().front);
-            }
-
-            if (tail.isValid()) {
-                if (tail.range().front != address.range().back) {
-                    MemLog.fatalf("Tail: ", tail.range(), " != Address: ", address.range());
-                }
-
-                KM_ASSERT(tail.range().front == address.range().back);
-            }
-        }
+        StackMappingAllocation(km::PmmAllocation memory, km::VmemAllocation address, km::VmemAllocation head, km::VmemAllocation tail) noexcept;
     public:
         constexpr StackMappingAllocation() noexcept = default;
 
-        km::StackMapping stackMapping() const noexcept [[clang::nonblocking]] {
-            km::AddressMapping mapping {
-                .vaddr = std::bit_cast<const void*>(baseAddress()),
-                .paddr = std::bit_cast<km::PhysicalAddress>(baseMemory()),
-                .size = mMemoryAllocation.size()
-            };
+        km::StackMapping stackMapping() const noexcept [[clang::nonblocking]];
 
-            auto range = mAddressAllocation.range().cast<sm::VirtualAddress>();
+        km::PhysicalAddressEx baseMemory() const noexcept [[clang::nonblocking]];
 
-            if (hasGuardHead()) {
-                range.front -= mGuardHead.size();
-            }
+        km::MemoryRangeEx memory() const noexcept [[clang::nonblocking]];
 
-            if (hasGuardTail()) {
-                range.back += mGuardTail.size();
-            }
+        km::VirtualRangeEx stack() const noexcept [[clang::nonblocking]];
 
-            return km::StackMapping {
-                .stack = mapping,
-                .total = range.cast<const void*>(),
-            };
-        }
+        sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]];
 
-        km::PhysicalAddressEx baseMemory() const noexcept [[clang::nonblocking]] {
-            return std::bit_cast<km::PhysicalAddressEx>(mMemoryAllocation.address());
-        }
+        sm::VirtualAddress stackBaseAddress() const noexcept [[clang::nonblocking]];
 
-        km::MemoryRangeEx memory() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation.range().cast<km::PhysicalAddressEx>();
-        }
+        size_t stackSize() const noexcept [[clang::nonblocking]];
 
-        km::VirtualRangeEx stack() const noexcept [[clang::nonblocking]] {
-            return mAddressAllocation.range().cast<sm::VirtualAddress>();
-        }
+        size_t totalSize() const noexcept [[clang::nonblocking]];
 
-        sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]] {
-            return std::bit_cast<sm::VirtualAddress>(mAddressAllocation.address());
-        }
+        km::VmemAllocation guardHead() const noexcept [[clang::nonblocking]];
 
-        sm::VirtualAddress stackBaseAddress() const noexcept [[clang::nonblocking]] {
-            return baseAddress() + mAddressAllocation.size();
-        }
+        bool hasGuardHead() const noexcept [[clang::nonblocking]];
 
-        size_t stackSize() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation.size();
-        }
+        km::VmemAllocation guardTail() const noexcept [[clang::nonblocking]];
 
-        size_t totalSize() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation.size() + (hasGuardHead() ? mGuardHead.size() : 0) + (hasGuardTail() ? mGuardTail.size() : 0);
-        }
+        bool hasGuardTail() const noexcept [[clang::nonblocking]];
 
-        km::VmemAllocation guardHead() const noexcept [[clang::nonblocking]] {
-            return mGuardHead;
-        }
+        km::PmmAllocation memoryAllocation() const noexcept [[clang::nonblocking]];
 
-        bool hasGuardHead() const noexcept [[clang::nonblocking]] {
-            return mGuardHead.isValid();
-        }
-
-        km::VmemAllocation guardTail() const noexcept [[clang::nonblocking]] {
-            return mGuardTail;
-        }
-
-        bool hasGuardTail() const noexcept [[clang::nonblocking]] {
-            return mGuardTail.isValid();
-        }
-
-        km::PmmAllocation memoryAllocation() const noexcept [[clang::nonblocking]] {
-            return mMemoryAllocation;
-        }
-
-        km::VmemAllocation stackAllocation() const noexcept [[clang::nonblocking]] {
-            return mAddressAllocation;
-        }
+        km::VmemAllocation stackAllocation() const noexcept [[clang::nonblocking]];
 
         [[nodiscard]]
-        static OsStatus create(PmmAllocation memory, VmemAllocation address, VmemAllocation head, VmemAllocation tail, StackMappingAllocation *result [[outparam]]) {
-            if (!memory.isValid() || !address.isValid() || (memory.size() != address.size())) {
-                return OsStatusInvalidInput;
-            }
+        static OsStatus create(PmmAllocation memory, VmemAllocation address, VmemAllocation head, VmemAllocation tail, StackMappingAllocation *result [[outparam]]);
 
-            if (head.isValid() && (head.range().back != address.range().front)) {
-                return OsStatusInvalidInput;
-            }
-
-            if (tail.isValid() && (tail.range().front != address.range().back)) {
-                return OsStatusInvalidInput;
-            }
-
-            *result = StackMappingAllocation::unchecked(memory, address, head, tail);
-            return OsStatusSuccess;
-        }
-
-        static StackMappingAllocation unchecked(PmmAllocation memory, VmemAllocation address, VmemAllocation head, VmemAllocation tail) {
-            return StackMappingAllocation{memory, address, head, tail};
-        }
+        static StackMappingAllocation unchecked(PmmAllocation memory, VmemAllocation address, VmemAllocation head, VmemAllocation tail);
     };
 }

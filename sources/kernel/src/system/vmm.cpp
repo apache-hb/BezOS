@@ -754,6 +754,13 @@ km::PhysicalAddress sys::AddressSpaceManager::getPageMap() const noexcept [[clan
     return mPageTables.root();
 }
 
+void sys::AddressSpaceManager::dump() noexcept {
+    stdx::LockGuard guard(mLock);
+    for (const auto& [_, segment] : segments()) {
+        MemLog.dbgf("Segment: ", segment.getBackingMemory(), " ", segment.range());
+    }
+}
+
 void sys::AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
     auto it = segments().begin();
