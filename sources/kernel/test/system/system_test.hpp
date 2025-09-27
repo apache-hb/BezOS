@@ -50,8 +50,8 @@ public:
     void SetUp() override {
         km::detail::SetupXSave(km::SaveMode::eNoSave, 0);
 
-        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegion::eUsable);
-        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegion::eUsable);
+        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegionType::eUsable);
+        body.addSegment(sm::megabytes(4).bytes(), boot::MemoryRegionType::eUsable);
     }
 
     MemoryState GetMemoryState(km::SystemMemory& memory) {

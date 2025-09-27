@@ -48,24 +48,34 @@ namespace boot {
         }
     };
 
-    struct MemoryRegion {
-        enum Type {
-            eUsable,
-            eReserved,
-            eAcpiReclaimable,
-            eAcpiNvs,
-            eBadMemory,
-            eBootloaderReclaimable,
-            eKernel,
-            eFrameBuffer,
-            eKernelRuntimeData,
-            eKernelStack,
-        };
+    enum class MemoryRegionType {
+        eUsable,
+        eReserved,
+        eAcpiReclaimable,
+        eAcpiNvs,
+        eBadMemory,
+        eBootloaderReclaimable,
+        eKernel,
+        eFrameBuffer,
+        eKernelRuntimeData,
+        eKernelStack,
+    };
 
-        Type type;
-        km::MemoryRange range;
+    class MemoryRegion {
+        MemoryRegionType mType;
+        km::MemoryRange mRange;
 
-        size_t size() const { return range.size(); }
+    public:
+        MemoryRegion(MemoryRegionType type, km::MemoryRange range)
+            : mType(type)
+            , mRange(range)
+        { }
+
+        size_t size() const { return mRange.size(); }
+
+        MemoryRegionType type() const { return mType; }
+        km::MemoryRange range() const { return mRange; }
+        void setRange(km::MemoryRange range) { mRange = range; }
 
         bool isUsable() const;
         bool isReclaimable() const;
@@ -87,22 +97,23 @@ namespace boot {
             , framebuffers(&allocator)
         {
             regions.add(MemoryRegion {
-                .type = MemoryRegion::eBootloaderReclaimable,
-                .range = mapping.physicalRange(),
+                MemoryRegionType::eBootloaderReclaimable,
+                mapping.physicalRange(),
             });
 
             regions.add(MemoryRegion {
-                .type = MemoryRegion::eReserved,
-                .range = { 0zu, km::kLowMemory },
+                MemoryRegionType::eReserved,
+                { 0zu, km::kLowMemory },
             });
         }
 
         void addRegion(MemoryRegion region) {
-            if (region.range.overlaps(prebootMemory.physicalRange())) {
-                region.range = region.range.cut(prebootMemory.physicalRange());
+            auto range = region.range();
+            if (range.overlaps(prebootMemory.physicalRange())) {
+                region.setRange(range.cut(prebootMemory.physicalRange()));
             }
 
-            if (region.range.isEmpty()) return;
+            if (range.isEmpty()) return;
 
             regions.add(region);
         }
@@ -110,14 +121,11 @@ namespace boot {
         void addDisplay(FrameBuffer fb) {
             framebuffers.add(fb);
 
-            addRegion(MemoryRegion {
-                .type = MemoryRegion::eFrameBuffer,
-                .range = fb.mapping().physicalRange(),
-            });
+            addRegion(MemoryRegion { MemoryRegionType::eFrameBuffer, fb.mapping().physicalRange() });
         }
     };
 
-    constexpr sm::Memory UsableMemory(std::span<const MemoryRegion> regions) {
+    constexpr sm::Memory usableMemory(std::span<const MemoryRegion> regions) {
         size_t result = 0;
         for (const MemoryRegion& entry : regions) {
             if (entry.isUsable()) {
@@ -127,7 +135,7 @@ namespace boot {
         return sm::bytes(result);
     }
 
-    constexpr sm::Memory ReclaimableMemory(std::span<const MemoryRegion> regions) {
+    constexpr sm::Memory reclaimableMemory(std::span<const MemoryRegion> regions) {
         size_t result = 0;
         for (const MemoryRegion& entry : regions) {
             if (entry.isReclaimable()) {
@@ -137,11 +145,11 @@ namespace boot {
         return sm::bytes(result);
     }
 
-    constexpr km::PhysicalAddress MaxPhysicalAddress(std::span<const MemoryRegion> regions) {
+    constexpr km::PhysicalAddress maxPhysicalAddress(std::span<const MemoryRegion> regions) {
         km::PhysicalAddress result = nullptr;
         for (const MemoryRegion& entry : regions) {
             if (entry.isAccessible()) {
-                result = std::max(result, entry.range.back);
+                result = std::max(result, entry.range().back);
             }
         }
         return result;
@@ -174,29 +182,29 @@ namespace boot {
 void LaunchKernel(boot::LaunchInfo launch);
 
 template<>
-struct km::Format<boot::MemoryRegion::Type> {
+struct km::Format<boot::MemoryRegionType> {
     static constexpr size_t kStringSize = 16;
-    static constexpr stdx::StringView toString(char *, boot::MemoryRegion::Type value) {
+    static constexpr stdx::StringView toString(char *, boot::MemoryRegionType value) {
         switch (value) {
-        case boot::MemoryRegion::eUsable:
+        case boot::MemoryRegionType::eUsable:
             return "Usable";
-        case boot::MemoryRegion::eReserved:
+        case boot::MemoryRegionType::eReserved:
             return "Reserved";
-        case boot::MemoryRegion::eAcpiReclaimable:
+        case boot::MemoryRegionType::eAcpiReclaimable:
             return "ACPI reclaimable";
-        case boot::MemoryRegion::eAcpiNvs:
+        case boot::MemoryRegionType::eAcpiNvs:
             return "ACPI NVS";
-        case boot::MemoryRegion::eBadMemory:
+        case boot::MemoryRegionType::eBadMemory:
             return "Bad memory";
-        case boot::MemoryRegion::eBootloaderReclaimable:
+        case boot::MemoryRegionType::eBootloaderReclaimable:
             return "Bootloader reclaimable";
-        case boot::MemoryRegion::eKernel:
+        case boot::MemoryRegionType::eKernel:
             return "Kernel and modules";
-        case boot::MemoryRegion::eFrameBuffer:
+        case boot::MemoryRegionType::eFrameBuffer:
             return "Framebuffer";
-        case boot::MemoryRegion::eKernelRuntimeData:
+        case boot::MemoryRegionType::eKernelRuntimeData:
             return "Kernel runtime data";
-        case boot::MemoryRegion::eKernelStack:
+        case boot::MemoryRegionType::eKernelStack:
             return "Kernel stack";
         default:
             return "Unknown";

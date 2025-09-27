@@ -1,6 +1,5 @@
 #include "clock.hpp"
 
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "timer/tick_source.hpp"
 

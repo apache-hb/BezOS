@@ -1,4 +1,3 @@
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "system/create.hpp"
 #include "system/schedule.hpp"

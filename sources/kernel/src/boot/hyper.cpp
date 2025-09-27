@@ -45,27 +45,27 @@ static km::AddressMapping GetBootMemory(const ultra_boot_context *context, uintp
     return { address, (uintptr_t)address - hhdmOffset, bootstrap->size };
 }
 
-static boot::MemoryRegion::Type BootGetEntryType(ultra_memory_map_entry entry) {
+static boot::MemoryRegionType BootGetEntryType(ultra_memory_map_entry entry) {
     switch (entry.type) {
     case ULTRA_MEMORY_TYPE_FREE:
-        return boot::MemoryRegion::eUsable;
+        return boot::MemoryRegionType::eUsable;
     case ULTRA_MEMORY_TYPE_RESERVED:
-        return boot::MemoryRegion::eReserved;
+        return boot::MemoryRegionType::eReserved;
     case ULTRA_MEMORY_TYPE_RECLAIMABLE:
-        return boot::MemoryRegion::eAcpiReclaimable;
+        return boot::MemoryRegionType::eAcpiReclaimable;
     case ULTRA_MEMORY_TYPE_NVS:
-        return boot::MemoryRegion::eAcpiNvs;
+        return boot::MemoryRegionType::eAcpiNvs;
     case ULTRA_MEMORY_TYPE_LOADER_RECLAIMABLE:
-        return boot::MemoryRegion::eBootloaderReclaimable;
+        return boot::MemoryRegionType::eBootloaderReclaimable;
     case ULTRA_MEMORY_TYPE_MODULE:
     case ULTRA_MEMORY_TYPE_KERNEL_BINARY:
-        return boot::MemoryRegion::eKernel;
+        return boot::MemoryRegionType::eKernel;
     case ULTRA_MEMORY_TYPE_KERNEL_STACK:
-        return boot::MemoryRegion::eKernelStack;
+        return boot::MemoryRegionType::eKernelStack;
 
     case ULTRA_MEMORY_TYPE_INVALID:
     default:
-        return boot::MemoryRegion::eBadMemory;
+        return boot::MemoryRegionType::eBadMemory;
     }
 }
 
@@ -75,7 +75,7 @@ static void BootGetMemoryMap(const ultra_memory_map_attribute *memmap, boot::Boo
     for (uint64_t i = 0; i < size; i++) {
         ultra_memory_map_entry entry = memmap->entries[i];
 
-        boot::MemoryRegion::Type type = BootGetEntryType(entry);
+        boot::MemoryRegionType type = BootGetEntryType(entry);
         km::MemoryRange range = { entry.physical_address, entry.physical_address + entry.size };
         boot::MemoryRegion region = { type, range };
 

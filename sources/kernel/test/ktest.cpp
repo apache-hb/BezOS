@@ -1,6 +1,5 @@
 #include "ktest.hpp"
 #include "absl/container/flat_hash_set.h"
-#include "log.hpp"
 #include "common/util/defer.hpp"
 
 #include "logger/categories.hpp"

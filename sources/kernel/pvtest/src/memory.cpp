@@ -25,13 +25,13 @@ pv::Memory::~Memory() {
 }
 
 km::AddressMapping pv::Memory::addSection(boot::MemoryRegion section) {
-    auto front = section.range.front;
+    auto front = section.range().front;
     sm::VirtualAddress host = mHostMemory + front.address;
     mSections.push_back(section);
     return km::AddressMapping {
         .vaddr = host,
         .paddr = front,
-        .size = section.range.size(),
+        .size = section.range().size(),
     };
 }
 

@@ -4,7 +4,6 @@
 
 #include "allocator/bitmap.hpp"
 
-#include "log.hpp"
 #include "std/memory.hpp"
 #include "std/static_vector.hpp"
 #include "std/vector.hpp"

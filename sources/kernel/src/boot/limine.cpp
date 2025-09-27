@@ -88,26 +88,26 @@ static void BootGetFrameBuffers(uintptr_t hhdmOffset, boot::BootInfoBuilder& bui
     }
 }
 
-static boot::MemoryRegion::Type BootGetEntryType(limine_memmap_entry entry) {
+static boot::MemoryRegionType BootGetEntryType(limine_memmap_entry entry) {
     switch (entry.type) {
     case LIMINE_MEMMAP_USABLE:
-        return boot::MemoryRegion::eUsable;
+        return boot::MemoryRegionType::eUsable;
     case LIMINE_MEMMAP_RESERVED:
-        return boot::MemoryRegion::eReserved;
+        return boot::MemoryRegionType::eReserved;
     case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
-        return boot::MemoryRegion::eAcpiReclaimable;
+        return boot::MemoryRegionType::eAcpiReclaimable;
     case LIMINE_MEMMAP_ACPI_NVS:
-        return boot::MemoryRegion::eAcpiNvs;
+        return boot::MemoryRegionType::eAcpiNvs;
     case LIMINE_MEMMAP_BAD_MEMORY:
-        return boot::MemoryRegion::eBadMemory;
+        return boot::MemoryRegionType::eBadMemory;
     case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-        return boot::MemoryRegion::eBootloaderReclaimable;
+        return boot::MemoryRegionType::eBootloaderReclaimable;
     case LIMINE_MEMMAP_KERNEL_AND_MODULES:
-        return boot::MemoryRegion::eKernel;
+        return boot::MemoryRegionType::eKernel;
     case LIMINE_MEMMAP_FRAMEBUFFER:
-        return boot::MemoryRegion::eFrameBuffer;
+        return boot::MemoryRegionType::eFrameBuffer;
     default:
-        return boot::MemoryRegion::eBadMemory;
+        return boot::MemoryRegionType::eBadMemory;
     }
 }
 
@@ -117,7 +117,7 @@ static void BootGetMemoryMap(boot::BootInfoBuilder& alloc) {
     for (uint64_t i = 0; i < response.entry_count; i++) {
         limine_memmap_entry entry = *response.entries[i];
 
-        boot::MemoryRegion::Type type = BootGetEntryType(entry);
+        boot::MemoryRegionType type = BootGetEntryType(entry);
 
         km::MemoryRange range = { entry.base, entry.base + entry.length };
 

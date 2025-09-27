@@ -2,7 +2,6 @@
 
 #include "gdt.hpp"
 #include "kernel.hpp"
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "thread.hpp"
 #include "user/user.hpp"

@@ -54,7 +54,7 @@ using mmUniquePtr = std::unique_ptr<T, decltype(&_mm_free)>;
 struct MemorySegment {
     mmUniquePtr<std::byte[]> memory;
     size_t size;
-    boot::MemoryRegion::Type type;
+    boot::MemoryRegionType type;
 
     boot::MemoryRegion region() const {
         return boot::MemoryRegion { type, km::MemoryRange { (uintptr_t)memory.get(), (uintptr_t)memory.get() + size } };
@@ -73,7 +73,7 @@ struct SystemMemoryTestBody {
         , pm { 48, 48, GetDefaultPatLayout() }
     { }
 
-    km::MemoryRange addSegment(size_t size, boot::MemoryRegion::Type type) {
+    km::MemoryRange addSegment(size_t size, boot::MemoryRegionType type) {
         void *ptr = _mm_malloc(size, 0x1000);
         mmUniquePtr<std::byte[]> segment { (std::byte*)ptr, &_mm_free };
         memory.push_back({std::move(segment), size, type});
@@ -87,10 +87,10 @@ struct SystemMemoryTestBody {
         }
 
         std::ranges::sort(regions, [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
-            return a.range.front < b.range.front;
+            return a.range().front < b.range().front;
         });
 
-        auto systemSegment = addSegment(systemArea, boot::MemoryRegion::eUsable);
+        auto systemSegment = addSegment(systemArea, boot::MemoryRegionType::eUsable);
 
         uintptr_t dataFront = systemSegment.front.address;
         uintptr_t dataBack = systemSegment.back.address;
@@ -109,7 +109,7 @@ struct SystemMemoryTestBody {
         }
 
         std::ranges::sort(regions, [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
-            return a.range.front < b.range.front;
+            return a.range().front < b.range().front;
         });
 
         uintptr_t dataFront = -(1ull << (48 - 1));

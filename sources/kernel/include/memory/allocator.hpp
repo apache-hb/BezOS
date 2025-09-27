@@ -1,6 +1,5 @@
 #pragma once
 
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "memory/detail/tlsf.hpp"
 #include "memory/layout.hpp"

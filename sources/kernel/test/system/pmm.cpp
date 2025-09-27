@@ -11,7 +11,7 @@ TEST(MemoryManagerInitTest, Construct) {
     OsStatus status;
     km::PageAllocator pmm;
     std::vector<boot::MemoryRegion> memmap = {
-        { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+        { boot::MemoryRegionType::eUsable, kTestRange }
     };
     status = km::PageAllocator::create(memmap, &pmm);
     EXPECT_EQ(status, OsStatusSuccess);
@@ -27,7 +27,7 @@ public:
         OsStatus status;
 
         std::vector<boot::MemoryRegion> memmap = {
-            { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+            { boot::MemoryRegionType::eUsable, kTestRange }
         };
 
         status = km::PageAllocator::create(memmap, &pmm);

@@ -1,7 +1,6 @@
 #include "elf.hpp"
 
 #include "kernel.hpp"
-#include "log.hpp"
 
 #include <bezos/start.h>
 

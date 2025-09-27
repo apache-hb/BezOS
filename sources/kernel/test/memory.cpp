@@ -11,16 +11,16 @@
 
 TEST(MemoryTest, Construct) {
     SystemMemoryTestBody body;
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
 
     km::SystemMemory memory = body.make();
 }
 
 TEST(MemoryTest, MapKernelAddress) {
     SystemMemoryTestBody body;
-    auto s0 = body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
+    auto s0 = body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
 
     km::SystemMemory memory = body.makeNoAlloc();
 
@@ -31,12 +31,12 @@ TEST(MemoryTest, MapKernelAddress) {
 
 TEST(MemoryTest, ThreadSafe) {
     SystemMemoryTestBody body;
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
-    body.addSegment(0x100000, boot::MemoryRegion::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
+    body.addSegment(0x100000, boot::MemoryRegionType::eUsable);
 
     km::SystemMemory memory = body.make(sm::kilobytes(512).bytes());
     std::atomic<size_t> allocs = 0;

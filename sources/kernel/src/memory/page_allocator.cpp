@@ -70,10 +70,10 @@ OsStatus PageAllocator::create(std::span<const boot::MemoryRegion> memmap, PageA
         if (!region.isUsable())
             continue;
 
-        if (region.range.isAfter(kLowMemory)) {
-            KM_ASSERT(memory.add(region.range) == OsStatusSuccess);
-        } else if (region.range.contains(kLowMemory)) {
-            auto [low, high] = km::split(region.range, kLowMemory);
+        if (region.range().isAfter(kLowMemory)) {
+            KM_ASSERT(memory.add(region.range()) == OsStatusSuccess);
+        } else if (region.range().contains(kLowMemory)) {
+            auto [low, high] = km::split(region.range(), kLowMemory);
             KM_ASSERT(memory.add(high) == OsStatusSuccess);
         }
     }

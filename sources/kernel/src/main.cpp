@@ -233,7 +233,7 @@ struct MemoryMap {
 
     void sortMemoryMap() {
         std::sort(memmap.begin(), memmap.end(), [](const boot::MemoryRegion& a, const boot::MemoryRegion& b) {
-            return a.range.front < b.range.front;
+            return a.range().front < b.range().front;
         });
     }
 
@@ -249,13 +249,13 @@ struct MemoryMap {
             if (entry.size() < size)
                 continue;
 
-            if (IsLowMemory(entry.range))
+            if (IsLowMemory(entry.range()))
                 continue;
 
-            km::MemoryRange range = { entry.range.front, entry.range.front + size };
-            entry.range = entry.range.cut(range);
+            km::MemoryRange range = { entry.range().front, entry.range().front + size };
+            entry.setRange(entry.range().cut(range));
 
-            memmap.add({ boot::MemoryRegion::eKernelRuntimeData, range });
+            memmap.add({ boot::MemoryRegionType::eKernelRuntimeData, range });
 
             sortMemoryMap();
 
@@ -268,8 +268,8 @@ struct MemoryMap {
     void insert(boot::MemoryRegion memory) {
         for (size_t i = 0; i < memmap.count(); i++) {
             boot::MemoryRegion& entry = memmap[i];
-            if (entry.range.intersects(memory.range)) {
-                entry.range = entry.range.cut(memory.range);
+            if (entry.range().intersects(memory.range())) {
+                entry.setRange(entry.range().cut(memory.range()));
             }
         }
 
@@ -350,7 +350,7 @@ static MemoryMap* CreateEarlyAllocator(const boot::LaunchInfo& launch, mem::Tlsf
     MemoryMap *memory = allocator->construct<MemoryMap>(allocator);
     std::copy(memmap.begin(), memmap.end(), std::back_inserter(memory->memmap));
 
-    memory->insert({ boot::MemoryRegion::eKernelRuntimeData, range });
+    memory->insert({ boot::MemoryRegionType::eKernelRuntimeData, range });
 
     return memory;
 }

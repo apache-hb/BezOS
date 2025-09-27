@@ -1,5 +1,4 @@
 #include "timer/hpet.hpp"
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "memory/address_space.hpp"
 

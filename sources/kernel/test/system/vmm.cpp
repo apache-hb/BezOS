@@ -17,7 +17,7 @@ public:
         pteMemory1.reset(new x64::page[1024]);
 
         std::vector<boot::MemoryRegion> memmap = {
-            { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+            { boot::MemoryRegionType::eUsable, kTestRange }
         };
 
         status = km::PageAllocator::create(memmap, &pmm);
@@ -160,7 +160,7 @@ TEST(AddressSpaceManagerConstructTest, Construct) {
     km::VirtualRange vmem = range.cast<const void*>();
 
     std::vector<boot::MemoryRegion> memmap = {
-        { .type = boot::MemoryRegion::eUsable, .range = kTestRange }
+        { boot::MemoryRegionType::eUsable, kTestRange }
     };
 
     km::PageAllocator pmm;

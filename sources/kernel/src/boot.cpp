@@ -1,10 +1,10 @@
 #include "boot.hpp"
 
 bool boot::MemoryRegion::isUsable() const {
-    switch (type) {
-    case eUsable:
-    case eAcpiReclaimable:
-    case eBootloaderReclaimable:
+    switch (mType) {
+    case MemoryRegionType::eUsable:
+    case MemoryRegionType::eAcpiReclaimable:
+    case MemoryRegionType::eBootloaderReclaimable:
         return true;
 
     default:
@@ -13,9 +13,9 @@ bool boot::MemoryRegion::isUsable() const {
 }
 
 bool boot::MemoryRegion::isReclaimable() const {
-    switch (type) {
-    case eAcpiReclaimable:
-    case eBootloaderReclaimable:
+    switch (mType) {
+    case MemoryRegionType::eAcpiReclaimable:
+    case MemoryRegionType::eBootloaderReclaimable:
         return true;
 
     default:
@@ -24,5 +24,5 @@ bool boot::MemoryRegion::isReclaimable() const {
 }
 
 bool boot::MemoryRegion::isAccessible() const {
-    return type != eBadMemory;
+    return mType != MemoryRegionType::eBadMemory;
 }

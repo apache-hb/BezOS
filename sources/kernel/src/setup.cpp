@@ -111,12 +111,12 @@ void km::WriteMemoryMap(std::span<const boot::MemoryRegion> memmap) {
 
     for (size_t i = 0; i < memmap.size(); i++) {
         boot::MemoryRegion entry = memmap[i];
-        MemoryRange range = entry.range;
+        MemoryRange range = entry.range();
 
-        InitLog.println("| ", Int(i).pad(4), "  | ", Hex(range.front.address).pad(16), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type);
+        InitLog.println("| ", Int(i).pad(4), "  | ", Hex(range.front.address).pad(16), " | ", rpad(18) + sm::bytes(range.size()), " | ", entry.type());
     }
 
-    InitLog.dbgf("Usable memory: ", boot::UsableMemory(memmap), ", Reclaimable memory: ", boot::ReclaimableMemory(memmap));
+    InitLog.dbgf("Usable memory: ", boot::usableMemory(memmap), ", Reclaimable memory: ", boot::reclaimableMemory(memmap));
 }
 
 void km::DumpIsrState(const km::IsrContext *context) {

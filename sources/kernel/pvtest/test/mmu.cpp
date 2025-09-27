@@ -54,8 +54,8 @@ TEST_F(PvMmuTest, PagingInit) {
     pv::Memory *memory = machine->getMemory();
 
     km::AddressMapping guestInitMemory = memory->addSection({
-        .type = boot::MemoryRegion::eKernel,
-        .range = { sm::megabytes(1).bytes(), sm::megabytes(2).bytes() },
+        boot::MemoryRegionType::eKernel,
+        { sm::megabytes(1).bytes(), sm::megabytes(2).bytes() },
     });
 
     ASSERT_NE(guestInitMemory.vaddr, nullptr) << "Failed to add guest init memory section";

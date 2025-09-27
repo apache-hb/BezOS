@@ -147,9 +147,6 @@ sources/kernel/include
 === Should be somewhere else ===
 ├── hypervisor.hpp
 
-=== Mostly unused, either use this everywhere or delete it ===
-├── ipl.hpp
-
 === Update to fix style guide ===
 ├── isr
 │   ├── isr.hpp
@@ -158,9 +155,6 @@ sources/kernel/include
 
 === Biggest sin of the kernel, all the methods here should not be global ===
 ├── kernel.hpp
-
-=== Try and prune this file ===
-├── log.hpp
 
 === Document better ===
 ├── logger

@@ -7,7 +7,6 @@
 #include "acpi/aml.hpp"
 
 #include "allocator/tlsf.hpp"
-#include "log.hpp"
 
 using namespace stdx::literals;
 

@@ -471,7 +471,6 @@ foreach name, setup : fuzztests
 endforeach
 
 testcases = {
-    'ipl': [ 'ipl.cpp' ],
     'page table command list +new': [
         'memory/pte_command_list.cpp',
     ],

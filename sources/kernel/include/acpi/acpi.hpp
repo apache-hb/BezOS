@@ -5,7 +5,6 @@
 #include "acpi/mcfg.hpp"
 #include "memory/vmm_heap.hpp"
 #include "util/signature.hpp"
-#include "memory/detail/tlsf.hpp"
 
 namespace km {
     class IoApic;

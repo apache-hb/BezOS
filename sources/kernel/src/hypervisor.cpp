@@ -1,6 +1,5 @@
 #include "hypervisor.hpp"
 
-#include "log.hpp"
 #include "logger/categories.hpp"
 #include "util/cpuid.hpp"
 
