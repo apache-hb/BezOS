@@ -295,7 +295,6 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     MemLog.warnf("Low memory, failed to allocate ", requiredPages, " page tables. Retrying with conservative page count.");
 
     auto stats = mAllocator.stats();
-    MemLog.warnf("  Total pages: ", stats.totalBlocks);
     MemLog.warnf("   Free pages: ", stats.freeBlocks);
     MemLog.warnf("Largest block: ", stats.largestBlock);
 
@@ -451,6 +450,57 @@ OsStatus PageTables::map(const PageMappingRequest& request) {
     }
 
     return OsStatusSuccess;
+}
+
+PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {
+    PageTableStats stats{};
+    stats.allocatorStats = mAllocator.stats();
+
+    for (size_t i = 0; i < 512; i++) {
+        if (!mRootPageTable->entries[i].present()) {
+            continue;
+        }
+
+        stats.pml4Entries += 1;
+
+        for (size_t j = 0; j < 512; j++) {
+            x64::PageMapLevel3 *l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(mRootPageTable->entries[i]));
+            x64::pdpte& pdpte = l3->entries[j];
+            if (!pdpte.present()) {
+                continue;
+            }
+
+            stats.pdptEntries += 1;
+
+            if (pdpte.is1g()) {
+                continue;
+            }
+
+            for (size_t k = 0; k < 512; k++) {
+                x64::PageMapLevel2 *pdpte = asVirtual<x64::PageMapLevel2>(mPageManager->address(mRootPageTable->entries[i]));
+                x64::pdte& pdte = pdpte->entries[k];
+                if (!pdte.present()) {
+                    continue;
+                }
+
+                stats.pdEntries += 1;
+
+                if (pdte.is2m()) {
+                    continue;
+                }
+
+                for (size_t l = 0; l < 512; l++) {
+                    x64::PageTable *pdte = asVirtual<x64::PageTable>(mPageManager->address(mRootPageTable->entries[i]));
+                    x64::pte& pte = pdte->entries[l];
+                    if (pte.present()) {
+                        stats.ptEntries += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    return stats;
 }
 
 void PageTables::partialRemap2m(x64::PageTable *pt, VirtualRange range, PhysicalAddressEx paddr, MemoryType type) {

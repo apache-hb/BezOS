@@ -901,3 +901,19 @@ TEST_F(PageTableTest, TableLeaks) {
         ASSERT_EQ(60, stats.freeBlocks);
     }
 }
+
+TEST_F(PageTableTest, Stats) {
+    auto pt = ptes(km::PageFlags::eAll, 64 * 0x1000);
+
+    {
+        OsStatus status = pt.map(MappingOf(sm::VirtualAddress(0xFFFF800000000000), km::PhysicalAddressEx(0x1000), 0x1000 * 2), km::PageFlags::eAll);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        // When something has been allocated some amount of page tables should exist
+        auto ptStats = pt.stats();
+        ASSERT_NE(0, ptStats.pml4Entries);
+        ASSERT_NE(0, ptStats.pdptEntries);
+        ASSERT_NE(0, ptStats.pdEntries);
+        ASSERT_NE(0, ptStats.ptEntries);
+    }
+}

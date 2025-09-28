@@ -120,7 +120,6 @@ OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize,
         .size = memory.size(),
     };
 
-    allocator->mMemory = memory;
     allocator->mBlockSize = blockSize;
     allocator->mHead = head;
     return OsStatusSuccess;
@@ -249,7 +248,6 @@ void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
 km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonblocking]] {
     PteAllocatorStats stats{};
     stats.blockSize = mBlockSize;
-    stats.totalBlocks = mMemory.size() / mBlockSize;
 
     for (detail::ControlBlock *block = mHead; block != nullptr; block = block->next) {
         size_t blockCount = block->size / mBlockSize;
@@ -260,8 +258,4 @@ km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::no
     }
 
     return stats;
-}
-
-bool km::PageTableAllocator::contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]] {
-    return mMemory.contains(ptr);
 }

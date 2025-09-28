@@ -13,6 +13,14 @@
 namespace km {
     class PageTableCommandList;
 
+    struct PageTableStats {
+        PteAllocatorStats allocatorStats;
+        size_t pml4Entries;
+        size_t pdptEntries;
+        size_t pdEntries;
+        size_t ptEntries;
+    };
+
     /// @brief Manages page tables for an address space.
     ///
     /// @details All ptes are allocated from a memory pool that is provided at construction.
@@ -21,10 +29,19 @@ namespace km {
     class PageTables {
         friend class PageTableCommandList;
 
+        /// @brief The slide between the backing pte memory and its virtual address.
         uintptr_t mSlide{0};
+
+        /// @brief The page table allocator.
         PageTableAllocator mAllocator;
+
+        /// @brief System paging information.
         const PageBuilder *mPageManager{nullptr};
+
+        /// @brief Virtual address of the root page table.
         x64::PageMapLevel4 *mRootPageTable{nullptr};
+
+        /// @brief Flags used for mapping intermediate page tables.
         PageFlags mMiddleFlags{PageFlags::eNone};
 
         /// @brief Allocate a new page table, garanteed to be aligned to 4k and zeroed.
@@ -268,6 +285,12 @@ namespace km {
         /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
         [[nodiscard]]
         OsStatus map(const PageMappingRequest& request);
+
+        /// @brief Gather statistics about the page tables.
+        ///
+        /// @return Statistics about the page tables.
+        [[nodiscard]]
+        PageTableStats stats() const noexcept [[clang::nonallocating]];
 
         /// @brief Create a new page table manager.
         ///

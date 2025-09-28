@@ -24,6 +24,9 @@ namespace km {
         PoolCompactStats pool;
     };
 
+    /// @brief An untyped tlsf heap.
+    ///
+    /// @cite D3D12MA
     class TlsfHeap {
         friend class TlsfHeapCommandList;
 
@@ -290,6 +293,11 @@ namespace km {
         static OsStatus create(std::span<const MemoryRange> ranges, TlsfHeap *heap [[outparam]]) [[clang::allocating]];
     };
 
+    /// @brief A tlsf heap that manages addresses of type T.
+    ///
+    /// @tparam T The address type, must be the same size as a pointer.
+    ///
+    /// @cite D3D12MA
     template<typename T>
     class GenericTlsfHeap {
         friend GenericTlsfHeapCommandList<T>;

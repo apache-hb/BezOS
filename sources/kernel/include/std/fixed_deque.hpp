@@ -195,7 +195,7 @@ namespace stdx {
         size_t mCapacity;
     };
 
-    template <typename T>
+    template<typename T>
     class FixedSizeDequeIterator {
         friend class FixedSizeDeque<T>;
 

@@ -20,9 +20,6 @@ namespace km {
         /// @brief The granularity of blocks managed by the allocator.
         size_t blockSize;
 
-        /// @brief The total number of blocks managed by the allocator.
-        size_t totalBlocks;
-
         /// @brief The number of blocks currently available.
         size_t freeBlocks;
 
@@ -32,16 +29,8 @@ namespace km {
         /// @brief Size of the largest free block.
         size_t largestBlock;
 
-        size_t getTotalSize() const noexcept [[clang::nonallocating]] {
-            return totalBlocks * blockSize;
-        }
-
         size_t getFreeSize() const noexcept [[clang::nonallocating]] {
             return freeBlocks * blockSize;
-        }
-
-        size_t getUsedSize() const noexcept [[clang::nonallocating]] {
-            return getTotalSize() - getFreeSize();
         }
     };
 
@@ -49,7 +38,6 @@ namespace km {
     ///
     /// An allocator for page tables that allows partially freeing larger allocations.
     class PageTableAllocator {
-        VirtualRangeEx mMemory{};
         size_t mBlockSize{x64::kPageSize};
         detail::ControlBlock *mHead{nullptr};
 
@@ -90,9 +78,6 @@ namespace km {
 
         [[nodiscard]]
         PteAllocatorStats stats() const noexcept [[clang::nonblocking]];
-
-        [[nodiscard]]
-        bool contains(sm::VirtualAddress ptr) const noexcept [[clang::nonblocking]];
 
         [[nodiscard]]
         static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[outparam]]) noexcept [[clang::allocating]];
