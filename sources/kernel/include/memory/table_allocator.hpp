@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/layout.hpp"
 #include "std/std.hpp"
 #include "arch/paging.hpp"
 #include "memory/range.hpp"
@@ -55,7 +56,7 @@ namespace km {
         void *allocate(size_t blocks) [[clang::allocating]];
 
         [[gnu::nonnull]]
-        void deallocate(void *ptr [[gnu::nonnull]], size_t blocks) noexcept [[clang::nonallocating]];
+        void deallocate(void *ptr [[gnu::nonnull]], size_t blocks, uintptr_t slide = 0) noexcept [[clang::nonallocating]];
 
         /// @brief Allocates a list of blocks rather than a single block.
         ///
@@ -81,6 +82,23 @@ namespace km {
 
         [[nodiscard]]
         static OsStatus create(VirtualRangeEx memory, size_t blockSize, PageTableAllocator *allocator [[outparam]]) noexcept [[clang::allocating]];
+
+        /// @brief Create a page table allocator from an address mapping.
+        ///
+        /// @pre @p mapping.vaddr must be non-null and aligned to @p blockSize.
+        /// @pre @p mapping.paddr must be non-zero and aligned to @p blockSize.
+        /// @pre @p mapping.size must be non-zero and a multiple of @p blockSize.
+        /// @post @p allocator is left in an undefined state if this function returns an error.
+        ///
+        /// @param mapping The mapping to use for the allocator.
+        /// @param blockSize The block size to use for the allocator.
+        /// @param[out] allocator The allocator to write the result to.
+        ///
+        /// @return The status of the operation.
+        /// @retval OsStatusSuccess The allocator was created successfully.
+        /// @retval OsStatusInvalidInput The input parameters were invalid.
+        [[nodiscard]]
+        static OsStatus create(AddressMapping mapping, size_t blockSize, PageTableAllocator *allocator [[outparam]]) noexcept [[clang::allocating]];
 
 #if __STDC_HOSTED__
         detail::ControlBlock *TESTING_getHead() {

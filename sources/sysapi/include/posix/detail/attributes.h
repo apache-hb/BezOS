@@ -20,17 +20,17 @@
 #endif
 
 #if __BZ_HAS_ATTRIBUTE(__nonnull__)
-#   define BZP_NONNULL(...) __attribute__((__nonnull__(__VA_ARGS__)))
-#   define BZP_NONNULL_ALL __attribute__((__nonnull__))
+#   define __BZ_NONNULL(...) __attribute__((__nonnull__(__VA_ARGS__)))
+#   define __BZ_NONNULL_ALL __attribute__((__nonnull__))
 #else
-#   define BZP_NONNULL(...)
-#   define BZP_NONNULL_ALL
+#   define __BZ_NONNULL(...)
+#   define __BZ_NONNULL_ALL
 #endif
 
 #if __BZ_HAS_ATTRIBUTE(__returns_nonnull__)
-#   define BZP_RETURNS_NONNULL __attribute__((__returns_nonnull__))
+#   define __BZ_RETURNS_NONNULL __attribute__((__returns_nonnull__))
 #else
-#   define BZP_RETURNS_NONNULL
+#   define __BZ_RETURNS_NONNULL
 #endif
 
 #if __BZ_HAS_ATTRIBUTE(__allocating__) && __BZ_HAS_ATTRIBUTE(__blocking__)

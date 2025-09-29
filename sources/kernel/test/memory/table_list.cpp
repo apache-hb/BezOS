@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "memory/detail/table_list.hpp"
+#include "memory/detail/page_table_list.hpp"
 #include "arch/paging.hpp"
 
 TEST(TableListTest, TableList) {
@@ -44,4 +45,11 @@ TEST(TableListTest, AddList) {
         ASSERT_EQ((uintptr_t)table % sizeof(x64::page), 0);
         ASSERT_TRUE(isValid(table));
     }
+}
+
+class TableListTest2 : public testing::Test {};
+
+TEST_F(TableListTest2, Construct) {
+    km::detail::PageTableList2 list;
+    ASSERT_EQ(0, list.count());
 }

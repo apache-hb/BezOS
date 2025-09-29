@@ -132,13 +132,13 @@ ControlBlock *Quicksort(ControlBlock *head) {
     return begin;
 }
 
-void km::detail::SortBlocks(ControlBlock *block) noexcept [[clang::nonallocating]] {
+void km::detail::sortBlocks(ControlBlock *block) noexcept [[clang::nonallocating]] {
     block = block->head();
 
     Quicksort(block);
 }
 
-void km::detail::MergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] {
+void km::detail::mergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] {
     ControlBlock *block = head;
 
     while (block != nullptr) {
@@ -148,7 +148,7 @@ void km::detail::MergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonal
             break;
         }
 
-        if ((uintptr_t)block + block->size == (uintptr_t)next) {
+        if ((uintptr_t)block + block->size == (uintptr_t)next && (next->slide == block->slide)) {
             block->size += next->size;
             block->next = next->next;
 

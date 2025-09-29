@@ -5,27 +5,39 @@
 
 using PageTableList = km::detail::PageTableList;
 
-PageTableList::PageTableList(x64::page *tables, size_t count) noexcept [[clang::nonblocking]] {
+PageTableList::PageTableList(x64::page *tables, size_t count, uintptr_t slide) noexcept [[clang::nonblocking]]
+    : PageTableList(PageTableAllocation{ (void*)tables, slide }, count)
+{ }
+
+PageTableList::PageTableList(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]] {
     [[assume(count > 0)]];
 
     for (size_t i = 0; i < count - 1; i++) {
-        *(void**)(tables + i) = tables + i + 1;
+        allocation.offset(i).setNext(allocation.offset(i + 1));
     }
 
-    *(void**)(tables + count - 1) = nullptr;
-    mTable = tables;
+    allocation.offset(count - 1).setNext(PageTableAllocation{});
+    mTable = allocation;
 }
 
 void PageTableList::push(x64::page *table) noexcept [[clang::nonblocking]] {
-    *(void**)(table) = mTable;
-    mTable = table;
+    push(PageTableAllocation{ (void*)table, 0 });
+}
+
+void PageTableList::push(PageTableAllocation allocation) noexcept [[clang::nonblocking]] {
+    allocation.setNext(mTable);
+    mTable = allocation;
 }
 
 void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonblocking]] {
+    push(PageTableAllocation{ (void*)pages, 0 }, count);
+}
+
+void PageTableList::push(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]] {
     [[assume(count > 0)]];
 
     for (size_t i = 0; i < count; i++) {
-        push(pages + i);
+        push(allocation.offset(i));
     }
 }
 
@@ -36,27 +48,27 @@ void PageTableList::append(PageTableList list) noexcept [[clang::nonblocking]] {
 }
 
 x64::page *PageTableList::next() noexcept [[clang::nonblocking]] {
-    KM_CHECK(mTable != nullptr, "PageTableList exhausted.");
+    KM_CHECK(mTable.getVirtual() != nullptr, "PageTableList exhausted.");
 
-    x64::page *it = mTable;
-    mTable = (x64::page*)*(void**)(mTable);
-    memset(it, 0, sizeof(x64::page)); // Clear the page, next() is expected to return a zeroed page.
-    return it;
+    PageTableAllocation it = mTable;
+    mTable = it.getNext();
+    memset(it.getVirtual(), 0, sizeof(x64::page)); // Clear the page, next() is expected to return a zeroed page.
+    return (x64::page*)it.getVirtual();
 }
 
 x64::page *PageTableList::drain() noexcept [[clang::nonblocking]] {
-    if (mTable == nullptr) {
+    if (!mTable.isPresent()) {
         return nullptr;
     }
 
-    x64::page *it = mTable;
-    mTable = (x64::page*)*(void**)(mTable);
-    return it;
+    PageTableAllocation it = mTable;
+    mTable = mTable.getNext();
+    return (x64::page*)it.getVirtual();
 }
 
 size_t PageTableList::count() const noexcept [[clang::nonblocking]] {
     size_t count = 0;
-    for (x64::page *it = mTable; it != nullptr; it = (x64::page*)*(void**)(it)) {
+    for (PageTableAllocation it = mTable; it.isPresent(); it = it.getNext()) {
         count++;
     }
     return count;

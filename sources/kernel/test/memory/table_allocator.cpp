@@ -44,7 +44,7 @@ TEST(TableAllocatorDetailTest, SingleBlock) {
     }
 
     detail::ControlBlock *head = blocks[0];
-    detail::SortBlocks(head);
+    detail::sortBlocks(head);
     std::sort(blocks.begin(), blocks.end());
     detail::ControlBlock *block = head->head();
     ASSERT_NE(block, nullptr);
@@ -90,7 +90,7 @@ TEST(TableAllocatorDetailTest, TwoBlocks) {
     }
 
     detail::ControlBlock *head = blocks[0];
-    detail::SortBlocks(head);
+    detail::sortBlocks(head);
     std::sort(blocks.begin(), blocks.end());
     detail::ControlBlock *block = head->head();
     ASSERT_NE(block, nullptr);
@@ -135,7 +135,7 @@ TEST(TableAllocatorDetailTest, SortBlocks) {
     }
 
     detail::ControlBlock *head = blocks[0];
-    detail::SortBlocks(head);
+    detail::sortBlocks(head);
     std::sort(blocks.begin(), blocks.end());
     detail::ControlBlock *block = head->head();
     ASSERT_NE(block, nullptr);
@@ -164,9 +164,11 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
 
     for (size_t i = 0; i < (kSize / x64::kPageSize); i++) {
         detail::ControlBlock *block = (detail::ControlBlock*)(memory.get() + (i * x64::kPageSize));
-        block->next = nullptr;
-        block->prev = nullptr;
-        block->size = x64::kPageSize;
+        *block = {
+            .next = nullptr,
+            .prev = nullptr,
+            .size = x64::kPageSize,
+        };
 
         blocks.push_back(block);
     }
@@ -177,7 +179,7 @@ TEST(TableAllocatorDetailTest, MergeBlocks) {
     }
 
     detail::ControlBlock *head = blocks[0];
-    detail::MergeAdjacentBlocks(head);
+    detail::mergeAdjacentBlocks(head);
 
     // ensure everything has been merged
     ASSERT_EQ(head->size, kSize);
@@ -207,7 +209,7 @@ TEST_F(TableAllocatorTest, Allocate) {
     void *ptr = allocator.allocate(1);
     IsValidPtr(ptr);
 
-    allocator.deallocate(ptr, 1);
+    allocator.deallocate(ptr, 1, 0);
 }
 
 TEST_F(TableAllocatorTest, AllocateMany) {

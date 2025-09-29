@@ -1,12 +1,14 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace km::detail {
     struct ControlBlock {
         ControlBlock *next;
         ControlBlock *prev;
         size_t size;
+        uintptr_t slide;
 
         ControlBlock *head() noexcept [[clang::nonallocating]] {
             ControlBlock *result = this;
@@ -25,6 +27,6 @@ namespace km::detail {
         }
     };
 
-    void SortBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
-    void MergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
+    void sortBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
+    void mergeAdjacentBlocks(ControlBlock *head) noexcept [[clang::nonallocating]] ;
 }

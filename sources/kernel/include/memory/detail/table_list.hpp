@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/util/util.hpp"
+#include "memory/detail/page_table_allocation.hpp"
 
 #include <stddef.h>
 
@@ -10,7 +11,7 @@ namespace x64 {
 
 namespace km::detail {
     class PageTableList {
-        x64::page *mTable{nullptr};
+        PageTableAllocation mTable;
 
     public:
         UTIL_NOCOPY(PageTableList);
@@ -18,10 +19,15 @@ namespace km::detail {
 
         constexpr PageTableList() noexcept [[clang::nonblocking]] = default;
 
-        PageTableList(x64::page *table [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
+        PageTableList(x64::page *table [[gnu::nonnull]], size_t count, uintptr_t slide = 0) noexcept [[clang::nonblocking]];
+        PageTableList(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]];
 
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
+        void push(PageTableAllocation allocation) noexcept [[clang::nonblocking]];
+
         void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
+        void push(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]];
+
         void append(PageTableList list) noexcept [[clang::nonblocking]];
 
         [[gnu::returns_nonnull]]

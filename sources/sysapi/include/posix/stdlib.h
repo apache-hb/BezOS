@@ -41,11 +41,11 @@ extern div_t div(int, int);
 extern ldiv_t ldiv(long int, long int);
 extern lldiv_t lldiv(long long int, long long int);
 
-extern double atof(const char *) BZP_NONNULL(1);
+extern double atof(const char *) __BZ_NONNULL(1);
 
-extern int atoi(const char *) BZP_NONNULL(1);
-extern long int atol(const char *) BZP_NONNULL(1);
-extern long long int atoll(const char *) BZP_NONNULL(1);
+extern int atoi(const char *) __BZ_NONNULL(1);
+extern long int atol(const char *) __BZ_NONNULL(1);
+extern long long int atoll(const char *) __BZ_NONNULL(1);
 
 extern double strtod(const char *, char **);
 extern float strtof(const char *, char **);
@@ -73,16 +73,16 @@ extern void free(void *);
 
 extern void qsort(void *, size_t, size_t, int (*)(const void *, const void *)); /* Not noexcept, callback may throw when used in c++ */
 
-extern char *getenv(const char *) BZP_NONNULL(1);
+extern char *getenv(const char *) __BZ_NONNULL(1);
 
-extern int putenv(char *) BZP_NONNULL(1);
+extern int putenv(char *) __BZ_NONNULL(1);
 
-extern int setenv(const char *, const char *, int) BZP_NONNULL(1, 2);
-extern int unsetenv(const char *) BZP_NONNULL(1);
+extern int setenv(const char *, const char *, int) __BZ_NONNULL(1, 2);
+extern int unsetenv(const char *) __BZ_NONNULL(1);
 
 extern void srand(unsigned);
 extern int rand(void);
-extern int rand_r(unsigned *) BZP_NONNULL(1);
+extern int rand_r(unsigned *) __BZ_NONNULL(1);
 
 extern char *mkdtemp(char *);
 extern int mkstemp(char *);

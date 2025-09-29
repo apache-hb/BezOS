@@ -16,9 +16,9 @@ BZP_API_BEGIN
  * @note This function is not marked as noreturn or nothrow as user defined
  *       assertion handlers may throw exceptions or return to the calling code.
  */
-extern void OsImplPosixAssert(const char *, const char *, unsigned) BZP_NONNULL(1, 2);
+extern void OsImplPosixAssert(const char *, const char *, unsigned) __BZ_NONNULL(1, 2);
 
-extern void OsImplPosixInstall(void(*)(const char *, const char *, unsigned)) BZP_NONNULL(1);
+extern void OsImplPosixInstall(void(*)(const char *, const char *, unsigned)) __BZ_NONNULL(1);
 
 #ifdef NDEBUG
 #   define assert(x) ((void)0)

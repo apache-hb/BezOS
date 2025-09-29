@@ -17,6 +17,7 @@ static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, siz
 
     next->prev = block;
     next->size = size;
+    next->slide = block->slide;
 
     return next;
 }
@@ -118,6 +119,23 @@ OsStatus km::PageTableAllocator::create(VirtualRangeEx memory, size_t blockSize,
     detail::ControlBlock *head = std::bit_cast<detail::ControlBlock*>(memory.front);
     *head = detail::ControlBlock {
         .size = memory.size(),
+        .slide = 0,
+    };
+
+    allocator->mBlockSize = blockSize;
+    allocator->mHead = head;
+    return OsStatusSuccess;
+}
+
+OsStatus km::PageTableAllocator::create(AddressMapping mapping, size_t blockSize, PageTableAllocator *allocator [[outparam]]) noexcept [[clang::allocating]] {
+    if (!isPageTableAllocatorInputValid(mapping.virtualRangeEx(), blockSize)) {
+        return OsStatusInvalidInput;
+    }
+
+    detail::ControlBlock *head = std::bit_cast<detail::ControlBlock*>(mapping.vaddr);
+    *head = detail::ControlBlock {
+        .size = mapping.size,
+        .slide = mapping.slide(),
     };
 
     allocator->mBlockSize = blockSize;
@@ -144,7 +162,7 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
 }
 
 bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result) {
-    KM_CHECK(blocks > 0, "Invalid block count.");
+    [[assume(blocks > 0)]];
 
     //
     // Do an early check to see if we can allocate the blocks.
@@ -200,8 +218,8 @@ void km::PageTableAllocator::deallocateList(detail::PageTableList list) noexcept
     }
 }
 
-void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) noexcept [[clang::nonallocating]] {
-    KM_ASSERT(blocks > 0);
+void km::PageTableAllocator::deallocate(void *ptr, size_t blocks, uintptr_t slide) noexcept [[clang::nonallocating]] {
+    [[assume(blocks > 0)]];
 
     if (mHead)
         KM_CHECK(mHead->prev == nullptr, "Invalid head block.");
@@ -210,6 +228,7 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks) noexcept [[cla
     *block = detail::ControlBlock {
         .next = mHead,
         .size = blocks * mBlockSize,
+        .slide = slide,
     };
     if (mHead) mHead->prev = block;
 
@@ -231,13 +250,13 @@ void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
     //
     // Sort the blocks by address.
     //
-    detail::SortBlocks(block);
+    detail::sortBlocks(block);
 
     //
     // Merge adjacent blocks.
     //
     block = block->head();
-    detail::MergeAdjacentBlocks(block);
+    detail::mergeAdjacentBlocks(block);
 
     //
     // Update the head.

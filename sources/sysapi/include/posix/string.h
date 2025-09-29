@@ -18,64 +18,73 @@
 
 BZP_API_BEGIN
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
-extern void *memcpy(void *__BZ_RESTRICT, const void *__BZ_RESTRICT, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING __BZ_RETURNS_NONNULL
+extern void *memcpy(void *__BZ_RESTRICT, const void *__BZ_RESTRICT, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
-extern void *memmove(void *, const void *, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING __BZ_RETURNS_NONNULL
+extern void *memmove(void *, const void *, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__, __returns_nonnull__))
-extern void *memset(void *, int __c, size_t __n);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING __BZ_RETURNS_NONNULL
+extern void *memset(void *, int, size_t __n) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern int memcmp(const void *, const void *, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING
+extern int memcmp(const void *, const void *, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern void *memchr(const void *, int __c, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING
+extern void *memchr(const void *, int, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern size_t strlen(const char *);
+__attribute__((__nothrow__))
+extern size_t strlen(const char *) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern size_t strnlen(const char *, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING
+extern size_t strnlen(const char *, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern int strcmp(const char *, const char *);
+__attribute__((__nothrow__))
+extern int strcmp(const char *, const char *) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonblocking__, __nonnull__))
-extern int strncmp(const char *, const char *, size_t);
+__attribute__((__nothrow__))
+__BZ_NONBLOCKING
+extern int strncmp(const char *, const char *, size_t) __BZ_NONNULL_ALL;
 
-extern char *strcat(char *, const char *) BZP_NONNULL_ALL;
+extern char *strcat(char *, const char *) __BZ_NONNULL_ALL;
 
-extern char *strncat(char *, const char *, size_t) BZP_NONNULL_ALL;
+extern char *strncat(char *, const char *, size_t) __BZ_NONNULL_ALL;
 
-extern char *strchr(const char *, int) BZP_NONNULL_ALL;
+extern char *strchr(const char *, int) __BZ_NONNULL_ALL;
 
-extern char *strrchr(const char *, int) BZP_NONNULL_ALL;
+extern char *strrchr(const char *, int) __BZ_NONNULL_ALL;
 
-extern char *strstr(const char *, const char *) BZP_NONNULL_ALL;
+extern char *strstr(const char *, const char *) __BZ_NONNULL_ALL;
 
-extern char *strpbrk(const char *, const char *) BZP_NONNULL_ALL;
+extern char *strpbrk(const char *, const char *) __BZ_NONNULL_ALL;
 
-extern size_t strspn(const char *, const char *) BZP_NONNULL_ALL;
+extern size_t strspn(const char *, const char *) __BZ_NONNULL_ALL;
 
-extern size_t strcspn(const char *, const char *) BZP_NONNULL_ALL;
+extern size_t strcspn(const char *, const char *) __BZ_NONNULL_ALL;
 
-extern char *strtok(char *, const char *) BZP_NONNULL_ALL;
+extern char *strtok(char *, const char *) __BZ_NONNULL_ALL;
 
-extern int strcoll(const char *, const char *) BZP_NONNULL_ALL;
+extern int strcoll(const char *, const char *) __BZ_NONNULL_ALL;
 
-extern size_t strxfrm(char *, const char *, size_t) BZP_NONNULL_ALL;
+extern size_t strxfrm(char *, const char *, size_t) __BZ_NONNULL_ALL;
 
-extern char *strcpy(char *, const char *) BZP_NONNULL_ALL;
+extern char *strcpy(char *, const char *) __BZ_NONNULL_ALL;
 
-extern char *strncpy(char *, const char *, size_t) BZP_NONNULL_ALL;
+extern char *strncpy(char *, const char *, size_t) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
-extern char *strdup(const char *);
+__attribute__((__nothrow__, __malloc__))
+__BZ_ALLOCATING
+extern char *strdup(const char *) __BZ_NONNULL_ALL;
 
-__attribute__((__nothrow__, __nonnull__, __malloc__, __allocating__))
-extern char *strndup(const char *, size_t);
+__attribute__((__nothrow__, __malloc__))
+__BZ_ALLOCATING
+extern char *strndup(const char *, size_t) __BZ_NONNULL_ALL;
 
 extern char *strerror(int);
 

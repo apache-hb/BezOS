@@ -65,8 +65,8 @@ namespace km {
             return { (uintptr_t)vaddr, (uintptr_t)vaddr + size };
         }
 
-        constexpr intptr_t slide() const {
-            return (intptr_t)vaddr - paddr.address;
+        constexpr uintptr_t slide() const {
+            return (uintptr_t)vaddr - paddr.address;
         }
 
         constexpr bool isEmpty() const {
