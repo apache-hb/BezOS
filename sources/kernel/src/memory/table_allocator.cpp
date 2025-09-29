@@ -146,9 +146,9 @@ OsStatus km::PageTableAllocator::create(AddressMapping mapping, size_t blockSize
     return OsStatusSuccess;
 }
 
-void *km::PageTableAllocator::allocate(size_t blocks) {
+km::PageTableAllocation km::PageTableAllocator::allocate(size_t blocks) {
     if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        return result;
+        return PageTableAllocation{result, 0};
     }
 
     //
@@ -158,10 +158,10 @@ void *km::PageTableAllocator::allocate(size_t blocks) {
     defragment();
 
     if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        return result;
+        return PageTableAllocation{result, 0};
     }
 
-    return nullptr;
+    return PageTableAllocation{};
 }
 
 bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result) {
@@ -220,7 +220,7 @@ bool km::PageTableAllocator::allocateExtra(size_t blocks, detail::PageTableList&
 
 void km::PageTableAllocator::deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
     while (PageTableAllocation page = list.drain()) {
-        deallocate(page.getVirtual(), 1);
+        deallocate(page, 1);
     }
 }
 
@@ -239,6 +239,10 @@ void km::PageTableAllocator::deallocate(void *ptr, size_t blocks, uintptr_t slid
     if (mHead) mHead->prev = block;
 
     mHead = block;
+}
+
+void km::PageTableAllocator::deallocate(PageTableAllocation allocation, size_t blocks) noexcept [[clang::nonallocating]] {
+    deallocate(allocation.getVirtual(), blocks, allocation.getSlide());
 }
 
 void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {

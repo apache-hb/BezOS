@@ -6,7 +6,7 @@
 using namespace km;
 
 x64::page *PageTables::alloc4k() [[clang::allocating]] {
-    x64::page *it = (x64::page*)mAllocator.allocate(1);
+    x64::page *it = (x64::page*)mAllocator.allocate(1).getVirtual();
 
     if (it) {
         memset(it, 0, sizeof(x64::page));
@@ -163,7 +163,7 @@ void PageTables::map2m(PhysicalAddressEx paddr, const void *vaddr, PageFlags fla
     //
     if (t2.present() && !t2.is2m()) {
         void *ptr = asVirtual<x64::PageTable>(mPageManager->address(t2));
-        mAllocator.deallocate(ptr, 1);
+        mAllocator.deallocate(ptr, 1, mSlide);
     }
 
     t2.set2m(true);
@@ -567,7 +567,7 @@ void PageTables::reclaim2m(x64::pdte& pde) {
         // If the page is a set of 4k pages we can reclaim the page table.
         //
         x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
-        mAllocator.deallocate(pt, 1);
+        mAllocator.deallocate(pt, 1, mSlide);
     }
 
     pde.setPresent(false);
@@ -958,7 +958,7 @@ size_t PageTables::compactPt(x64::PageMapLevel2 *pd, uint16_t index) {
 
     x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(entry));
     if (IsTableEmpty(pt)) {
-        mAllocator.deallocate(pt, 1);
+        mAllocator.deallocate(pt, 1, mSlide);
         entry.setPresent(false);
         return 1;
     }
@@ -983,7 +983,7 @@ size_t PageTables::compactPd(x64::PageMapLevel3 *pd, uint16_t index) {
     }
 
     if (reclaim) {
-        mAllocator.deallocate(pt, 1);
+        mAllocator.deallocate(pt, 1, mSlide);
         entry.setPresent(false);
         count += 1;
     }
@@ -1007,7 +1007,7 @@ size_t PageTables::compactPdpt(x64::PageMapLevel4 *pd, uint16_t index) {
     }
 
     if (reclaim) {
-        mAllocator.deallocate(pt, 1);
+        mAllocator.deallocate(pt, 1, mSlide);
         entry.setPresent(false);
         count += 1;
     }

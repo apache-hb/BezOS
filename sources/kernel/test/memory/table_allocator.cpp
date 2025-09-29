@@ -206,7 +206,7 @@ public:
 };
 
 TEST_F(TableAllocatorTest, Allocate) {
-    void *ptr = allocator.allocate(1);
+    void *ptr = allocator.allocate(1).getVirtual();
     IsValidPtr(ptr);
 
     allocator.deallocate(ptr, 1, 0);
@@ -217,7 +217,7 @@ TEST_F(TableAllocatorTest, AllocateMany) {
 
     std::set<void*> ptrs;
     for (size_t i = 0; i < count; i++) {
-        void *ptr = allocator.allocate(1);
+        void *ptr = allocator.allocate(1).getVirtual();
         IsValidPtr(ptr);
 
         ASSERT_FALSE(ptrs.contains(ptr)) << "Duplicate pointer: " << ptr;
@@ -232,7 +232,7 @@ TEST_F(TableAllocatorTest, AllocateMany) {
     ptrs.clear();
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = allocator.allocate(1);
+        void *ptr = allocator.allocate(1).getVirtual();
         IsValidPtr(ptr);
 
         ASSERT_FALSE(ptrs.contains(ptr));
@@ -249,7 +249,7 @@ TEST_F(TableAllocatorTest, AllocateOom) {
     size_t count = kCount;
     std::set<void*> ptrs;
     for (size_t i = 0; i < count; i++) {
-        void *ptr = allocator.allocate(1);
+        void *ptr = allocator.allocate(1).getVirtual();
         IsValidPtr(ptr);
 
         ASSERT_FALSE(ptrs.contains(ptr));
@@ -258,7 +258,7 @@ TEST_F(TableAllocatorTest, AllocateOom) {
     }
 
     for (size_t i = 0; i < 10; i++) {
-        void *ptr = allocator.allocate(1);
+        void *ptr = allocator.allocate(1).getVirtual();
         ASSERT_EQ(ptr, nullptr);
     }
 
@@ -275,7 +275,7 @@ TEST_F(TableAllocatorTest, AllocateSized) {
     std::map<void*, size_t> ptrs;
     for (size_t i = 0; i < count; i++) {
         size_t alloc = dist(gen);
-        void *ptr = allocator.allocate(alloc);
+        void *ptr = allocator.allocate(alloc).getVirtual();
         if (ptr == nullptr) continue;
 
         IsValidPtr(ptr);
@@ -292,7 +292,7 @@ TEST_F(TableAllocatorTest, AllocateSized) {
 
 TEST_F(TableAllocatorTest, PartialDeallocate) {
     size_t count = kCount;
-    void *ptr = allocator.allocate(4);
+    void *ptr = allocator.allocate(4).getVirtual();
     IsValidPtr(ptr);
 
     void *middle = (void*)((uintptr_t)ptr + x64::kPageSize);
@@ -304,7 +304,7 @@ TEST_F(TableAllocatorTest, PartialDeallocate) {
     allocator.deallocate(ptr, 1);
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = allocator.allocate(1);
+        void *ptr = allocator.allocate(1).getVirtual();
         IsValidPtr(ptr);
 
         allocator.deallocate(ptr, 1);
@@ -321,7 +321,7 @@ TEST_F(TableAllocatorTest, Defragment) {
     std::map<void*, size_t> ptrs;
     for (size_t i = 0; i < count; i++) {
         size_t alloc = dist(gen);
-        void *ptr = allocator.allocate(alloc);
+        void *ptr = allocator.allocate(alloc).getVirtual();
         if (ptr == nullptr) continue;
 
         IsValidPtr(ptr);
@@ -421,7 +421,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented) {
     constexpr size_t kBlockCount = kCount;
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {
-        blocks[i] = allocator.allocate(1);
+        blocks[i] = allocator.allocate(1).getVirtual();
         IsValidPtr(blocks[i]);
     }
 
@@ -448,7 +448,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented2) {
     constexpr size_t kBlockCount = kCount;
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {
-        blocks[i] = allocator.allocate(1);
+        blocks[i] = allocator.allocate(1).getVirtual();
         IsValidPtr(blocks[i]);
     }
 
@@ -486,7 +486,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented3) {
 
     void *blocks[kBlockCount]{};
     for (size_t i = 0; i < kBlockCount; i++) {
-        blocks[i] = allocator.allocate(1);
+        blocks[i] = allocator.allocate(1).getVirtual();
         IsValidPtr(blocks[i]);
     }
 

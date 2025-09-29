@@ -52,11 +52,13 @@ namespace km {
         UTIL_NOCOPY(PageTableAllocator);
         UTIL_DEFAULT_MOVE(PageTableAllocator);
 
-        [[gnu::malloc, nodiscard]]
-        void *allocate(size_t blocks) [[clang::allocating]];
+        [[nodiscard]]
+        PageTableAllocation allocate(size_t blocks) [[clang::allocating]];
 
         [[gnu::nonnull]]
         void deallocate(void *ptr [[gnu::nonnull]], size_t blocks, uintptr_t slide = 0) noexcept [[clang::nonallocating]];
+
+        void deallocate(PageTableAllocation allocation, size_t blocks) noexcept [[clang::nonallocating]];
 
         /// @brief Allocates a list of blocks rather than a single block.
         ///

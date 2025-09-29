@@ -108,7 +108,7 @@ namespace kmtest {
 
             size_t size = sm::roundup<size_t>(sizeof(T), 0x1000);
 
-            void *host = mHostAllocator.allocate(size / 0x1000);
+            void *host = mHostAllocator.allocate(size / 0x1000).getVirtual();
             if (!host) {
                 KM_PANIC("failed to allocate mmio region");
             }
