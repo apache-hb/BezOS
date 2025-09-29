@@ -68,18 +68,21 @@ km::detail::PageTableList km::detail::AllocateHead(PageTableAllocator& allocator
         ControlBlock *next = SplitBlock(block, size);
         RemoveBlock(next);
         *remaining = 0;
-        return detail::PageTableList { (x64::page*)next, size / allocator.mBlockSize };
+        PageTableAllocation allocation { (void*)next, next->slide };
+        return detail::PageTableList { allocation, size / allocator.mBlockSize };
     } else if (block->size == size) {
-        void *result = block;
+        ControlBlock *result = block;
         allocator.setHead(block->next);
         *remaining = 0;
-        return detail::PageTableList { (x64::page*)result, size / allocator.mBlockSize };
+        PageTableAllocation allocation { (void*)result, result->slide };
+        return detail::PageTableList { allocation, size / allocator.mBlockSize };
     } else {
-        void *result = block;
+        ControlBlock *result = block;
         size_t blockSize = block->size;
         *remaining -= (blockSize / allocator.mBlockSize);
         allocator.setHead(block->next);
-        return detail::PageTableList { (x64::page*)result, blockSize / allocator.mBlockSize };
+        PageTableAllocation allocation { (void*)result, result->slide };
+        return detail::PageTableList { allocation, blockSize / allocator.mBlockSize };
     }
 }
 
