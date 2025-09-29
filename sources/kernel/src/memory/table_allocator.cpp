@@ -181,17 +181,20 @@ bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *
         if (node->size > (remaining * mBlockSize)) {
             detail::ControlBlock *next = SplitBlock(node, remaining * mBlockSize);
             RemoveBlock(next);
-            list.push((x64::page*)next, remaining);
+            PageTableAllocation allocation { (void*)next, next->slide };
+            list.push(allocation, remaining);
             remaining = 0;
         } else if (node->size == (remaining * mBlockSize)) {
             setHead(node->next);
             RemoveBlock(node);
-            list.push((x64::page*)node, remaining);
+            PageTableAllocation allocation { (void*)node, node->slide };
+            list.push(allocation, remaining);
             remaining = 0;
         } else {
             setHead(node->next);
             RemoveBlock(node);
-            list.push((x64::page*)node, node->size / mBlockSize);
+            PageTableAllocation allocation { (void*)node, node->slide };
+            list.push(allocation, node->size / mBlockSize);
             remaining -= (node->size / mBlockSize);
             node = mHead;
         }
@@ -213,8 +216,8 @@ bool km::PageTableAllocator::allocateExtra(size_t blocks, detail::PageTableList&
 }
 
 void km::PageTableAllocator::deallocateList(detail::PageTableList list) noexcept [[clang::nonallocating]] {
-    while (x64::page *page = list.drain()) {
-        deallocate(page, 1);
+    while (PageTableAllocation page = list.drain()) {
+        deallocate(page.getVirtual(), 1);
     }
 }
 

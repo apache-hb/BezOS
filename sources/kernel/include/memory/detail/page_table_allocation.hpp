@@ -1,6 +1,8 @@
 #pragma once
 
 #include "arch/paging.hpp"
+#include "common/physical_address.hpp"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -17,6 +19,10 @@ namespace km {
 
         void *getVirtual() const noexcept [[clang::nonblocking]] {
             return mBlock;
+        }
+
+        sm::PhysicalAddress getPhysical() const noexcept [[clang::nonblocking]] {
+            return sm::PhysicalAddress { (uintptr_t)mBlock - mSlide };
         }
 
         size_t getSlide() const noexcept [[clang::nonblocking]] {

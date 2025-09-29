@@ -3,7 +3,7 @@
 #include "arch/paging.hpp"
 #include "panic.hpp"
 
-using PageTableList = km::detail::PageTableList;
+using km::detail::PageTableList;
 
 PageTableList::PageTableList(x64::page *tables, size_t count, uintptr_t slide) noexcept [[clang::nonblocking]]
     : PageTableList(PageTableAllocation{ (void*)tables, slide }, count)
@@ -29,10 +29,6 @@ void PageTableList::push(PageTableAllocation allocation) noexcept [[clang::nonbl
     mTable = allocation;
 }
 
-void PageTableList::push(x64::page *pages, size_t count) noexcept [[clang::nonblocking]] {
-    push(PageTableAllocation{ (void*)pages, 0 }, count);
-}
-
 void PageTableList::push(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]] {
     [[assume(count > 0)]];
 
@@ -42,7 +38,7 @@ void PageTableList::push(PageTableAllocation allocation, size_t count) noexcept 
 }
 
 void PageTableList::append(PageTableList list) noexcept [[clang::nonblocking]] {
-    while (x64::page *page = list.drain()) {
+    while (PageTableAllocation page = list.drain()) {
         push(page);
     }
 }
@@ -56,14 +52,14 @@ x64::page *PageTableList::next() noexcept [[clang::nonblocking]] {
     return (x64::page*)it.getVirtual();
 }
 
-x64::page *PageTableList::drain() noexcept [[clang::nonblocking]] {
+km::PageTableAllocation PageTableList::drain() noexcept [[clang::nonblocking]] {
     if (!mTable.isPresent()) {
-        return nullptr;
+        return PageTableAllocation{};
     }
 
     PageTableAllocation it = mTable;
     mTable = mTable.getNext();
-    return (x64::page*)it.getVirtual();
+    return it;
 }
 
 size_t PageTableList::count() const noexcept [[clang::nonblocking]] {

@@ -25,7 +25,6 @@ namespace km::detail {
         void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
         void push(PageTableAllocation allocation) noexcept [[clang::nonblocking]];
 
-        void push(x64::page *pages [[gnu::nonnull]], size_t count) noexcept [[clang::nonblocking]];
         void push(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]];
 
         void append(PageTableList list) noexcept [[clang::nonblocking]];
@@ -33,7 +32,7 @@ namespace km::detail {
         [[gnu::returns_nonnull]]
         x64::page *next() noexcept [[clang::nonblocking]];
 
-        x64::page *drain() noexcept [[clang::nonblocking]];
+        PageTableAllocation drain() noexcept [[clang::nonblocking]];
 
         size_t count() const noexcept [[clang::nonblocking]];
     };
