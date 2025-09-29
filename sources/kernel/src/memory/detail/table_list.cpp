@@ -20,10 +20,6 @@ PageTableList::PageTableList(PageTableAllocation allocation, size_t count) noexc
     mTable = allocation;
 }
 
-void PageTableList::push(x64::page *table) noexcept [[clang::nonblocking]] {
-    push(PageTableAllocation{ (void*)table, 0 });
-}
-
 void PageTableList::push(PageTableAllocation allocation) noexcept [[clang::nonblocking]] {
     allocation.setNext(mTable);
     mTable = allocation;
@@ -43,13 +39,13 @@ void PageTableList::append(PageTableList list) noexcept [[clang::nonblocking]] {
     }
 }
 
-x64::page *PageTableList::next() noexcept [[clang::nonblocking]] {
+km::PageTableAllocation PageTableList::next() noexcept [[clang::nonblocking]] {
     KM_CHECK(mTable.getVirtual() != nullptr, "PageTableList exhausted.");
 
     PageTableAllocation it = mTable;
     mTable = it.getNext();
     memset(it.getVirtual(), 0, sizeof(x64::page)); // Clear the page, next() is expected to return a zeroed page.
-    return (x64::page*)it.getVirtual();
+    return it;
 }
 
 km::PageTableAllocation PageTableList::drain() noexcept [[clang::nonblocking]] {

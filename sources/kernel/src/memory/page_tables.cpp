@@ -48,7 +48,7 @@ x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
-        l3 = std::bit_cast<x64::PageMapLevel3*>(buffer.next());
+        l3 = std::bit_cast<x64::PageMapLevel3*>(buffer.next().getVirtual());
         setEntryFlags(t4, mMiddleFlags, asPhysical(l3));
     } else {
         l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
@@ -62,7 +62,7 @@ x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdp
 
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
-        l2 = std::bit_cast<x64::PageMapLevel2*>(buffer.next());
+        l2 = std::bit_cast<x64::PageMapLevel2*>(buffer.next().getVirtual());
         setEntryFlags(t3, mMiddleFlags, asPhysical(l2));
     } else {
         l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
@@ -128,13 +128,13 @@ void PageTables::map4k(PhysicalAddressEx paddr, const void *vaddr, PageFlags fla
 
     x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
-        pt = std::bit_cast<x64::PageTable*>(buffer.next());
+        pt = std::bit_cast<x64::PageTable*>(buffer.next().getVirtual());
         setEntryFlags(t2, mMiddleFlags, asPhysical(pt));
     } else if (t2.is2m()) {
         //
         // We need to split the 2m mapping to make space for this mapping.
         //
-        pt = std::bit_cast<x64::PageTable*>(buffer.next());
+        pt = std::bit_cast<x64::PageTable*>(buffer.next().getVirtual());
         uintptr_t front2m = sm::rounddown((uintptr_t)vaddr, x64::kLargePageSize);
         uintptr_t back2m = sm::roundup((uintptr_t)vaddr, x64::kLargePageSize);
         VirtualRange page = { (void*)front2m, (void*)back2m };
@@ -692,8 +692,8 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
         x64::pdte& lowEntry = getLargePageEntry(low.front);
         x64::pdte& highEntry = getLargePageEntry(high.front);
 
-        cut2mMapping(lowEntry, lowPage, low, (x64::PageTable*)buffer.next());
-        cut2mMapping(highEntry, highPage, high, (x64::PageTable*)buffer.next());
+        cut2mMapping(lowEntry, lowPage, low, (x64::PageTable*)buffer.next().getVirtual());
+        cut2mMapping(highEntry, highPage, high, (x64::PageTable*)buffer.next().getVirtual());
 
         *remaining = VirtualRange { low.back, high.front };
     } else if (earlyAllocations == 1) {
@@ -708,7 +708,7 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
         //
         if (page.contains(range) && !innerAdjacent(page, range)) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            split2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
+            split2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
             *remaining = VirtualRange{};
             return;
         }
@@ -720,11 +720,11 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
 
         if (page.front != range.front) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
+            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
         } else {
             KM_CHECK(page.back != range.back, "Invalid range.");
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next());
+            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
         }
 
         *remaining = VirtualRange{};

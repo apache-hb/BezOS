@@ -358,7 +358,7 @@ TEST_F(TableAllocatorTest, AllocateList) {
     ASSERT_TRUE(allocator.allocateList(count, &list));
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -371,7 +371,7 @@ TEST_F(TableAllocatorTest, AllocateListFull) {
     ASSERT_TRUE(allocator.allocateList(count, &list));
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -392,7 +392,7 @@ TEST_F(TableAllocatorTest, CanAllocateBlocksFalse) {
     ASSERT_TRUE(allocator.allocateList(count, &list));
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -411,7 +411,7 @@ TEST_F(TableAllocatorTest, AllocateListFails) {
     ASSERT_TRUE(allocator.allocateList(count, &list));
 
     for (size_t i = 0; i < count; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -438,7 +438,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented) {
     ASSERT_TRUE(allocator.allocateList(8, &list));
 
     for (size_t i = 0; i < 8; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -475,7 +475,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented2) {
     ASSERT_TRUE(allocator.allocateList(9, &list));
 
     for (size_t i = 0; i < 9; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }
@@ -508,7 +508,7 @@ TEST_F(TableAllocatorTest, AllocateListFragmented3) {
     ASSERT_TRUE(allocator.allocateList(3, &list));
 
     for (size_t i = 0; i < 3; i++) {
-        void *ptr = list.next();
+        void *ptr = list.next().getVirtual();
         IsValidPtr(ptr);
         allocator.deallocate(ptr, 1);
     }

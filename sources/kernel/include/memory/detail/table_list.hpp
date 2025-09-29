@@ -22,15 +22,13 @@ namespace km::detail {
         PageTableList(x64::page *table [[gnu::nonnull]], size_t count, uintptr_t slide = 0) noexcept [[clang::nonblocking]];
         PageTableList(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]];
 
-        void push(x64::page *page [[gnu::nonnull]]) noexcept [[clang::nonblocking]];
         void push(PageTableAllocation allocation) noexcept [[clang::nonblocking]];
 
         void push(PageTableAllocation allocation, size_t count) noexcept [[clang::nonblocking]];
 
         void append(PageTableList list) noexcept [[clang::nonblocking]];
 
-        [[gnu::returns_nonnull]]
-        x64::page *next() noexcept [[clang::nonblocking]];
+        PageTableAllocation next() noexcept [[clang::nonblocking]];
 
         PageTableAllocation drain() noexcept [[clang::nonblocking]];
 
