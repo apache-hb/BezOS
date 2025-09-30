@@ -243,6 +243,10 @@ testcases = {
         'link_with': [ libtest_shim ],
         'timeout': 30,
     },
+    'static flat map': {
+        'sources': files('std/container/static_flat_map.cpp'),
+        'link_with': [ libtest_shim ],
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },
