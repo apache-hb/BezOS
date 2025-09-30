@@ -124,6 +124,10 @@ namespace sm {
             return mCount == mCapacity;
         }
 
+        void clear() noexcept {
+            destroy();
+        }
+
         /// @brief Insert a key-value pair into the map.
         ///
         /// If the key already exists, the value is updated.
@@ -143,7 +147,8 @@ namespace sm {
             Key *iter = std::lower_bound(mKeys, mKeys + mCount, key, mCompare);
             if (iter != mKeys + mCount && !mCompare(key, *iter) && !mCompare(*iter, key)) {
                 // Key already exists, update the value
-                *iter = value;
+                size_t index = std::distance(mKeys, iter);
+                mValues[index] = value;
                 return OsStatusSuccess;
             }
 

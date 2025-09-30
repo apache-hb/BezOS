@@ -61,6 +61,39 @@ TEST_F(StaticFlatMapTest, InsertUntilFull) {
     ASSERT_EQ(map.count(), kCapacity);
 }
 
+TEST_F(StaticFlatMapTest, InsertRandom) {
+    OsStatus status = OsStatusSuccess;
+
+    int keys[] = {5, 3, 8, 1, 4, 7, 2, 6, 0, 9};
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(keys[i], keys[i] * 10);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(map.count(), (size_t)(i + 1));
+    }
+
+    ASSERT_TRUE(map.isFull());
+    ASSERT_FALSE(map.isEmpty());
+
+    status = map.insert(100, 1000);
+    ASSERT_EQ(status, OsStatusOutOfMemory);
+    ASSERT_EQ(map.count(), kCapacity);
+}
+
+TEST_F(StaticFlatMapTest, InsertDuplicate) {
+    OsStatus status = OsStatusSuccess;
+
+    int keys[] = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(keys[i], keys[i] * 10);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(1, map.count());
+    }
+
+    ASSERT_EQ(1, map.count());
+}
+
 TEST_F(StaticFlatMapTest, Remove) {
     OsStatus status = OsStatusSuccess;
 
@@ -127,4 +160,40 @@ TEST_F(StaticFlatMapTest, IterateCxx11) {
     }
 
     ASSERT_EQ(count, kCapacity);
+}
+
+TEST_F(StaticFlatMapTest, IterateEmpty) {
+    size_t count = 0;
+    for (FlatMap::Iterator it = map.begin(); it != map.end(); ++it) {
+        count++;
+    }
+
+    ASSERT_EQ(count, 0);
+}
+
+TEST_F(StaticFlatMapTest, Clear) {
+    OsStatus status = OsStatusSuccess;
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(i, i * 10);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(map.count(), (size_t)(i + 1));
+    }
+
+    ASSERT_TRUE(map.isFull());
+    ASSERT_FALSE(map.isEmpty());
+
+    map.clear();
+    ASSERT_TRUE(map.isEmpty());
+    ASSERT_FALSE(map.isFull());
+    ASSERT_EQ(0, map.count());
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(i, i * 10);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(map.count(), (size_t)(i + 1));
+    }
+
+    ASSERT_TRUE(map.isFull());
+    ASSERT_FALSE(map.isEmpty());
 }
