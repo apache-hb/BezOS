@@ -158,13 +158,13 @@ static constexpr size_t kCommittedRegionSize = sm::megabytes(16).bytes();
 struct KernelLayout {
     /// @brief Virtual address space reserved for the kernel.
     /// Space for dynamic allocations, kernel heap, kernel stacks, etc.
-    VirtualRange system;
+    VirtualRangeEx system;
 
     /// @brief Non-pageable memory.
     AddressMapping committed;
 
     /// @brief All framebuffers.
-    VirtualRange framebuffers;
+    VirtualRangeEx framebuffers;
 
     /// @brief Statically allocated memory for the kernel.
     /// Includes text, data, bss, and other sections.
@@ -176,7 +176,7 @@ struct KernelLayout {
             offset += fbs[i].size();
         }
 
-        return (void*)((uintptr_t)framebuffers.front + offset);
+        return (void*)((uintptr_t)framebuffers.front.address + offset);
     }
 
     uintptr_t committedSlide() const {
@@ -210,11 +210,11 @@ public:
     ///
     /// @param memory The size of the memory to reserve.
     /// @return The reserved virtual address range.
-    VirtualRange reserve(size_t memory) {
+    VirtualRangeEx reserve(size_t memory) {
         uintptr_t front = mOffset;
         mOffset += sm::roundup(memory, x64::kPageSize);
 
-        return VirtualRange { (void*)front, (void*)mOffset };
+        return VirtualRangeEx { (void*)front, (void*)mOffset };
     }
 };
 
@@ -292,7 +292,7 @@ static KernelLayout BuildKernelLayout(
     uintptr_t dataFront = -(1ull << (vaddrbits - 1));
     uintptr_t dataBack = -(1ull << (vaddrbits - 2));
 
-    VirtualRange data = { (void*)dataFront, (void*)dataBack };
+    VirtualRangeEx data = { (void*)dataFront, (void*)dataBack };
 
     AddressSpaceBuilder builder { dataBack };
 
@@ -303,10 +303,10 @@ static KernelLayout BuildKernelLayout(
         KM_PANIC("Failed to reserve memory for committed region.");
     }
 
-    VirtualRange committedVirtualRange = builder.reserve(kCommittedRegionSize);
+    VirtualRangeEx committedVirtualRange = builder.reserve(kCommittedRegionSize);
     km::AddressMapping committed = { committedVirtualRange.front, committedPhysicalMemory.front, kCommittedRegionSize };
 
-    VirtualRange framebuffers = builder.reserve(framebuffersSize);
+    VirtualRangeEx framebuffers = builder.reserve(framebuffersSize);
 
     AddressMapping kernel = { kernelVirtualBase, kernelPhysicalBase, GetKernelSize() };
 
@@ -355,8 +355,8 @@ static MemoryMap* CreateEarlyAllocator(const boot::LaunchInfo& launch, mem::Tlsf
     return memory;
 }
 
-static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer> framebuffers, VirtualRange range) {
-    uintptr_t framebufferBase = (uintptr_t)range.front;
+static void MapDisplayRegions(PageTables& vmm, std::span<const boot::FrameBuffer> framebuffers, VirtualRangeEx range) {
+    uintptr_t framebufferBase = (uintptr_t)range.front.address;
     for (const boot::FrameBuffer& framebuffer : framebuffers) {
         // remap the framebuffer into its final location
         km::AddressMapping fb = { (void*)framebufferBase, framebuffer.paddr.address, framebuffer.size() };

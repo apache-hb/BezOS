@@ -39,7 +39,7 @@ namespace km {
         const PageBuilder *mPageManager{nullptr};
 
         /// @brief Virtual address of the root page table.
-        x64::PageMapLevel4 *mRootPageTable{nullptr};
+        PageTableAllocation mRootAllocation;
 
         /// @brief Flags used for mapping intermediate page tables.
         PageFlags mMiddleFlags{PageFlags::eNone};
@@ -68,6 +68,10 @@ namespace km {
         /// @param ptr The virtual address of the page table.
         /// @return The physical address of the page table.
         PhysicalAddressEx asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
+
+        PhysicalAddressEx asPhysical(PageTableAllocation allocation) const noexcept [[clang::nonblocking]] {
+            return allocation.getPhysical();
+        }
 
         /// @brief Get the virtual address of a sub-table from a table entry.
         ///
@@ -110,8 +114,8 @@ namespace km {
         /// @param pde The 2m page directory entry to split.
         /// @param page The range of the 2m page.
         /// @param erase The range to unmap.
-        /// @param pt The newly allocated page table.
-        void split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
+        /// @param allocation The newly allocated page table.
+        void split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, PageTableAllocation allocation);
 
         /// @brief Cut off one end of a 2m page mapping and replace it with 4k pages.
         ///
@@ -121,8 +125,8 @@ namespace km {
         /// @param pde The 2m page directory entry to split.
         /// @param page The range of the 2m page.
         /// @param erase The range to unmap.
-        /// @param pt The new page table to use.
-        void cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt);
+        /// @param allocation The new page table allocation to use.
+        void cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, PageTableAllocation allocation);
 
         /// @brief Compute the number of page tables that need to be allocated to unmap the given range.
         ///
@@ -181,10 +185,10 @@ namespace km {
         const PageBuilder *pageManager() const noexcept [[clang::nonblocking]] { return mPageManager; }
 
         [[gnu::returns_nonnull]]
-        const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return mRootPageTable; }
+        const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return (x64::PageMapLevel4*)mRootAllocation.getVirtual(); }
 
         [[gnu::returns_nonnull]]
-        x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return mRootPageTable; }
+        x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return (x64::PageMapLevel4*)mRootAllocation.getVirtual(); }
         PhysicalAddressEx root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
 
         /// @brief Map a range of virtual address space to physical memory.

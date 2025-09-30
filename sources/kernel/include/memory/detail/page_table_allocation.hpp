@@ -12,7 +12,12 @@ namespace km {
         size_t mSlide;
 
     public:
-        PageTableAllocation(void *block = nullptr, size_t slide = 0) noexcept [[clang::nonblocking]]
+        PageTableAllocation() noexcept [[clang::nonblocking]]
+            : mBlock(nullptr)
+            , mSlide(0)
+        { }
+
+        PageTableAllocation(void *block, size_t slide) noexcept [[clang::nonblocking]]
             : mBlock(block)
             , mSlide(slide)
         { }

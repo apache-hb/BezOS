@@ -55,7 +55,6 @@ namespace km {
         [[nodiscard]]
         PageTableAllocation allocate(size_t blocks) [[clang::allocating]];
 
-        [[gnu::nonnull]]
         void deallocate(void *ptr [[gnu::nonnull]], size_t blocks, uintptr_t slide = 0) noexcept [[clang::nonallocating]];
 
         void deallocate(PageTableAllocation allocation, size_t blocks) noexcept [[clang::nonallocating]];
@@ -70,7 +69,7 @@ namespace km {
         /// @param[out] result The list to write the result to.
         ///
         /// @return If the allocation was successful.
-        bool allocateList(size_t blocks, detail::PageTableList *result) [[clang::allocating]];
+        bool allocateList(size_t blocks, detail::PageTableList *result [[outparam]]) [[clang::allocating]];
 
         /// @brief Allocate extra blocks and append them to the provided list.
         bool allocateExtra(size_t blocks, detail::PageTableList& list) [[clang::allocating]];

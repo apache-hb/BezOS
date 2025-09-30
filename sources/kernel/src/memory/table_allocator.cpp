@@ -164,7 +164,7 @@ km::PageTableAllocation km::PageTableAllocator::allocate(size_t blocks) {
     return PageTableAllocation{};
 }
 
-bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result) {
+bool km::PageTableAllocator::allocateList(size_t blocks, detail::PageTableList *result [[outparam]]) {
     [[assume(blocks > 0)]];
 
     //

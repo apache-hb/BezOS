@@ -30,15 +30,16 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
 }
 
 OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]] {
-    if (OsStatus status = PageTableAllocator::create(pteMemory.virtualRangeEx(), x64::kPageSize, &tables->mAllocator)) {
+    if (OsStatus status = PageTableAllocator::create(pteMemory, x64::kPageSize, &tables->mAllocator)) {
         return status;
     }
 
     tables->mSlide = pteMemory.slide();
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;
-    tables->mRootPageTable = (x64::PageMapLevel4*)tables->alloc4k();
-    KM_ASSERT(tables->mRootPageTable != nullptr);
+    tables->mRootAllocation = tables->mAllocator.allocate(1);
+    KM_CHECK(tables->mRootAllocation.isPresent(), "Failed to allocate root page table.");
+    memset(tables->mRootAllocation.getVirtual(), 0, sizeof(x64::PageMapLevel4));
 
     return OsStatusSuccess;
 }
@@ -48,8 +49,9 @@ x64::PageMapLevel3 *PageTables::getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml
 
     x64::pml4e& t4 = l4->entries[pml4e];
     if (!t4.present()) {
-        l3 = std::bit_cast<x64::PageMapLevel3*>(buffer.next().getVirtual());
-        setEntryFlags(t4, mMiddleFlags, asPhysical(l3));
+        PageTableAllocation allocation = buffer.next();
+        l3 = std::bit_cast<x64::PageMapLevel3*>(allocation.getVirtual());
+        setEntryFlags(t4, mMiddleFlags, asPhysical(allocation));
     } else {
         l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(t4));
     }
@@ -62,8 +64,9 @@ x64::PageMapLevel2 *PageTables::getPageMap2(x64::PageMapLevel3 *l3, uint16_t pdp
 
     x64::pdpte& t3 = l3->entries[pdpte];
     if (!t3.present()) {
-        l2 = std::bit_cast<x64::PageMapLevel2*>(buffer.next().getVirtual());
-        setEntryFlags(t3, mMiddleFlags, asPhysical(l2));
+        PageTableAllocation allocation = buffer.next();
+        l2 = std::bit_cast<x64::PageMapLevel2*>(allocation.getVirtual());
+        setEntryFlags(t3, mMiddleFlags, asPhysical(allocation));
     } else {
         l2 = asVirtual<x64::PageMapLevel2>(mPageManager->address(t3));
     }
@@ -128,18 +131,20 @@ void PageTables::map4k(PhysicalAddressEx paddr, const void *vaddr, PageFlags fla
 
     x64::pdte& t2 = l2->entries[pdte];
     if (!t2.present()) {
-        pt = std::bit_cast<x64::PageTable*>(buffer.next().getVirtual());
-        setEntryFlags(t2, mMiddleFlags, asPhysical(pt));
+        PageTableAllocation allocation = buffer.next();
+        pt = std::bit_cast<x64::PageTable*>(allocation.getVirtual());
+        setEntryFlags(t2, mMiddleFlags, asPhysical(allocation));
     } else if (t2.is2m()) {
         //
         // We need to split the 2m mapping to make space for this mapping.
         //
-        pt = std::bit_cast<x64::PageTable*>(buffer.next().getVirtual());
+        PageTableAllocation allocation = buffer.next();
+        pt = std::bit_cast<x64::PageTable*>(allocation.getVirtual());
         uintptr_t front2m = sm::rounddown((uintptr_t)vaddr, x64::kLargePageSize);
         uintptr_t back2m = sm::roundup((uintptr_t)vaddr, x64::kLargePageSize);
         VirtualRange page = { (void*)front2m, (void*)back2m };
         VirtualRange erase = { (void*)vaddr, (void*)((uintptr_t)vaddr + x64::kPageSize) };
-        split2mMapping(t2, page, erase, pt);
+        split2mMapping(t2, page, erase, allocation);
     } else {
         pt = asVirtual<x64::PageTable>(mPageManager->address(t2));
     }
@@ -456,15 +461,17 @@ PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {
     PageTableStats stats{};
     stats.allocatorStats = mAllocator.stats();
 
+    const x64::PageMapLevel4 *root = pml4();
+
     for (size_t i = 0; i < 512; i++) {
-        if (!mRootPageTable->entries[i].present()) {
+        if (!root->entries[i].present()) {
             continue;
         }
 
         stats.pml4Entries += 1;
 
         for (size_t j = 0; j < 512; j++) {
-            x64::PageMapLevel3 *l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(mRootPageTable->entries[i]));
+            x64::PageMapLevel3 *l3 = asVirtual<x64::PageMapLevel3>(mPageManager->address(root->entries[i]));
             x64::pdpte& pdpte = l3->entries[j];
             if (!pdpte.present()) {
                 continue;
@@ -477,7 +484,7 @@ PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {
             }
 
             for (size_t k = 0; k < 512; k++) {
-                x64::PageMapLevel2 *pdpte = asVirtual<x64::PageMapLevel2>(mPageManager->address(mRootPageTable->entries[i]));
+                x64::PageMapLevel2 *pdpte = asVirtual<x64::PageMapLevel2>(mPageManager->address(root->entries[i]));
                 x64::pdte& pdte = pdpte->entries[k];
                 if (!pdte.present()) {
                     continue;
@@ -490,7 +497,7 @@ PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {
                 }
 
                 for (size_t l = 0; l < 512; l++) {
-                    x64::PageTable *pdte = asVirtual<x64::PageTable>(mPageManager->address(mRootPageTable->entries[i]));
+                    x64::PageTable *pdte = asVirtual<x64::PageTable>(mPageManager->address(root->entries[i]));
                     x64::pte& pte = pdte->entries[l];
                     if (pte.present()) {
                         stats.ptEntries += 1;
@@ -514,8 +521,9 @@ void PageTables::partialRemap2m(x64::PageTable *pt, VirtualRange range, Physical
     }
 }
 
-void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt) {
+void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, PageTableAllocation allocation) {
     KM_CHECK(pde.is2m(), "Splitting pde that is already split.");
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(allocation.getVirtual());
 
     auto [lo, hi] = km::split(page, erase);
     MemoryType type = mPageManager->getMemoryType(pde);
@@ -535,12 +543,13 @@ void PageTables::split2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange 
     //
     // Finally, update the 2m page to point to the new 4k page table.
     //
-    setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
+    setEntryFlags(pde, mMiddleFlags, asPhysical(allocation));
     pde.set2m(false);
 }
 
-void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, x64::PageTable *pt) {
+void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange erase, PageTableAllocation allocation) {
     VirtualRange remaining = page.cut(erase);
+    x64::PageTable *pt = std::bit_cast<x64::PageTable*>(allocation.getVirtual());
 
     MemoryType type = mPageManager->getMemoryType(pde);
     PhysicalAddressEx paddr = mPageManager->address(pde);
@@ -554,7 +563,7 @@ void PageTables::cut2mMapping(x64::pdte& pde, VirtualRange page, VirtualRange er
     //
     // Update the 2m page to point to the new 4k page table.
     //
-    setEntryFlags(pde, mMiddleFlags, asPhysical(pt));
+    setEntryFlags(pde, mMiddleFlags, asPhysical(allocation));
     pde.set2m(false);
 }
 
@@ -692,8 +701,8 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
         x64::pdte& lowEntry = getLargePageEntry(low.front);
         x64::pdte& highEntry = getLargePageEntry(high.front);
 
-        cut2mMapping(lowEntry, lowPage, low, (x64::PageTable*)buffer.next().getVirtual());
-        cut2mMapping(highEntry, highPage, high, (x64::PageTable*)buffer.next().getVirtual());
+        cut2mMapping(lowEntry, lowPage, low, buffer.next());
+        cut2mMapping(highEntry, highPage, high, buffer.next());
 
         *remaining = VirtualRange { low.back, high.front };
     } else if (earlyAllocations == 1) {
@@ -708,7 +717,7 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
         //
         if (page.contains(range) && !innerAdjacent(page, range)) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            split2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
+            split2mMapping(entry, page, range, buffer.next());
             *remaining = VirtualRange{};
             return;
         }
@@ -720,11 +729,11 @@ void PageTables::earlyUnmapWithList(int earlyAllocations, VirtualRange range, Vi
 
         if (page.front != range.front) {
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
+            cut2mMapping(entry, page, range, buffer.next());
         } else {
             KM_CHECK(page.back != range.back, "Invalid range.");
             x64::pdte& entry = getLargePageEntry(range.front);
-            cut2mMapping(entry, page, range, (x64::PageTable*)buffer.next().getVirtual());
+            cut2mMapping(entry, page, range, buffer.next());
         }
 
         *remaining = VirtualRange{};
