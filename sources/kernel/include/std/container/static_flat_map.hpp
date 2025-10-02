@@ -31,7 +31,7 @@ namespace sm {
             return storageSize / (sizeof(Key) + sizeof(Value));
         }
 
-        void destroy() noexcept {
+        void destroy() noexcept [[clang::nonallocating]] {
             std::destroy_n(mKeys, mCount);
             std::destroy_n(mValues, mCount);
             mCount = 0;
@@ -42,7 +42,7 @@ namespace sm {
 
         friend Iterator;
 
-        StaticFlatMap()
+        StaticFlatMap() noexcept [[clang::nonallocating]]
             : mKeys(nullptr)
             , mValues(nullptr)
             , mCapacity(0)
@@ -55,7 +55,7 @@ namespace sm {
         /// @param storage A pointer to the memory to use for the map. Must be at least computeRequiredStorage(1) bytes.
         /// @param size The size of the storage in bytes.
         /// @param compare The comparison function for the keys.
-        StaticFlatMap(void *storage [[gnu::nonnull]], size_t size, Compare compare = Compare{}) noexcept
+        StaticFlatMap(void *storage [[gnu::nonnull]], size_t size, Compare compare = Compare{}) noexcept [[clang::nonallocating]]
             : mKeys(static_cast<Key*>(storage))
             , mValues(reinterpret_cast<Value*>(mKeys + computeMaxKeyCount(size)))
             , mCapacity(computeMaxKeyCount(size))
@@ -92,38 +92,39 @@ namespace sm {
             return *this;
         }
 
-        static constexpr size_t computeRequiredStorage(size_t capacity) noexcept {
+        static constexpr size_t computeRequiredStorage(size_t capacity) noexcept [[clang::nonblocking]] {
             return (capacity * sizeof(Key)) + (capacity * sizeof(Value));
         }
 
         /// @brief Get the maximum capacity of the map.
         ///
         /// @return The maximum number of entries the map can hold.
-        size_t capacity() const noexcept {
+        size_t capacity() const noexcept [[clang::nonblocking]] {
             return mCapacity;
         }
 
         /// @brief Get the current number of entries in the map.
         ///
         /// @return The number of entries in the map.
-        size_t count() const noexcept {
+        size_t count() const noexcept [[clang::nonblocking]] {
             return mCount;
         }
 
         /// @brief Check if the map is empty.
         ///
         /// @return True if the map is empty, false otherwise.
-        bool isEmpty() const noexcept {
+        bool isEmpty() const noexcept [[clang::nonblocking]] {
             return mCount == 0;
         }
 
         /// @brief Check if the map is full.
         ///
         /// @return True if the map is full, false otherwise.
-        bool isFull() const noexcept {
+        bool isFull() const noexcept [[clang::nonblocking]] {
             return mCount == mCapacity;
         }
 
+        /// @brief Clear all entries from the map.
         void clear() noexcept {
             destroy();
         }
@@ -139,7 +140,7 @@ namespace sm {
         /// @return Status of the operation.
         /// @retval OsStatusSuccess The key-value pair was inserted or updated successfully.
         /// @retval OsStatusOutOfMemory The map is full and cannot accept new entries.
-        OsStatus insert(const Key& key, const Value& value) noexcept {
+        OsStatus insert(const Key& key, const Value& value) noexcept [[clang::nonblocking]] {
             if (isFull()) {
                 return OsStatusOutOfMemory;
             }
@@ -175,7 +176,7 @@ namespace sm {
         /// @return Status of the operation.
         /// @retval OsStatusSuccess The key-value pair was removed successfully.
         /// @retval OsStatusNotFound The key was not found in the map.
-        OsStatus remove(const Key& key) noexcept {
+        OsStatus remove(const Key& key) noexcept [[clang::nonblocking]] {
             Key *iter = std::lower_bound(mKeys, mKeys + mCount, key, mCompare);
             if (iter == mKeys + mCount || mCompare(key, *iter) || mCompare(*iter, key)) {
                 return OsStatusNotFound;
@@ -197,7 +198,7 @@ namespace sm {
         /// @param key The key to find.
         ///
         /// @return A pointer to the value if found, nullptr otherwise.
-        Value *find(const Key& key) noexcept {
+        Value *find(const Key& key) noexcept [[clang::nonblocking]] {
             Key *iter = std::lower_bound(mKeys, mKeys + mCount, key, mCompare);
             if (iter == mKeys + mCount || mCompare(key, *iter) || mCompare(*iter, key)) {
                 return nullptr;
@@ -225,18 +226,30 @@ namespace sm {
         /// @brief Get an iterator to the beginning of the map.
         ///
         /// @return An iterator to the beginning of the map.
-        Iterator begin() noexcept {
-            return Iterator(this, 0);
+        Iterator begin() noexcept [[clang::nonblocking]] {
+            return Iterator{this, 0};
         }
 
         /// @brief Get an iterator to the end of the map.
         ///
         /// @return An iterator to the end of the map.
-        Iterator end() noexcept {
-            return Iterator(this, mCount);
+        Iterator end() noexcept [[clang::nonblocking]] {
+            return Iterator{this, mCount};
         }
 
-        friend void swap(StaticFlatMap& a, StaticFlatMap& b) noexcept {
+        Iterator upperBound(const Key& key) noexcept [[clang::nonblocking]] {
+            Key *iter = std::upper_bound(mKeys, mKeys + mCount, key, mCompare);
+            size_t index = std::distance(mKeys, iter);
+            return Iterator{this, index};
+        }
+
+        Iterator lowerBound(const Key& key) noexcept [[clang::nonblocking]] {
+            Key *iter = std::lower_bound(mKeys, mKeys + mCount, key, mCompare);
+            size_t index = std::distance(mKeys, iter);
+            return Iterator{this, index};
+        }
+
+        friend void swap(StaticFlatMap& a, StaticFlatMap& b) noexcept [[clang::nonblocking]] {
             std::swap(a.mKeys, b.mKeys);
             std::swap(a.mValues, b.mValues);
             std::swap(a.mCapacity, b.mCapacity);
@@ -269,14 +282,14 @@ namespace sm {
         /// @brief Dereference the iterator to get the current key-value pair.
         ///
         /// @return A pair containing a reference to the key and a reference to the value.
-        std::pair<const Key&, Value&> operator*() noexcept {
+        std::pair<const Key&, Value&> operator*() noexcept [[clang::nonblocking]] {
             return {mContainer->mKeys[mIndex], mContainer->mValues[mIndex]};
         }
 
         /// @brief Dereference the iterator to get the current key-value pair (const version).
         ///
         /// @return A pair containing a reference to the key and a reference to the value.
-        std::pair<const Key&, const Value&> operator*() const noexcept {
+        std::pair<const Key&, const Value&> operator*() const noexcept [[clang::nonblocking]] {
             return {mContainer->mKeys[mIndex], mContainer->mValues[mIndex]};
         }
 
@@ -301,7 +314,7 @@ namespace sm {
         /// @param other The other iterator to compare with.
         ///
         /// @return True if the iterators are equal, false otherwise.
-        bool operator==(const StaticFlatMapIterator& other) const noexcept {
+        bool operator==(const StaticFlatMapIterator& other) const noexcept [[clang::nonblocking]] {
             return mContainer == other.mContainer && mIndex == other.mIndex;
         }
 
@@ -310,7 +323,7 @@ namespace sm {
         /// @param other The other iterator to compare with.
         ///
         /// @return True if the iterators are not equal, false otherwise.
-        bool operator!=(const StaticFlatMapIterator& other) const noexcept {
+        bool operator!=(const StaticFlatMapIterator& other) const noexcept [[clang::nonblocking]] {
             return mContainer != other.mContainer || mIndex != other.mIndex;
         }
     };

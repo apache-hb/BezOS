@@ -197,3 +197,59 @@ TEST_F(StaticFlatMapTest, Clear) {
     ASSERT_TRUE(map.isFull());
     ASSERT_FALSE(map.isEmpty());
 }
+
+TEST_F(StaticFlatMapTest, LowerBound) {
+    OsStatus status = OsStatusSuccess;
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(i * 10, i * 100);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(map.count(), (size_t)(i + 1));
+    }
+
+    auto it = map.lowerBound(25);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 30);
+    ASSERT_EQ(it.value(), 300);
+
+    it = map.lowerBound(0);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 0);
+    ASSERT_EQ(it.value(), 0);
+
+    it = map.lowerBound(30);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 30);
+    ASSERT_EQ(it.value(), 300);
+
+    it = map.lowerBound(1000);
+    ASSERT_EQ(it, map.end());
+}
+
+TEST_F(StaticFlatMapTest, UpperBound) {
+    OsStatus status = OsStatusSuccess;
+
+    for (size_t i = 0; i < kCapacity; i++) {
+        status = map.insert(i * 10, i * 100);
+        ASSERT_EQ(status, OsStatusSuccess);
+        ASSERT_EQ(map.count(), (size_t)(i + 1));
+    }
+
+    auto it = map.upperBound(25);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 30);
+    ASSERT_EQ(it.value(), 300);
+
+    it = map.upperBound(0);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 10);
+    ASSERT_EQ(it.value(), 100);
+
+    it = map.upperBound(30);
+    ASSERT_NE(it, map.end());
+    ASSERT_EQ(it.key(), 40);
+    ASSERT_EQ(it.value(), 400);
+
+    it = map.upperBound(1000);
+    ASSERT_EQ(it, map.end());
+}
