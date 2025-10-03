@@ -390,6 +390,7 @@ paging_src = files(
     'src/memory/table_allocator.cpp',
     'src/memory/detail/table_list.cpp',
     'src/memory/detail/control_block.cpp',
+    'src/memory/detail/mapping_lookup_cache.cpp',
 )
 
 libpaging_kernel = static_library('paging', paging_src,

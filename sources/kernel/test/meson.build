@@ -247,6 +247,10 @@ testcases = {
         'sources': files('std/container/static_flat_map.cpp'),
         'link_with': [ libtest_shim ],
     },
+    'mapping lookup cache': {
+        'sources': files('memory/detail/mapping_lookup_cache.cpp'),
+        'link_with': [ libtest_shim, libpaging_native ],
+    },
     'spinlock': {
         'sources': files('std/spinlock.cpp'),
     },

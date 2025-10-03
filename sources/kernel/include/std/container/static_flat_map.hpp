@@ -309,6 +309,14 @@ namespace sm {
             return *this;
         }
 
+        /// @brief Decrement the iterator to point to the previous element.
+        ///
+        /// @return A reference to the decremented iterator.
+        StaticFlatMapIterator& operator--() noexcept {
+            mIndex -= 1;
+            return *this;
+        }
+
         /// @brief Compare two iterators for equality.
         ///
         /// @param other The other iterator to compare with.
