@@ -274,7 +274,7 @@ namespace sm {
         ///
         /// @param container The container to iterate over.
         /// @param index The starting index for the iterator.
-        StaticFlatMapIterator(Container *container, size_t index) noexcept
+        StaticFlatMapIterator(Container *container, size_t index) noexcept [[clang::nonblocking]]
             : mContainer(container)
             , mIndex(index)
         { }
@@ -293,18 +293,18 @@ namespace sm {
             return {mContainer->mKeys[mIndex], mContainer->mValues[mIndex]};
         }
 
-        const Key& key() const noexcept {
+        const Key& key() const noexcept [[clang::nonblocking]] {
             return mContainer->mKeys[mIndex];
         }
 
-        Value& value() noexcept {
+        Value& value() noexcept [[clang::nonblocking]] {
             return mContainer->mValues[mIndex];
         }
 
         /// @brief Increment the iterator to point to the next element.
         ///
         /// @return A reference to the incremented iterator.
-        StaticFlatMapIterator& operator++() noexcept {
+        StaticFlatMapIterator& operator++() noexcept [[clang::nonblocking]] {
             mIndex += 1;
             return *this;
         }
@@ -312,7 +312,7 @@ namespace sm {
         /// @brief Decrement the iterator to point to the previous element.
         ///
         /// @return A reference to the decremented iterator.
-        StaticFlatMapIterator& operator--() noexcept {
+        StaticFlatMapIterator& operator--() noexcept [[clang::nonblocking]] {
             mIndex -= 1;
             return *this;
         }

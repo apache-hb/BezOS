@@ -2,6 +2,7 @@
 
 #include "arch/paging.hpp"
 
+#include "memory/detail/mapping_lookup_cache.hpp"
 #include "memory/detail/table_list.hpp"
 
 #include "memory/memory.hpp"
@@ -31,6 +32,8 @@ namespace km {
 
         /// @brief The slide between the backing pte memory and its virtual address.
         uintptr_t mSlide{0};
+
+        detail::MappingLookupCache mCache;
 
         /// @brief The page table allocator.
         PageTableAllocator mAllocator;
@@ -316,6 +319,10 @@ namespace km {
         /// @retval OsStatusOutOfMemory There was not enough memory to create the page tables, no page tables have been created.
         [[nodiscard]]
         static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]];
+
+        static constexpr size_t minMemoryUsage() noexcept [[clang::nonallocating]] {
+            return x64::kPageSize * 2; // root + cache
+        }
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

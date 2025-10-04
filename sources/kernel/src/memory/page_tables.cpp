@@ -34,12 +34,20 @@ OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, Pag
         return status;
     }
 
+    PageTableAllocation root = tables->mAllocator.allocate(1);
+    PageTableAllocation cache = tables->mAllocator.allocate(1);
+
+    if (!root.isPresent() || !cache.isPresent()) {
+        return OsStatusOutOfMemory;
+    }
+
+    memset(root.getVirtual(), 0, x64::kPageSize);
+
     tables->mSlide = pteMemory.slide();
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;
-    tables->mRootAllocation = tables->mAllocator.allocate(1);
-    KM_CHECK(tables->mRootAllocation.isPresent(), "Failed to allocate root page table.");
-    memset(tables->mRootAllocation.getVirtual(), 0, sizeof(x64::PageMapLevel4));
+    tables->mRootAllocation = root;
+    tables->mCache = detail::MappingLookupCache{cache.getVirtual(), x64::kPageSize};
 
     return OsStatusSuccess;
 }

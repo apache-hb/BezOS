@@ -32,7 +32,6 @@ sm::PhysicalAddress MappingLookupCache::find(sm::VirtualAddress vaddr) noexcept 
 
     const auto& [key, entry] = *it;
     if (key > vaddr || key + (entry.count * x64::kPageSize) <= vaddr) {
-        printf("miss 2\n");
         return sm::PhysicalAddress::invalid();
     }
 

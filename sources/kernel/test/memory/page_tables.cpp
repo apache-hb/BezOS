@@ -890,7 +890,7 @@ TEST_F(PageTableTest, TableLeaks) {
 
     {
         auto stats = alloc.stats();
-        ASSERT_EQ(63, stats.freeBlocks);
+        ASSERT_EQ(64 - (PageTables::minMemoryUsage() / x64::kPageSize), stats.freeBlocks);
     }
 
     {
@@ -898,7 +898,7 @@ TEST_F(PageTableTest, TableLeaks) {
         ASSERT_EQ(OsStatusSuccess, status);
 
         auto stats = alloc.stats();
-        ASSERT_EQ(60, stats.freeBlocks);
+        ASSERT_EQ(61 - (PageTables::minMemoryUsage() / x64::kPageSize), stats.freeBlocks);
     }
 }
 
