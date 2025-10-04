@@ -226,24 +226,24 @@ namespace sm {
         /// @brief Get an iterator to the beginning of the map.
         ///
         /// @return An iterator to the beginning of the map.
-        Iterator begin() noexcept [[clang::nonblocking]] {
+        Iterator begin() const noexcept [[clang::nonblocking]] {
             return Iterator{this, 0};
         }
 
         /// @brief Get an iterator to the end of the map.
         ///
         /// @return An iterator to the end of the map.
-        Iterator end() noexcept [[clang::nonblocking]] {
+        Iterator end() const noexcept [[clang::nonblocking]] {
             return Iterator{this, mCount};
         }
 
-        Iterator upperBound(const Key& key) noexcept [[clang::nonblocking]] {
+        Iterator upperBound(const Key& key) const noexcept [[clang::nonblocking]] {
             Key *iter = std::upper_bound(mKeys, mKeys + mCount, key, mCompare);
             size_t index = std::distance(mKeys, iter);
             return Iterator{this, index};
         }
 
-        Iterator lowerBound(const Key& key) noexcept [[clang::nonblocking]] {
+        Iterator lowerBound(const Key& key) const noexcept [[clang::nonblocking]] {
             Key *iter = std::lower_bound(mKeys, mKeys + mCount, key, mCompare);
             size_t index = std::distance(mKeys, iter);
             return Iterator{this, index};
@@ -266,7 +266,7 @@ namespace sm {
     class StaticFlatMapIterator {
         using Container = StaticFlatMap<Key, Value>;
 
-        Container *mContainer;
+        const Container *mContainer;
         size_t mIndex;
 
     public:
@@ -274,7 +274,7 @@ namespace sm {
         ///
         /// @param container The container to iterate over.
         /// @param index The starting index for the iterator.
-        StaticFlatMapIterator(Container *container, size_t index) noexcept [[clang::nonblocking]]
+        StaticFlatMapIterator(const Container *container, size_t index) noexcept [[clang::nonblocking]]
             : mContainer(container)
             , mIndex(index)
         { }

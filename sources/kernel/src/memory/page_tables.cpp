@@ -33,6 +33,11 @@ OsStatus PageTables::trackMapping(AddressMapping mapping) noexcept [[clang::nona
     return mCache.addMemory(mapping);
 }
 
+void PageTables::deallocate(sm::VirtualAddress vaddr, sm::PhysicalAddress paddr, size_t pages) noexcept [[clang::nonallocating]] {
+    uintptr_t slide = paddr.address - vaddr.address;
+    mAllocator.deallocate(vaddr, pages, slide);
+}
+
 OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]] {
     if (OsStatus status = PageTableAllocator::create(pteMemory, x64::kPageSize, &tables->mAllocator)) {
         return status;
@@ -47,7 +52,6 @@ OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, Pag
 
     memset(root.getVirtual(), 0, x64::kPageSize);
 
-    tables->mSlide = pteMemory.slide();
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;
     tables->mRootAllocation = root;
@@ -182,8 +186,9 @@ void PageTables::map2m(PhysicalAddressEx paddr, const void *vaddr, PageFlags fla
     // the old page table so we dont leak when we replace this entry with a 2m mapping.
     //
     if (t2.present() && !t2.is2m()) {
-        void *ptr = asVirtual<x64::PageTable>(mPageManager->address(t2));
-        mAllocator.deallocate(ptr, 1, mSlide);
+        sm::PhysicalAddress paddr = mPageManager->address(t2);
+        void *ptr = asVirtual<x64::PageTable>(paddr);
+        deallocate(ptr, paddr, 1);
     }
 
     t2.set2m(true);
@@ -590,8 +595,9 @@ void PageTables::reclaim2m(x64::pdte& pde) {
         //
         // If the page is a set of 4k pages we can reclaim the page table.
         //
-        x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(pde));
-        mAllocator.deallocate(pt, 1, mSlide);
+        sm::PhysicalAddress paddr = mPageManager->address(pde);
+        x64::PageTable *pt = asVirtual<x64::PageTable>(paddr);
+        deallocate(pt, paddr, 1);
     }
 
     pde.setPresent(false);
@@ -976,9 +982,10 @@ size_t PageTables::compactPt(x64::PageMapLevel2 *pd, uint16_t index) {
     if (!entry.present()) return 0; // Is not mapped, nothing to do.
     if (entry.is2m()) return 0; // Is mapped.
 
-    x64::PageTable *pt = asVirtual<x64::PageTable>(mPageManager->address(entry));
+    sm::PhysicalAddress paddr = mPageManager->address(entry);
+    x64::PageTable *pt = asVirtual<x64::PageTable>(paddr);
     if (IsTableEmpty(pt)) {
-        mAllocator.deallocate(pt, 1, mSlide);
+        deallocate(pt, paddr, 1);
         entry.setPresent(false);
         return 1;
     }
@@ -991,7 +998,8 @@ size_t PageTables::compactPd(x64::PageMapLevel3 *pd, uint16_t index) {
     if (!entry.present()) return 0;
     if (entry.is1g()) return 0;
 
-    x64::PageMapLevel2 *pt = asVirtual<x64::PageMapLevel2>(mPageManager->address(entry));
+    sm::PhysicalAddress paddr = mPageManager->address(entry);
+    x64::PageMapLevel2 *pt = asVirtual<x64::PageMapLevel2>(paddr);
     size_t count = 0;
     bool reclaim = true;
     for (size_t i = 0; i < 512; i++) {
@@ -1003,7 +1011,7 @@ size_t PageTables::compactPd(x64::PageMapLevel3 *pd, uint16_t index) {
     }
 
     if (reclaim) {
-        mAllocator.deallocate(pt, 1, mSlide);
+        deallocate(pt, paddr, 1);
         entry.setPresent(false);
         count += 1;
     }
@@ -1016,7 +1024,8 @@ size_t PageTables::compactPdpt(x64::PageMapLevel4 *pd, uint16_t index) {
     if (!entry.present()) return 0;
     size_t count = 0;
 
-    x64::PageMapLevel3 *pt = asVirtual<x64::PageMapLevel3>(mPageManager->address(entry));
+    sm::PhysicalAddress paddr = mPageManager->address(entry);
+    x64::PageMapLevel3 *pt = asVirtual<x64::PageMapLevel3>(paddr);
     bool reclaim = true;
     for (size_t i = 0; i < 512; i++) {
         count += compactPd(pt, i);
@@ -1027,7 +1036,7 @@ size_t PageTables::compactPdpt(x64::PageMapLevel4 *pd, uint16_t index) {
     }
 
     if (reclaim) {
-        mAllocator.deallocate(pt, 1, mSlide);
+        deallocate(pt, paddr, 1);
         entry.setPresent(false);
         count += 1;
     }

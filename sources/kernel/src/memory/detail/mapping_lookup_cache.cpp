@@ -24,7 +24,7 @@ OsStatus MappingLookupCache::removeMemory(AddressMapping mapping) noexcept [[cla
     return OsStatusNotFound;
 }
 
-sm::VirtualAddress MappingLookupCache::find(sm::PhysicalAddress paddr) noexcept [[clang::nonblocking]] {
+sm::VirtualAddress MappingLookupCache::find(sm::PhysicalAddress paddr) const noexcept [[clang::nonblocking]] {
     auto it = mCache.lowerBound(paddr);
     if (it != mCache.begin()) {
         --it;

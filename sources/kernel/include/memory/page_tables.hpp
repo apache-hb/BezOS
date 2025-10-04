@@ -30,9 +30,6 @@ namespace km {
     class PageTables {
         friend class PageTableCommandList;
 
-        /// @brief The slide between the backing pte memory and its virtual address.
-        uintptr_t mSlide{0};
-
         /// @brief Mapping of virtual addresses to physical addresses for page table lookups.
         detail::MappingLookupCache mCache;
 
@@ -62,7 +59,7 @@ namespace km {
         /// @return The virtual address of the page table.
         template<typename T>
         T *asVirtual(PhysicalAddressEx addr) const noexcept [[clang::nonblocking]] {
-            return (T*)(addr.address + mSlide);
+            return (T*)(mCache.find(addr).address);
         }
 
         /// @brief Convert the virtual address of a page table to a physical address.
@@ -90,6 +87,8 @@ namespace km {
         }
 
         OsStatus trackMapping(AddressMapping mapping) noexcept [[clang::nonallocating]];
+
+        void deallocate(sm::VirtualAddress vaddr, sm::PhysicalAddress paddr, size_t pages) noexcept [[clang::nonallocating]];
 
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddressEx address) noexcept [[clang::nonblocking]];
 

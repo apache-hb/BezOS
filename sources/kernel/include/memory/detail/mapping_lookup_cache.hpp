@@ -28,6 +28,6 @@ namespace km::detail {
 
         OsStatus removeMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
 
-        sm::VirtualAddress find(sm::PhysicalAddress vaddr) noexcept [[clang::nonblocking]];
+        sm::VirtualAddress find(sm::PhysicalAddress vaddr) const noexcept [[clang::nonblocking]];
     };
 }
