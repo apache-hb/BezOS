@@ -9,11 +9,11 @@
 namespace km::detail {
     class MappingLookupCache {
         struct MapEntry {
-            sm::PhysicalAddress paddr;
+            sm::VirtualAddress vaddr;
             size_t count;
         };
 
-        using Cache = sm::StaticFlatMap<sm::VirtualAddress, MapEntry>;
+        using Cache = sm::StaticFlatMap<sm::PhysicalAddress, MapEntry>;
 
         Cache mCache;
 
@@ -28,6 +28,6 @@ namespace km::detail {
 
         OsStatus removeMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
 
-        sm::PhysicalAddress find(sm::VirtualAddress vaddr) noexcept [[clang::nonblocking]];
+        sm::VirtualAddress find(sm::PhysicalAddress vaddr) noexcept [[clang::nonblocking]];
     };
 }

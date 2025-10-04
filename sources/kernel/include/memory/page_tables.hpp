@@ -69,10 +69,8 @@ namespace km {
         ///
         /// This can be used for storing a new page table in a pte.
         ///
-        /// @param ptr The virtual address of the page table.
+        /// @param allocation The allocation containing the virtual address of the page table.
         /// @return The physical address of the page table.
-        PhysicalAddressEx asPhysical(const void *ptr) const noexcept [[clang::nonblocking]];
-
         PhysicalAddressEx asPhysical(PageTableAllocation allocation) const noexcept [[clang::nonblocking]] {
             return allocation.getPhysical();
         }

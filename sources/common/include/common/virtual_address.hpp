@@ -29,6 +29,10 @@ namespace sm {
         operator void*() noexcept [[clang::nonblocking]] {
             return std::bit_cast<void*>(address);
         }
+
+        static constexpr VirtualAddress invalid() noexcept [[clang::nonblocking]] {
+            return VirtualAddress { UINTPTR_MAX };
+        }
     };
 
     template<typename T>

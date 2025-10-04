@@ -26,17 +26,17 @@ TEST_F(MappingLookupCacheTest, AddAndFind) {
 
     ASSERT_EQ(cache.addMemory(mapping), OsStatusSuccess);
 
-    sm::PhysicalAddress paddr = cache.find(0x200000);
-    ASSERT_EQ(paddr.address, mapping.paddr.address);
+    sm::VirtualAddress vaddr = cache.find(0x100000);
+    ASSERT_EQ(vaddr, mapping.vaddr);
 
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
-        sm::PhysicalAddress paddr = cache.find(0x200000 + i);
-        EXPECT_EQ(paddr.address, mapping.paddr.address + i) << std::format("Failed at offset {:#x}", 0x200000 + i);
+        sm::VirtualAddress vaddr = cache.find(0x100000 + i);
+        EXPECT_EQ(vaddr.address, (uintptr_t)mapping.vaddr + i) << std::format("Failed at offset {:#x}", 0x100000 + i);
     }
 
-    sm::PhysicalAddress invalid = cache.find(0x200000 - x64::kPageSize);
-    EXPECT_EQ(invalid, sm::PhysicalAddress::invalid());
+    sm::VirtualAddress invalid = cache.find(0x100000 - x64::kPageSize);
+    EXPECT_EQ(invalid, sm::VirtualAddress::invalid());
 
-    invalid = cache.find((uintptr_t)mapping.vaddr + mapping.size + 1);
-    EXPECT_EQ(invalid, sm::PhysicalAddress::invalid());
+    invalid = cache.find(mapping.paddr.address + mapping.size + 1);
+    EXPECT_EQ(invalid, sm::VirtualAddress::invalid());
 }

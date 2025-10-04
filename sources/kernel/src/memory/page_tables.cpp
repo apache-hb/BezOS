@@ -956,10 +956,6 @@ km::PageSize PageTables::getPageSize(const void *ptr) {
     return result.pageSize();
 }
 
-km::PhysicalAddressEx PageTables::asPhysical(const void *ptr) const noexcept [[clang::nonblocking]] {
-    return km::PhysicalAddressEx { (uintptr_t)ptr - mSlide };
-}
-
 PageWalk PageTables::walk(const void *ptr) {
     return walkUnlocked(ptr);
 }
