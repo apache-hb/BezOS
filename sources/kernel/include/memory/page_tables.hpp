@@ -33,6 +33,7 @@ namespace km {
         /// @brief The slide between the backing pte memory and its virtual address.
         uintptr_t mSlide{0};
 
+        /// @brief Mapping of virtual addresses to physical addresses for page table lookups.
         detail::MappingLookupCache mCache;
 
         /// @brief The page table allocator.
@@ -89,6 +90,8 @@ namespace km {
             PhysicalAddressEx address = mPageManager->address(table->entries[index]);
             return asVirtual<U>(address);
         }
+
+        OsStatus trackMapping(AddressMapping mapping) noexcept [[clang::nonallocating]];
 
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddressEx address) noexcept [[clang::nonblocking]];
 
@@ -192,7 +195,7 @@ namespace km {
 
         [[gnu::returns_nonnull]]
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return (x64::PageMapLevel4*)mRootAllocation.getVirtual(); }
-        PhysicalAddressEx root() const noexcept [[clang::nonblocking]] { return asPhysical(pml4()); }
+        PhysicalAddressEx root() const noexcept [[clang::nonblocking]] { return mRootAllocation.getPhysical(); }
 
         /// @brief Map a range of virtual address space to physical memory.
         ///

@@ -29,6 +29,10 @@ void PageTables::setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddre
     entry.setPresent(true);
 }
 
+OsStatus PageTables::trackMapping(AddressMapping mapping) noexcept [[clang::nonallocating]] {
+    return mCache.addMemory(mapping);
+}
+
 OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]] {
     if (OsStatus status = PageTableAllocator::create(pteMemory, x64::kPageSize, &tables->mAllocator)) {
         return status;
@@ -48,6 +52,9 @@ OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, Pag
     tables->mMiddleFlags = flags;
     tables->mRootAllocation = root;
     tables->mCache = detail::MappingLookupCache{cache.getVirtual(), x64::kPageSize};
+
+    OsStatus status = tables->trackMapping(pteMemory);
+    KM_CHECK(status == OsStatusSuccess, "Failed to track page table memory");
 
     return OsStatusSuccess;
 }

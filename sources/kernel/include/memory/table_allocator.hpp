@@ -12,7 +12,7 @@ namespace km {
     class PageTableAllocator;
 
     namespace detail {
-        void *AllocateBlock(PageTableAllocator& allocator, size_t size);
+        detail::ControlBlock *AllocateBlock(PageTableAllocator& allocator, size_t size);
         bool CanAllocateBlocks(const ControlBlock *head, size_t size);
         detail::PageTableList AllocateHead(PageTableAllocator& allocator, size_t *remaining [[outparam]]);
     }
@@ -42,7 +42,7 @@ namespace km {
         size_t mBlockSize{x64::kPageSize};
         detail::ControlBlock *mHead{nullptr};
 
-        friend void *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
+        friend detail::ControlBlock *detail::AllocateBlock(PageTableAllocator& allocator, size_t blocks);
         friend detail::PageTableList detail::AllocateHead(PageTableAllocator& allocator, size_t *remaining [[outparam]]);
 
         void setHead(detail::ControlBlock *block) noexcept [[clang::nonblocking]];

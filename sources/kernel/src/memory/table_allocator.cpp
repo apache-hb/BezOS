@@ -32,7 +32,7 @@ static void RemoveBlock(km::detail::ControlBlock *block) {
     }
 }
 
-void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
+km::detail::ControlBlock *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
     if (size == 0) {
         return nullptr;
     }
@@ -48,7 +48,7 @@ void *km::detail::AllocateBlock(PageTableAllocator& allocator, size_t size) {
     if (block->size < size) {
         return nullptr;
     } else if (block->size == size) {
-        void *result = block;
+        detail::ControlBlock *result = block;
         allocator.setHead(block->next);
         return result;
     } else {
@@ -147,8 +147,8 @@ OsStatus km::PageTableAllocator::create(AddressMapping mapping, size_t blockSize
 }
 
 km::PageTableAllocation km::PageTableAllocator::allocate(size_t blocks) {
-    if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        return PageTableAllocation{result, 0};
+    if (detail::ControlBlock *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
+        return PageTableAllocation{result, result->slide};
     }
 
     //
@@ -157,8 +157,8 @@ km::PageTableAllocation km::PageTableAllocator::allocate(size_t blocks) {
 
     defragment();
 
-    if (void *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
-        return PageTableAllocation{result, 0};
+    if (detail::ControlBlock *result = detail::AllocateBlock(*this, (blocks * mBlockSize))) {
+        return PageTableAllocation{result, result->slide};
     }
 
     return PageTableAllocation{};
