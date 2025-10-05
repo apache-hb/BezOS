@@ -9,6 +9,7 @@ limine_install = find_program('limine-install', native : true)
 argparse = dependency('argparse', native : true)
 
 ktest_inc = [ inc, include_directories('include') ]
+ktest_ld = meson.project_source_root() / 'data/test/linker/linker-test.ld'
 
 libktest = static_library('ktest', src,
     include_directories : ktest_inc,
@@ -17,19 +18,6 @@ libktest = static_library('ktest', src,
     dependencies : [ deps, limine ],
     link_with : [ kernel ],
     override_options : kernel_kwargs['override_options']
-)
-
-ktest_ld = meson.project_source_root() / 'data/test/linker/linker-test.ld'
-
-ktest_start_image = executable('start.elf', 'start.cpp',
-    include_directories : inc,
-    c_args : kernel_c_args,
-    cpp_args : kernel_cpp_args,
-    link_with : [ libktest, kernel ],
-    dependencies : [ limine, deps ],
-    override_options : kernel_kwargs['override_options'],
-    link_depends : ktest_ld,
-    link_args : [ '-T', ktest_ld ],
 )
 
 ktest_runner = executable('ktest-runner', 'runner.cpp',

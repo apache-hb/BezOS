@@ -1,7 +1,7 @@
 #pragma once
 
-#include "std/string.hpp"
-#include "util/format.hpp"
+#include "std/string.hpp" // IWYU pragma: keep
+#include "util/format.hpp" // IWYU pragma: keep
 
 #include <source_location>
 
@@ -36,18 +36,22 @@ namespace km::testing {
     using TestFactory = Test* (*)();
 }
 
-#define KTEST_F(FixtureClass, TestName) \
-    class Test_##FixtureClass##_##TestName : public FixtureClass { \
+#define KTEST_DECLARE_TEST(SuiteName, TestName, ParentClass) \
+    class Test_##SuiteName##_##TestName : public ParentClass { \
         [[gnu::section(KM_TEST_SECTION)]] \
         constinit static volatile const km::testing::TestFactory kFactory; \
     public: \
         void TestBody() override; \
     }; \
     [[gnu::used, gnu::section(KM_TEST_SECTION)]] \
-    constinit const volatile km::testing::TestFactory Test_##FixtureClass##_##TestName::kFactory = []() -> km::testing::Test* { \
-        return new Test_##FixtureClass##_##TestName(); \
+    constinit const volatile km::testing::TestFactory Test_##SuiteName##_##TestName::kFactory = []() -> km::testing::Test* { \
+        return new Test_##SuiteName##_##TestName(); \
     }; \
-    void Test_##FixtureClass##_##TestName::TestBody()
+    void Test_##SuiteName##_##TestName::TestBody()
+
+#define KTEST(SuiteName, TestName) KTEST_DECLARE_TEST(SuiteName, TestName, km::testing::Test)
+
+#define KTEST_F(FixtureClass, TestName) KTEST_DECLARE_TEST(FixtureClass, TestName, FixtureClass)
 
 #define KASSERT_EQ(expected, actual) \
     do { \
