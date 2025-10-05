@@ -1,5 +1,7 @@
+#if 0
 #include <libvirt/libvirt.h>
 #include <libvirt/virterror.h>
+#endif
 
 #include <argparse/argparse.hpp>
 #include <cpp-subprocess/subprocess.hpp>
@@ -29,6 +31,7 @@ namespace fs = std::filesystem;
         throw std::runtime_error("Assertion failed: "s + message); \
     }
 
+#if 0
 static void replaceAll(std::string &str, const std::string &from, const std::string &to) {
     size_t start_pos = 0;
     while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
@@ -49,6 +52,7 @@ static std::string virtLastErrorString() {
 static std::string getTestDomain(std::string id) {
     return "BezOS-IntegrationTest-"s + id;
 }
+#endif
 
 static std::string getEnvElement(const char *name) {
     const char *value = getenv(name);
@@ -59,6 +63,7 @@ static std::string getEnvElement(const char *name) {
     return std::string(value);
 }
 
+#if 0
 static void assertDomainState(virDomainPtr ptr, int expected) {
     int state;
     int ret = virDomainGetState(ptr, &state, nullptr, 0);
@@ -86,6 +91,7 @@ static void killDomain(virConnectPtr conn, const std::string &name) {
         std::cerr << "Failed to undefine domain: " << virtLastErrorString() << std::endl;
     }
 }
+#endif
 
 static constexpr const char *kLimineConf = R"(
 # Timeout in seconds that Limine will use before automatically booting.
@@ -100,6 +106,7 @@ timeout: 0
     kernel_path: boot():/boot/kernel.elf
 )";
 
+#if 0
 static constexpr const char *kDomainXml = R"(
 <domain type='qemu'>
     <name>$0</name>
@@ -135,6 +142,7 @@ static constexpr const char *kDomainXml = R"(
     </devices>
 </domain>
 )";
+#endif
 
 int main(int argc, const char **argv) try {
     argparse::ArgumentParser program("ktest-runner");

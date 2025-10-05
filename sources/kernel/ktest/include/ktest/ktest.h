@@ -1,10 +1,11 @@
 #pragma once
 
-#include "boot.hpp"
 #include "std/string.hpp"
 #include "util/format.hpp"
 
-#define KTEST_SECTION ".testing"
+#include <source_location>
+
+#define KM_TEST_SECTION ".testing"
 
 namespace km::testing {
     namespace detail {
@@ -33,19 +34,16 @@ namespace km::testing {
     };
 
     using TestFactory = Test* (*)();
-
-    void initKernelTest(boot::LaunchInfo launch);
-    int runAllTests();
 }
 
 #define KTEST_F(FixtureClass, TestName) \
     class Test_##FixtureClass##_##TestName : public FixtureClass { \
-        [[gnu::section(KTEST_SECTION)]] \
+        [[gnu::section(KM_TEST_SECTION)]] \
         constinit static volatile const km::testing::TestFactory kFactory; \
     public: \
         void TestBody() override; \
     }; \
-    [[gnu::used, gnu::section(KTEST_SECTION)]] \
+    [[gnu::used, gnu::section(KM_TEST_SECTION)]] \
     constinit const volatile km::testing::TestFactory Test_##FixtureClass##_##TestName::kFactory = []() -> km::testing::Test* { \
         return new Test_##FixtureClass##_##TestName(); \
     }; \
@@ -57,5 +55,6 @@ namespace km::testing {
         auto a = (actual); \
         if (e != a) { \
             km::testing::detail::addError(km::concat<km::testing::detail::kAssertMessageSize>("Assertion failed: " #expected " != " #actual " (expected ", e, ", got ", a, ")")); \
+            return; \
         } \
     } while (0)

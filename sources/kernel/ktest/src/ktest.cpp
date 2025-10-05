@@ -1,4 +1,6 @@
-#include "test_image.hpp"
+#include <ktest/ktest.h>
+
+#include "private.hpp"
 
 #include "arch/cr0.hpp"
 #include "arch/cr4.hpp"
@@ -461,7 +463,7 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
     return stage2;
 }
 
-void km::testing::initKernelTest(boot::LaunchInfo launch) {
+void km::testing::detail::initKernelTest(boot::LaunchInfo launch) {
     normalizeProcessorState();
 
     ComPortInfo com1Info = {
@@ -497,7 +499,7 @@ void km::testing::initKernelTest(boot::LaunchInfo launch) {
     TestLog.infof("Kernel test environment initialized.");
 }
 
-int km::testing::runAllTests() {
+int km::testing::detail::runAllTests() {
     auto tests = getTestCases();
     TestLog.infof("Running ", tests.size(), " test cases.");
     for (const km::testing::TestFactory factory : tests) {
