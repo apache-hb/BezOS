@@ -48,11 +48,6 @@ SECTIONS
         __rodata_start = .;
         *(.rodata .rodata.*)
 
-        . = ALIGN(CONSTANT(MAXPAGESIZE));
-        __test_cases_start = .;
-        KEEP(*(.rodata.testing .rodata.testing.*))
-        __test_cases_end = .;
-
         __rodata_end = .;
     } :rodata
 
@@ -62,6 +57,12 @@ SECTIONS
     .data : {
         __data_start = .;
         *(.data .data.*)
+
+        . = ALIGN(CONSTANT(MAXPAGESIZE));
+        __test_cases_start = .;
+        KEEP(*(.testing))
+        __test_cases_end = .;
+
         __data_end = .;
     } :data
 

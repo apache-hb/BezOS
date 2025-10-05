@@ -86,6 +86,10 @@ clean:
 check: | clean-coverage
 	meson test -C $(KERNEL_PATH) --suite kernel --suite pvtest
 
+.PHONY: virt-check
+virt-check: | clean-coverage
+	meson test -C $(KERNEL_PATH) --suite virt
+
 .PHONY: stress
 stress: | clean-coverage
 	meson test -C $(KERNEL_PATH) --suite kernel-soak

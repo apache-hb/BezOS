@@ -1,3 +1,4 @@
+#include "devices/qemu/debugexit.hpp"
 #include "logger/categories.hpp"
 #include "test_image.hpp"
 #include "logger/logger.hpp"
@@ -15,18 +16,20 @@ public:
 
 KTEST_F(KernelStartupTest, BasicTest) {
     TestLog.infof("Kernel startup test is running.");
+    KASSERT_EQ(1, 1);
 }
 
 void LaunchKernel(boot::LaunchInfo launch) {
-    km::testing::InitKernelTest(launch);
-    int result = km::testing::RunAllTests();
+    km::testing::initKernelTest(launch);
+    int result = km::testing::runAllTests();
+
+    km::QemuExitDevice exitDevice{};
 
     if (result != 0) {
         TestLog.fatalf("Kernel tests failed with code: ", result);
-        KM_PANIC("Kernel tests failed.");
     } else {
         TestLog.infof("All kernel tests passed successfully.");
     }
 
-    KmHalt();
+    exitDevice.exit(result);
 }

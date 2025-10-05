@@ -702,10 +702,13 @@ src = [
     'src/smp.cpp',
     smp,
 
-    # Device drivers
+    # Block drivers
     'src/drivers/block/driver.cpp',
     'src/drivers/block/virtio_blk.cpp',
     'src/drivers/block/ramblk.cpp',
+
+    # Devices
+    'src/devices/qemu/debugexit.cpp',
 
     # Userspace
     'src/user/user.cpp',

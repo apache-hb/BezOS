@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
         throw std::runtime_error("Assertion failed: "s + message); \
     }
 
-static void ReplaceAll(std::string &str, const std::string &from, const std::string &to) {
+static void replaceAll(std::string &str, const std::string &from, const std::string &to) {
     size_t start_pos = 0;
     while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
         str.replace(start_pos, from.length(), to);
@@ -37,7 +37,7 @@ static void ReplaceAll(std::string &str, const std::string &from, const std::str
     }
 }
 
-static std::string VirtLastErrorString() {
+static std::string virtLastErrorString() {
     const char *msg = virGetLastErrorMessage();
     if (msg == nullptr) {
         return "No error";
@@ -46,11 +46,11 @@ static std::string VirtLastErrorString() {
     return msg;
 }
 
-static std::string GetTestDomain(std::string id) {
+static std::string getTestDomain(std::string id) {
     return "BezOS-IntegrationTest-"s + id;
 }
 
-static std::string GetEnvElement(const char *name) {
+static std::string getEnvElement(const char *name) {
     const char *value = getenv(name);
     if (value == nullptr) {
         throw std::runtime_error("getenv() failed "s + std::to_string(errno));
@@ -59,18 +59,18 @@ static std::string GetEnvElement(const char *name) {
     return std::string(value);
 }
 
-static void AssertDomainState(virDomainPtr ptr, int expected) {
+static void assertDomainState(virDomainPtr ptr, int expected) {
     int state;
     int ret = virDomainGetState(ptr, &state, nullptr, 0);
     if (ret < 0) {
-        throw std::runtime_error(std::format("Failed to get domain state: {}", VirtLastErrorString()));
+        throw std::runtime_error(std::format("Failed to get domain state: {}", virtLastErrorString()));
     }
     if (state != expected) {
         throw std::runtime_error(std::format("Domain state mismatch: expected {}, got {}", expected, state));
     }
 }
 
-static void KillDomain(virConnectPtr conn, const std::string &name) {
+static void killDomain(virConnectPtr conn, const std::string &name) {
     virDomainPtr domain = virDomainLookupByName(conn, name.c_str());
     if (domain == nullptr) {
         return;
@@ -78,12 +78,12 @@ static void KillDomain(virConnectPtr conn, const std::string &name) {
 
     int ret = virDomainDestroy(domain);
     if (ret != 0) {
-        std::cerr << "Failed to destroy domain: " << VirtLastErrorString() << std::endl;
+        std::cerr << "Failed to destroy domain: " << virtLastErrorString() << std::endl;
     }
 
     ret = virDomainUndefine(domain);
     if (ret != 0) {
-        std::cerr << "Failed to undefine domain: " << VirtLastErrorString() << std::endl;
+        std::cerr << "Failed to undefine domain: " << virtLastErrorString() << std::endl;
     }
 }
 
@@ -154,7 +154,7 @@ int main(int argc, const char **argv) try {
         return 1;
     }
 
-    fs::path globalInstallPrefix = (fs::path(GetEnvElement("MESON_PREFIX")) / "..").lexically_normal();
+    fs::path globalInstallPrefix = (fs::path(getEnvElement("MESON_PREFIX")) / "..").lexically_normal();
     auto limineSharePath = globalInstallPrefix / "limine" / "share";
 
     std::string kernelPath = program.get<std::string>("--kernel");
@@ -209,42 +209,65 @@ int main(int argc, const char **argv) try {
         return 1;
     }
 
+    auto result = subprocess::call({
+        "qemu-system-x86_64",
+        "-cdrom", kernelIso.string(),
+        "-M", "q35",
+        "-display", "none",
+        "-chardev", "stdio,id=char0,signal=off,logfile=ktest-runner-qemu.log",
+        "-no-reboot",
+        "-serial", "chardev:char0",
+        "-device", "isa-debug-exit,iobase=0x501,iosize=0x02",
+    });
+
+    //
+    // qemus isa-debug-exit device exits with (code << 1) | 1
+    //
+    if (result == 1) {
+        return 0;
+    }
+
+    std::cerr << "QEMU exited with code: " << result << std::endl;
+    return (result >> 1);
+
+#if 0
     virConnectPtr conn = virConnectOpen("qemu:///system");
-    KT_ASSERT_NE(conn, nullptr, VirtLastErrorString());
+    KT_ASSERT_NE(conn, nullptr, virtLastErrorString());
 
     char *uri = virConnectGetURI(conn);
-    KT_ASSERT_NE(uri, nullptr, VirtLastErrorString());
+    KT_ASSERT_NE(uri, nullptr, virtLastErrorString());
 
     const char *hvType = virConnectGetType(conn);
-    KT_ASSERT_NE(hvType, nullptr, VirtLastErrorString());
+    KT_ASSERT_NE(hvType, nullptr, virtLastErrorString());
 
-    auto name = GetTestDomain("Launch");
+    auto name = getTestDomain("Launch");
 
     // If a domain already exists for this test, kill it.
-    KillDomain(conn, name);
+    killDomain(conn, name);
 
     std::string xml = kDomainXml;
-    ReplaceAll(xml, "$0", name);
-    ReplaceAll(xml, "$1", kernelIso.string());
+    replaceAll(xml, "$0", name);
+    replaceAll(xml, "$1", kernelIso.string());
 
     virDomainPtr domain = virDomainDefineXMLFlags(conn, xml.c_str(), VIR_DOMAIN_DEFINE_VALIDATE);
-    KT_ASSERT_NE(domain, nullptr, VirtLastErrorString() + xml);
+    KT_ASSERT_NE(domain, nullptr, virtLastErrorString() + xml);
 
     int ret = virDomainCreate(domain);
-    KT_ASSERT_EQ(ret, 0, VirtLastErrorString());
+    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
 
     virDomainInfo info;
     ret = virDomainGetInfo(domain, &info);
-    KT_ASSERT_EQ(ret, 0, VirtLastErrorString());
+    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
 
-    AssertDomainState(domain, VIR_DOMAIN_RUNNING);
+    assertDomainState(domain, VIR_DOMAIN_RUNNING);
 
     ret = virDomainDestroy(domain);
-    KT_ASSERT_EQ(ret, 0, VirtLastErrorString());
+    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
 
     virDomainFree(domain);
     free(uri);
     virConnectClose(conn);
+#endif
 
     return 0;
 } catch (const std::exception &e) {
