@@ -30,7 +30,7 @@ km::RuntimeIsrManager *km::RuntimeIsrManager::instance() {
 }
 
 void km::RuntimeIsrManager::cpuInit() {
-    std::fill(tlsIsrTable->begin(), tlsIsrTable->end(), km::DefaultIsrHandler);
+    std::fill(tlsIsrTable->begin(), tlsIsrTable->end(), km::defaultIsrHandler);
 }
 
 km::LocalIsrTable *km::GetLocalIsrTable() {

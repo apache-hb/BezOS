@@ -16,7 +16,7 @@ public:
     void SetUp() override {
         // reset the isr table for each test
         for (size_t i = 0; i < km::SharedIsrTable::kCount; i++) {
-            gTable.install(i, km::DefaultIsrHandler);
+            gTable.install(i, km::defaultIsrHandler);
         }
     }
 

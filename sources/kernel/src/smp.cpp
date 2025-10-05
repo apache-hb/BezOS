@@ -75,7 +75,7 @@ static constexpr km::PhysicalAddressEx kSmpStart = 0x8000;
 
 extern "C" [[noreturn]] void KmSmpStartup(SmpInfoHeader *header) {
     km::setupInitialGdt();
-    km::LoadIdt();
+    km::loadIdt();
 
     km::Apic apic = km::InitApApic(header->memory->pageTables(), header->bspApic);
 

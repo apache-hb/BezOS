@@ -136,7 +136,7 @@ namespace km {
     /// @param context The ISR context.
     ///
     /// @return The ISR context.
-    IsrContext DefaultIsrHandler(IsrContext *context) noexcept [[clang::reentrant]];
+    IsrContext defaultIsrHandler(IsrContext *context) noexcept [[clang::reentrant]];
 
     /// @brief A table of interrupt service routines.
     ///
@@ -159,7 +159,7 @@ namespace km {
         // we have to employ this gnu extension. But now this class is constexpr
         // constructible.
         //
-        IsrEntry mHandlers[N] = { [0 ... (N - 1)] = DefaultIsrHandler };
+        IsrEntry mHandlers[N] = { [0 ... (N - 1)] = defaultIsrHandler };
 
         uint8_t index(const IsrEntry *entry) const noexcept [[clang::reentrant]] {
             return std::distance(mHandlers, entry) + kOffset;
@@ -188,7 +188,7 @@ namespace km {
                 // Find the first entry that is free by swapping with the default handler.
                 // All free entries are denoted by containing `DefaultIsrHandler`.
                 //
-                IsrCallback expected = DefaultIsrHandler;
+                IsrCallback expected = defaultIsrHandler;
                 if (entry.compare_exchange_strong(expected, callback)) {
                     return &entry;
                 }
@@ -206,7 +206,7 @@ namespace km {
             // has changed since then another thread has beaten us to
             // reusing it and we don't want to trample their work.
             //
-            return entry->compare_exchange_strong(expected, DefaultIsrHandler);
+            return entry->compare_exchange_strong(expected, defaultIsrHandler);
         }
 
     public:
@@ -318,7 +318,7 @@ namespace km {
     /// @brief Setup the IDT for this core.
     ///
     /// Must be called before enabling interrupts or will lead to undefined behaviour.
-    void LoadIdt();
+    void loadIdt();
 
     /// @brief Update an entry in the ist.
     ///

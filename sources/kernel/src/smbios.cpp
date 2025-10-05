@@ -11,21 +11,28 @@ using namespace stdx::literals;
 
 namespace smbios = km::smbios;
 
+static constexpr bool kLogSmBios = true;
+
 template<typename T>
 constexpr km::MemoryRangeEx SmBiosTableRange(const T *table) {
     return km::MemoryRangeEx::of(table->tableAddress, table->tableSize);
 }
 
 template<typename T>
-static km::VirtualRangeEx SmBiosMapTable(const T *table, km::AddressSpace& memory, km::VmemAllocation *allocation [[outparam]]) {
-    BiosLog.dbgf("Table: ", (void*)table);
-    BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
+static km::VirtualRangeEx smbiosMapTable(const T *table, km::AddressSpace& memory, km::VmemAllocation *allocation [[outparam]]) {
+    if constexpr (kLogSmBios) {
+        BiosLog.dbgf("Table: ", (void*)table);
+        BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(table), sizeof(T))), "\n");
+    }
 
     void *address = memory.mapGenericObject(SmBiosTableRange(table), km::PageFlags::eRead, km::MemoryType::eWriteThrough, allocation);
     KM_CHECK(!allocation->isNull(), "Failed to map SMBIOS table");
 
-    BiosLog.dbgf("Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize});
-    BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
+    if constexpr (kLogSmBios) {
+        BiosLog.dbgf("Table address: ", km::Hex(table->tableAddress).pad(sizeof(T::tableAddress) * 2), ", Size: ", auto{table->tableSize});
+        BiosLog.printImmediate(km::HexDump(std::span(reinterpret_cast<const uint8_t*>(address), table->tableSize)), "\n");
+    }
+
     return km::VirtualRangeEx::of(address, table->tableSize);
 }
 
@@ -80,13 +87,13 @@ const smbios::SystemInfo *km::SmBiosTables::systemInfo() const {
 
 bool km::SmBiosTables::isOracleVirtualBox() const {
     if (const smbios::SystemInfo *system = systemInfo()) {
-        return smbios::GetStringEntry(system, system->manufacturer) == smbios::kOracleVirtualBox;
+        return smbios::getStringEntry(system, system->manufacturer) == smbios::kOracleVirtualBox;
     }
 
     return false;
 }
 
-constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringView name, bool ignoreChecksum) {
+constexpr bool testEntryChecksum(std::span<const uint8_t> bytes, stdx::StringView name, bool ignoreChecksum) {
     uint8_t sum = 0;
     for (uint8_t byte : bytes) {
         sum += byte;
@@ -104,7 +111,7 @@ constexpr bool TestEntryChecksum(std::span<const uint8_t> bytes, stdx::StringVie
     return sum == 0;
 }
 
-stdx::StringView km::smbios::detail::GetStringEntry(const StructHeader *header, uint8_t string) {
+stdx::StringView km::smbios::detail::getStringEntry(const StructHeader *header, uint8_t string) {
     if (string == 0) {
         return "Not specified"_sv;
     }
@@ -134,7 +141,7 @@ stdx::StringView km::smbios::detail::GetStringEntry(const StructHeader *header, 
     return "Invalid index"_sv;
 }
 
-size_t km::smbios::GetStructSize(const StructHeader *header) {
+size_t km::smbios::getStructSize(const StructHeader *header) {
     size_t size = header->length;
     const char *address = reinterpret_cast<const char*>(header) + size;
 
@@ -149,7 +156,7 @@ size_t km::smbios::GetStructSize(const StructHeader *header) {
     return size;
 }
 
-static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::VmemAllocation *allocation) {
+static OsStatus findSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry64 **entry, km::VmemAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry64>(address, allocation);
 
     if (smbios->anchor != smbios::Entry64::kAnchor0) {
@@ -158,7 +165,7 @@ static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, k
     }
 
     std::span<const uint8_t> bytes = std::span(reinterpret_cast<const uint8_t*>(smbios), sizeof(smbios::Entry64));
-    if (!TestEntryChecksum(bytes, "SMBIOS64", ignoreChecksum)) {
+    if (!testEntryChecksum(bytes, "SMBIOS64", ignoreChecksum)) {
         return OsStatusChecksumError;
     }
 
@@ -166,7 +173,7 @@ static OsStatus FindSmbios64(sm::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::VmemAllocation *allocation) {
+static OsStatus findSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, km::AddressSpace& memory, const smbios::Entry32 **entry, km::VmemAllocation *allocation) {
     const auto *smbios = memory.mapConst<smbios::Entry32>(address, allocation);
 
     if (smbios->anchor0 != smbios::Entry32::kAnchor0) {
@@ -180,12 +187,12 @@ static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, k
     // and the extended header is afterwards at 0x10:0x1e.
     //
     std::span<const uint8_t> bytes = std::span(reinterpret_cast<const uint8_t*>(smbios), 0x10);
-    if (!TestEntryChecksum(bytes, "SMBIOS32", ignoreChecksum)) {
+    if (!testEntryChecksum(bytes, "SMBIOS32", ignoreChecksum)) {
         return OsStatusChecksumError;
     }
 
     bytes = std::span(reinterpret_cast<const uint8_t*>(smbios) + 0x10, 0xf);
-    if (!TestEntryChecksum(bytes, "SMBIOS32 Extended", ignoreChecksum)) {
+    if (!testEntryChecksum(bytes, "SMBIOS32 Extended", ignoreChecksum)) {
         return OsStatusChecksumError;
     }
 
@@ -193,7 +200,7 @@ static OsStatus FindSmbios32(sm::PhysicalAddress address, bool ignoreChecksum, k
     return OsStatusSuccess;
 }
 
-OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]) {
+OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[outparam]]) {
     //
     // Store the status as a local so that we can return the last error if both fail.
     //
@@ -203,7 +210,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
 
     if (options.smbios64Address != nullptr && !options.ignore64BitEntry) {
         km::VmemAllocation allocation;
-        status = FindSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64, &allocation);
+        status = findSmbios64(options.smbios64Address, options.ignoreChecksum, memory, &result.entry64, &allocation);
         if (status == OsStatusSuccess) {
 
             defer {
@@ -211,7 +218,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
                 KM_ASSERT(status == OsStatusSuccess);
             };
 
-            result.tables = SmBiosMapTable(result.entry64, memory, &tables->entry64Allocation);
+            result.tables = smbiosMapTable(result.entry64, memory, &result.entry64Allocation);
             *tables = result;
             return status;
         }
@@ -219,7 +226,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
 
     if (options.smbios32Address != nullptr && !options.ignore32BitEntry) {
         km::VmemAllocation allocation;
-        status = FindSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32, &allocation);
+        status = findSmbios32(options.smbios32Address, options.ignoreChecksum, memory, &result.entry32, &allocation);
         if (status == OsStatusSuccess) {
 
             defer {
@@ -227,7 +234,7 @@ OsStatus km::findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memor
                 KM_ASSERT(status == OsStatusSuccess);
             };
 
-            result.tables = SmBiosMapTable(result.entry32, memory, &tables->entry32Allocation);
+            result.tables = smbiosMapTable(result.entry32, memory, &result.entry32Allocation);
             *tables = result;
             return status;
         }

@@ -382,4 +382,11 @@ namespace km {
 
         static void format(IOutStream& out, OsStatusId value);
     };
+
+    template<>
+    struct Format<decltype(nullptr)> {
+        static void format(IOutStream& out, decltype(nullptr)) {
+            out.write("nullptr");
+        }
+    };
 }

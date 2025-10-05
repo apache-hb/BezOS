@@ -54,7 +54,7 @@ void dev::detail::IdentifyAcpiRoot(const acpi::AcpiTables *tables, OsIdentifyInf
 void dev::detail::IdentifySmbTable(const km::smbios::StructHeader *header, const km::SmBiosTables *tables, OsIdentifyInfo *info) {
     detail::IdentifySmbRoot(tables, info);
 
-    auto tableName = km::smbios::TableName(header->type);
+    auto tableName = km::smbios::tableName(header->type);
     stdr::copy(tableName, info->DisplayName);
 
     auto handle = km::format(km::Hex(header->handle).pad(4));
@@ -83,11 +83,11 @@ void dev::detail::IdentifySmbRoot(const km::SmBiosTables *header, OsIdentifyInfo
     const auto *firmware = header->firmwareInfo();
     const auto *system = header->systemInfo();
 
-    stdx::StringView vendor = smbios::GetStringEntry(firmware, firmware->vendor);
-    stdx::StringView version = smbios::GetStringEntry(firmware, firmware->version);
-    stdx::StringView manufacturer = smbios::GetStringEntry(system, system->manufacturer);
-    stdx::StringView product = smbios::GetStringEntry(system, system->productName);
-    stdx::StringView serial = smbios::GetStringEntry(system, system->serialNumber);
+    stdx::StringView vendor = smbios::getStringEntry(firmware, firmware->vendor);
+    stdx::StringView version = smbios::getStringEntry(firmware, firmware->version);
+    stdx::StringView manufacturer = smbios::getStringEntry(system, system->manufacturer);
+    stdx::StringView product = smbios::getStringEntry(system, system->productName);
+    stdx::StringView serial = smbios::getStringEntry(system, system->serialNumber);
 
     OsIdentifyInfo result {
         .DriverVendor = "BezOS",
@@ -242,7 +242,7 @@ OsStatus dev::SmBiosTable::identify(OsIdentifyInfo *info) {
 }
 
 OsStatus dev::SmBiosTable::stat(OsFileInfo *stat) {
-    km::VirtualRange range = km::VirtualRange::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
+    km::VirtualRange range = km::VirtualRange::of((void*)mHeader, km::smbios::getStructSize(mHeader));
 
     *stat = OsFileInfo {
         .LogicalSize = range.size(),
@@ -250,14 +250,14 @@ OsStatus dev::SmBiosTable::stat(OsFileInfo *stat) {
         .BlockCount = range.size(),
     };
 
-    auto name = km::smbios::TableName(mHeader->type);
+    auto name = km::smbios::tableName(mHeader->type);
     stdr::copy(name, stat->Name);
 
     return OsStatusSuccess;
 }
 
 OsStatus dev::SmBiosTable::read(vfs::ReadRequest request, vfs::ReadResult *result) {
-    km::VirtualRangeEx range = km::VirtualRangeEx::of((void*)mHeader, km::smbios::GetStructSize(mHeader));
+    km::VirtualRangeEx range = km::VirtualRangeEx::of((void*)mHeader, km::smbios::getStructSize(mHeader));
     return detail::ReadTableData(range, request, result);
 }
 

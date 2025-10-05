@@ -90,7 +90,7 @@ namespace km {
             uint8_t family;
         };
 
-        constexpr stdx::StringView TableName(StructType type) {
+        constexpr stdx::StringView tableName(StructType type) {
             switch (type) {
             case StructType::eFirmwareInfo: return "Firmware Information";
             case StructType::eSystemInfo: return "System Information";
@@ -104,15 +104,15 @@ namespace km {
         }
 
         namespace detail {
-            stdx::StringView GetStringEntry(const StructHeader *header, uint8_t string);
+            stdx::StringView getStringEntry(const StructHeader *header, uint8_t string);
         }
 
         template<typename T>
-        stdx::StringView GetStringEntry(const T *entry, uint8_t string) {
-            return detail::GetStringEntry(reinterpret_cast<const StructHeader*>(entry), string);
+        stdx::StringView getStringEntry(const T *entry, uint8_t string) {
+            return detail::getStringEntry(reinterpret_cast<const StructHeader*>(entry), string);
         }
 
-        size_t GetStructSize(const StructHeader *header);
+        size_t getStructSize(const StructHeader *header);
 
         // TODO: the firmware table can have extended fields
         static_assert(sizeof(FirmwareInfo) == 18);
@@ -174,5 +174,5 @@ namespace km {
     };
 
     [[nodiscard]]
-    OsStatus findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[gnu::nonnull]]);
+    OsStatus findSmbiosTables(SmBiosLoadOptions options, km::AddressSpace& memory, SmBiosTables *tables [[outparam]]);
 }

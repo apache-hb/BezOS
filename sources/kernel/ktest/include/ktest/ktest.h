@@ -1,5 +1,6 @@
 #pragma once
 
+#include "boot.hpp"
 #include "std/string.hpp" // IWYU pragma: keep
 #include "util/format.hpp" // IWYU pragma: keep
 
@@ -12,6 +13,7 @@ namespace km::testing {
         inline constexpr size_t kAssertMessageSize = 1024;
         using AssertMessage = stdx::StaticString<kAssertMessageSize>;
         void addError(AssertMessage message, std::source_location location = std::source_location::current());
+        void addSkipped(AssertMessage message, std::source_location location = std::source_location::current());
     }
 
     class Test {
@@ -32,6 +34,8 @@ namespace km::testing {
     private:
         virtual void TestBody() = 0;
     };
+
+    boot::LaunchInfo getLaunchInfo();
 
     using TestFactory = Test* (*)();
 }
@@ -61,4 +65,38 @@ namespace km::testing {
             km::testing::detail::addError(km::concat<km::testing::detail::kAssertMessageSize>("Assertion failed: " #expected " != " #actual " (expected ", e, ", got ", a, ")")); \
             return; \
         } \
+    } while (0)
+
+#define KASSERT_NE(notExpected, actual) \
+    do { \
+        auto ne = (notExpected); \
+        auto a = (actual); \
+        if (ne == a) { \
+            km::testing::detail::addError(km::concat<km::testing::detail::kAssertMessageSize>("Assertion failed: " #notExpected " == " #actual " (not expected ", ne, ")")); \
+            return; \
+        } \
+    } while (0)
+
+#define KASSERT_FALSE(condition) \
+    do { \
+        auto c = (condition); \
+        if (c) { \
+            km::testing::detail::addError(km::concat<km::testing::detail::kAssertMessageSize>("Assertion failed: " #condition " is true")); \
+            return; \
+        } \
+    } while (0)
+
+#define KASSERT_TRUE(condition) \
+    do { \
+        auto c = (condition); \
+        if (!c) { \
+            km::testing::detail::addError(km::concat<km::testing::detail::kAssertMessageSize>("Assertion failed: " #condition " is false")); \
+            return; \
+        } \
+    } while (0)
+
+#define KTEST_SKIP(reason) \
+    do { \
+        km::testing::detail::addSkipped("Test skipped: " reason); \
+        return; \
     } while (0)

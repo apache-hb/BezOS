@@ -65,8 +65,8 @@ static constexpr std::chrono::milliseconds kDefaultTimeSlice = 5ms;
 void sys::InstallTimerIsr(km::SharedIsrTable *table) {
     km::IsrCallback old = table->install(km::isr::kTimerVector, ScheduleInt);
 
-    if (old != km::DefaultIsrHandler && old != ScheduleInt) {
-        TaskLog.fatalf("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::DefaultIsrHandler);
+    if (old != km::defaultIsrHandler && old != ScheduleInt) {
+        TaskLog.fatalf("Failed to install scheduler isr ", (void*)old, " != ", (void*)km::defaultIsrHandler);
         KM_PANIC("Failed to install scheduler isr.");
     }
 }

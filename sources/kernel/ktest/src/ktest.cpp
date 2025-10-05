@@ -85,10 +85,19 @@ static void enableUmip(bool enable) {
 }
 
 static int gExitCode = 0;
+static constinit boot::LaunchInfo gLaunchInfo{};
 
 void km::testing::detail::addError(AssertMessage message, std::source_location location) {
     gExitCode = 1;
     TestLog.errorf(message, " at ", stdx::StringView::ofString(location.file_name()), ":", location.line(), " in ", stdx::StringView::ofString(location.function_name()));
+}
+
+void km::testing::detail::addSkipped(AssertMessage message, std::source_location location) {
+    TestLog.infof(message, " at ", stdx::StringView::ofString(location.file_name()), ":", location.line(), " in ", stdx::StringView::ofString(location.function_name()));
+}
+
+boot::LaunchInfo km::testing::getLaunchInfo() {
+    return gLaunchInfo;
 }
 
 struct KernelLayout {
@@ -464,6 +473,8 @@ static Stage2MemoryInfo *InitStage2Memory(const boot::LaunchInfo& launch, const 
 }
 
 void km::testing::detail::initKernelTest(boot::LaunchInfo launch) {
+    gLaunchInfo = launch;
+
     normalizeProcessorState();
 
     ComPortInfo com1Info = {

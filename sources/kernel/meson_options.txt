@@ -1,4 +1,21 @@
-option('ubsan', type : 'feature', value : 'auto')
-option('stack_protector', type : 'feature', value : 'auto')
-option('aml', type : 'feature', value : 'disabled')
-option('docs', type : 'feature', description : 'Build documentation')
+option(
+    'ubsan',
+    type: 'feature',
+    description: 'Enable clang ubsan in the kernel',
+)
+option(
+    'stack_protector',
+    type: 'feature',
+    description: 'Enable stack protector in the kernel',
+)
+option(
+    'aml',
+    type: 'feature',
+    value: 'disabled',
+    description: 'Enable custom AML interpreter in the kernel, currently broken',
+)
+option(
+    'docs',
+    type: 'feature',
+    description: 'Build kernel documentation',
+)

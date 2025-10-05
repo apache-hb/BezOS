@@ -267,16 +267,22 @@ namespace km {
 
         [[nodiscard]]
         constexpr size_t size() const noexcept [[clang::nonblocking]] {
+            KM_ASSERT(isValid());
+
             return mBlock->size;
         }
 
         [[nodiscard]]
         constexpr Address address() const noexcept [[clang::nonblocking]] {
+            KM_ASSERT(isValid());
+
             return Address{mBlock->offset};
         }
 
         [[nodiscard]]
         constexpr Range range() const noexcept [[clang::nonblocking]] {
+            KM_ASSERT(isValid());
+
             return Range::of(address(), mBlock->size);
         }
 

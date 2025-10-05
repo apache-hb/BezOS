@@ -56,10 +56,10 @@ void km::InitInterrupts(uint16_t cs) {
         UpdateIdtEntry(i, cs, x64::Privilege::eSupervisor, 0);
     }
 
-    LoadIdt();
+    loadIdt();
 }
 
-void km::LoadIdt(void) {
+void km::loadIdt(void) {
     IDTR idtr = {
         .limit = sizeof(Idt) - 1,
         .base = (uintptr_t)&gIdt,

@@ -33,6 +33,9 @@ testcases = {
     'simple': {
         'sources': files('test/simple.cpp'),
     },
+    'smbios': {
+        'sources': files('test/smbios.cpp'),
+    },
 }
 
 foreach name, setup : testcases
