@@ -248,7 +248,7 @@ testcases = {
         'link_with': [ libtest_shim ],
     },
     'mapping lookup cache': {
-        'sources': files('memory/detail/mapping_lookup_cache.cpp'),
+        'sources': files('memory/detail/mapping_lookup_table.cpp'),
         'link_with': [ libtest_shim, libpaging_native ],
     },
     'spinlock': {

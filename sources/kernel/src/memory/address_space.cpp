@@ -174,8 +174,6 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
         return OsStatusOutOfMemory;
     }
 
-    KM_CHECK(!vmem.isNull(), "Memory allocation is null");
-
     AddressMapping m = {
         .vaddr = std::bit_cast<const void*>(vmem.address()),
         .paddr = memory.front.address,
@@ -200,7 +198,7 @@ OsStatus km::AddressSpace::map(PmmAllocation memory, PageFlags flags, MemoryType
         return status;
     }
 
-    *allocation = MappingAllocation::unchecked(memory, TlsfAllocation{result.getBlock()});
+    *allocation = MappingAllocation::unchecked(memory, result);
     return OsStatusSuccess;
 }
 

@@ -27,7 +27,7 @@ void km::LogQueue::removeAppender(ILogAppender *appender) noexcept {
     mAppenders.remove_if(appender);
 }
 
-OsStatus km::LogQueue::recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]] {
+OsStatus km::LogQueue::recordMessage(detail::LogMessage message) noexcept [[clang::reentrant, clang::nonallocating]] {
     if (mQueue.tryPush(message)) {
         return OsStatusSuccess;
     }
@@ -66,7 +66,7 @@ OsStatus km::LogQueue::create(uint32_t messageQueueCapacity, LogQueue *queue) no
     return MessageQueue::create(messageQueueCapacity, &queue->mQueue);
 }
 
-stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant]] {
+stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant, clang::nonallocating]] {
     return mName;
 }
 
@@ -81,19 +81,19 @@ void km::Logger::submit(LogLevel level, stdx::StringView message, std::source_lo
     mQueue->submit(logMessage);
 }
 
-void km::Logger::dbg(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::dbg(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     submit(LogLevel::eDebug, message, location);
 }
 
-void km::Logger::info(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::info(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     submit(LogLevel::eInfo, message, location);
 }
 
-void km::Logger::warn(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::warn(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     submit(LogLevel::eWarning, message, location);
 }
 
-void km::Logger::error(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant]] {
+void km::Logger::error(stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]] {
     submit(LogLevel::eError, message, location);
 }
 

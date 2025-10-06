@@ -32,11 +32,11 @@ namespace km {
         OsStatus addAppender(ILogAppender *appender) noexcept;
         void removeAppender(ILogAppender *appender) noexcept;
 
-        OsStatus recordMessage(detail::LogMessage message) noexcept [[clang::reentrant]];
+        OsStatus recordMessage(detail::LogMessage message) noexcept [[clang::reentrant, clang::nonallocating]];
         OsStatus submit(detail::LogMessage message) noexcept [[clang::reentrant, clang::nonallocating]];
 
         template<typename F>
-        OsStatus submitImmediate(const Logger *logger, F&& func) noexcept [[clang::reentrant]] {
+        OsStatus submitImmediate(const Logger *logger, F&& func) noexcept [[clang::reentrant, clang::nonallocating]] {
             struct QueueOutStream final : public IOutStream {
                 LogQueue *mQueue;
                 const Logger *mLogger;

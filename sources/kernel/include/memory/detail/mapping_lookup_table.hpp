@@ -1,5 +1,7 @@
 #pragma once
 
+#include "std/std.hpp"
+
 #include "common/physical_address.hpp"
 #include "common/virtual_address.hpp"
 
@@ -7,10 +9,11 @@
 #include "std/container/static_flat_map.hpp"
 
 namespace km::detail {
-    class MappingLookupCache {
+    class MappingLookupTable {
         struct MapEntry {
             sm::VirtualAddress vaddr;
-            size_t count;
+            uint32_t count;
+            uint32_t refs;
         };
 
         using Cache = sm::StaticFlatMap<sm::PhysicalAddress, MapEntry>;
@@ -18,9 +21,9 @@ namespace km::detail {
         Cache mCache;
 
     public:
-        MappingLookupCache() noexcept [[clang::nonallocating]] = default;
+        MappingLookupTable() noexcept [[clang::nonallocating]] = default;
 
-        MappingLookupCache(void *storage [[gnu::nonnull]], size_t size) noexcept [[clang::nonallocating]]
+        MappingLookupTable(void *storage [[gnu::nonnull]], size_t size) noexcept [[clang::nonallocating]]
             : mCache(storage, size)
         { }
 
@@ -28,6 +31,11 @@ namespace km::detail {
 
         OsStatus removeMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
 
+        OsStatus reclaimMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]];
+
         sm::VirtualAddress find(sm::PhysicalAddress vaddr) const noexcept [[clang::nonblocking]];
+
+        void retain(sm::PhysicalAddress paddr) noexcept [[clang::nonallocating]];
+        void release(sm::PhysicalAddress paddr) noexcept [[clang::nonallocating]];
     };
 }

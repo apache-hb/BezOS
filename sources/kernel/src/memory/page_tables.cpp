@@ -55,7 +55,7 @@ OsStatus PageTables::create(const PageBuilder *pm, AddressMapping pteMemory, Pag
     tables->mPageManager = pm;
     tables->mMiddleFlags = flags;
     tables->mRootAllocation = root;
-    tables->mCache = detail::MappingLookupCache{cache.getVirtual(), x64::kPageSize};
+    tables->mCache = detail::MappingLookupTable{cache.getVirtual(), x64::kPageSize};
 
     OsStatus status = tables->trackMapping(pteMemory);
     KM_CHECK(status == OsStatusSuccess, "Failed to track page table memory");
@@ -442,6 +442,14 @@ bool PageTables::verifyMapping(AddressMapping mapping) const noexcept [[clang::n
         && mPageManager->isCanonicalAddress(mapping.vaddr);
 
     return valid;
+}
+
+OsStatus PageTables::addBackingMemory(AddressMapping mapping) noexcept [[clang::nonallocating]] {
+    return mCache.addMemory(mapping);
+}
+
+OsStatus PageTables::reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]] {
+
 }
 
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {

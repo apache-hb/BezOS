@@ -2,7 +2,7 @@
 
 #include "arch/paging.hpp"
 
-#include "memory/detail/mapping_lookup_cache.hpp"
+#include "memory/detail/mapping_lookup_table.hpp"
 #include "memory/detail/table_list.hpp"
 
 #include "memory/memory.hpp"
@@ -31,7 +31,7 @@ namespace km {
         friend class PageTableCommandList;
 
         /// @brief Mapping of virtual addresses to physical addresses for page table lookups.
-        detail::MappingLookupCache mCache;
+        detail::MappingLookupTable mCache;
 
         /// @brief The page table allocator.
         PageTableAllocator mAllocator;
@@ -184,15 +184,57 @@ namespace km {
         UTIL_NOCOPY(PageTables);
         UTIL_DEFAULT_MOVE(PageTables);
 
+        /// @brief Get the page manager used by this page table.
+        ///
+        /// @return The page manager.
         [[gnu::returns_nonnull]]
         const PageBuilder *pageManager() const noexcept [[clang::nonblocking]] { return mPageManager; }
 
+        /// @brief Get the virtual address of the root page table.
+        ///
+        /// @return The virtual address of the root page table.
         [[gnu::returns_nonnull]]
         const x64::PageMapLevel4 *pml4() const noexcept [[clang::nonblocking]] { return (x64::PageMapLevel4*)mRootAllocation.getVirtual(); }
 
+        /// @brief Get the virtual address of the root page table.
+        ///
+        /// @return The virtual address of the root page table.
         [[gnu::returns_nonnull]]
         x64::PageMapLevel4 *pml4() noexcept [[clang::nonblocking]] { return (x64::PageMapLevel4*)mRootAllocation.getVirtual(); }
-        PhysicalAddressEx root() const noexcept [[clang::nonblocking]] { return mRootAllocation.getPhysical(); }
+
+        /// @brief Get the physical address of the root page table.
+        ///
+        /// @return The physical address of the root page table.
+        sm::PhysicalAddress root() const noexcept [[clang::nonblocking]] { return mRootAllocation.getPhysical(); }
+
+        /// @brief Calculate the minimum amount of memory required to create a page table manager.
+        ///
+        /// @return The minimum amount of memory required.
+        [[nodiscard]]
+        static constexpr size_t minMemoryUsage() noexcept [[clang::nonallocating]] {
+            return x64::kPageSize * 2; // root + cache
+        }
+
+        /// @brief Add extra memory to the page tables for page table allocations.
+        ///
+        /// @param mapping The memory to add, must be page aligned and a multiple of the page size.
+        ///
+        /// @return The status of the operation.
+        /// @retval OsStatusSuccess The memory was successfully added.
+        /// @retval OsStatusInvalidInput The memory range was not valid.
+        /// @retval OsStatusOutOfMemory There was not enough free entries in the internal cache to track the new memory.
+        [[nodiscard]]
+        OsStatus addBackingMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
+
+        /// @brief Release a range of free memory back to the system.
+        ///
+        /// @param mapping[out] The range of memory that was released.
+        ///
+        /// @return The status of the operation.
+        /// @retval OsStatusSuccess Some free memory was released, @p mapping contains the range.
+        /// @retval OsStatusNotFound There was no free memory to release, @p mapping is unchanged.
+        [[nodiscard]]
+        OsStatus reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]];
 
         /// @brief Map a range of virtual address space to physical memory.
         ///
@@ -306,6 +348,7 @@ namespace km {
         /// @pre @p pteMemory.vaddr must be aligned to @a x64::kPageSize.
         /// @pre @p pteMemory.paddr must be aligned to @a x64::kPageSize.
         /// @pre @p pteMemory.vaddr must be a canonical address.
+        /// @pre @p pteMemory.size must be at least @a PageTables::minMemoryUsage().
         ///
         /// @param pm The page builder to query system information from.
         /// @param pteMemory The memory to use for page table allocations.
@@ -319,10 +362,6 @@ namespace km {
         /// @retval OsStatusOutOfMemory There was not enough memory to create the page tables, no page tables have been created.
         [[nodiscard]]
         static OsStatus create(const PageBuilder *pm [[gnu::nonnull]], AddressMapping pteMemory, PageFlags flags, PageTables *tables [[outparam]]) [[clang::allocating]];
-
-        static constexpr size_t minMemoryUsage() noexcept [[clang::nonallocating]] {
-            return x64::kPageSize * 2; // root + cache
-        }
 
 #if __STDC_HOSTED__
         PageTableAllocator& TESTING_getPageTableAllocator() {

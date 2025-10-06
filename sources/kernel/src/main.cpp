@@ -1624,7 +1624,7 @@ void LaunchKernel(boot::LaunchInfo launch) {
         InitLog.warnf("Failed to initialize PCI config space: ", OsStatusId(status));
     }
 
-    pci::ProbeConfigSpace(config.get(), rsdt.mcfg());
+    pci::probeConfigSpace(config.get(), rsdt.mcfg());
 
     km::LocalIsrTable *ist = GetLocalIsrTable();
     sys::installSchedulerIsr();

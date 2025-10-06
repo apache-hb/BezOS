@@ -106,7 +106,7 @@ namespace pci {
     ConfigHeader QueryHeader(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function);
     BridgeConfig QueryBridge(IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function);
 
-    void ProbeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg);
+    void probeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg);
 }
 
 template<>

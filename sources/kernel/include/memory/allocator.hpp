@@ -9,9 +9,9 @@
 namespace km {
     class MappingAllocation {
         km::PmmAllocation mMemoryAllocation;
-        km::TlsfAllocation mAddressAllocation;
+        km::VmemAllocation mAddressAllocation;
 
-        constexpr MappingAllocation(km::PmmAllocation memory, km::TlsfAllocation address) noexcept
+        constexpr MappingAllocation(km::PmmAllocation memory, km::VmemAllocation address) noexcept
             : mMemoryAllocation(memory)
             , mAddressAllocation(address)
         { }
@@ -27,7 +27,7 @@ namespace km {
         }
 
         sm::VirtualAddress baseAddress() const noexcept [[clang::nonblocking]] {
-            return sm::VirtualAddress{mAddressAllocation.offset()};
+            return mAddressAllocation.address();
         }
 
         km::VirtualRangeEx range() const noexcept [[clang::nonblocking]] {
@@ -50,12 +50,12 @@ namespace km {
             return mMemoryAllocation;
         }
 
-        km::TlsfAllocation virtualAllocation() const noexcept [[clang::nonblocking]] {
+        km::VmemAllocation virtualAllocation() const noexcept [[clang::nonblocking]] {
             return mAddressAllocation;
         }
 
         [[nodiscard]]
-        static OsStatus create(PmmAllocation memory, TlsfAllocation address, MappingAllocation *result [[outparam]]) {
+        static OsStatus create(PmmAllocation memory, VmemAllocation address, MappingAllocation *result [[outparam]]) {
             bool valid = memory.isValid() && address.isValid() && (memory.size() == address.size());
             if (!valid) {
                 return OsStatusInvalidInput;
@@ -64,7 +64,7 @@ namespace km {
             return OsStatusSuccess;
         }
 
-        static MappingAllocation unchecked(PmmAllocation memory, TlsfAllocation address) {
+        static MappingAllocation unchecked(PmmAllocation memory, VmemAllocation address) {
             KM_ASSERT(memory.isValid());
             KM_ASSERT(address.isValid());
             if (memory.size() != address.size()) {

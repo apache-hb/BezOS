@@ -1,19 +1,19 @@
 #include <gtest/gtest.h>
 
-#include "memory/detail/mapping_lookup_cache.hpp"
+#include "memory/detail/mapping_lookup_table.hpp"
 
 TEST(MappingLookupCacheConstructTest, Construct) {
     char storage[0x1000];
-    km::detail::MappingLookupCache cache{storage, sizeof(storage)};
+    km::detail::MappingLookupTable cache{storage, sizeof(storage)};
 }
 
 class MappingLookupCacheTest : public testing::Test {
 public:
     char storage[0x1000];
-    km::detail::MappingLookupCache cache;
+    km::detail::MappingLookupTable cache;
 
     void SetUp() override {
-        cache = km::detail::MappingLookupCache{storage, sizeof(storage)};
+        cache = km::detail::MappingLookupTable{storage, sizeof(storage)};
     }
 };
 

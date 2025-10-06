@@ -20,12 +20,12 @@ namespace km {
             : Logger(name, &LogQueue::getGlobalQueue())
         { }
 
-        stdx::StringView getName() const noexcept [[clang::reentrant]];
+        stdx::StringView getName() const noexcept [[clang::reentrant, clang::nonallocating]];
 
         void submit(LogLevel level, stdx::StringView message, std::source_location location) noexcept [[clang::reentrant, clang::nonallocating]];
 
         template<typename... Args>
-        void print(Args&&... args) noexcept [[clang::reentrant]] {
+        void print(Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);
@@ -33,12 +33,12 @@ namespace km {
         }
 
         template<typename... Args>
-        void println(Args&&... args) noexcept [[clang::reentrant]] {
+        void println(Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             print(std::forward<Args>(args)..., "\n");
         }
 
         template<typename... Args>
-        OsStatus printImmediate(Args&&... args) noexcept [[clang::reentrant]] {
+        OsStatus printImmediate(Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             return mQueue->submitImmediate(this, [&](IOutStream& out) noexcept [[clang::reentrant]] {
@@ -54,18 +54,18 @@ namespace km {
         }
 
         template<typename... Args>
-        void printlnImmediate(Args&&... args) noexcept [[clang::reentrant]] {
+        void printlnImmediate(Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             printImmediate(std::forward<Args>(args)..., "\n");
         }
 
-        void dbg(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
-        void info(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
-        void warn(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
-        void error(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant]];
+        void dbg(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant, clang::nonallocating]];
+        void info(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant, clang::nonallocating]];
+        void warn(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant, clang::nonallocating]];
+        void error(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant, clang::nonallocating]];
         void fatal(stdx::StringView message, std::source_location location = std::source_location::current()) noexcept [[clang::reentrant, clang::nonallocating]];
 
         template<typename... Args>
-        void dbgfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
+        void dbgfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);
@@ -73,7 +73,7 @@ namespace km {
         }
 
         template<typename... Args>
-        void infofImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
+        void infofImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);
@@ -81,7 +81,7 @@ namespace km {
         }
 
         template<typename... Args>
-        void warnfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
+        void warnfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);
@@ -89,7 +89,7 @@ namespace km {
         }
 
         template<typename... Args>
-        void errorfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant]] {
+        void errorfImpl(std::source_location location, Args&&... args) noexcept [[clang::reentrant, clang::nonallocating]] {
             static_assert(sizeof...(Args) > 0, "No arguments provided");
 
             stdx::StaticString message = km::concat<kLogMessageSize>(std::forward<Args>(args)...);

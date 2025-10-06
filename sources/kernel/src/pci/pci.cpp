@@ -85,10 +85,10 @@ pci::BridgeConfig pci::QueryBridge(IConfigSpace *config, uint8_t bus, uint8_t sl
     };
 }
 
-static void ProbePciBus(pci::IConfigSpace *config, uint8_t bus);
-static void ProbePciDevice(pci::IConfigSpace *config, uint8_t bus, uint8_t slot);
+static void probePciBus(pci::IConfigSpace *config, uint8_t bus);
+static void probePciDevice(pci::IConfigSpace *config, uint8_t bus, uint8_t slot);
 
-static pci::ConfigHeader ProbePciFunction(pci::IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function) {
+static pci::ConfigHeader probePciFunction(pci::IConfigSpace *config, uint8_t bus, uint8_t slot, uint8_t function) {
     pci::ConfigHeader header = pci::QueryHeader(config, bus, slot, function);
 
     if (!header.isValid()) return header;
@@ -113,44 +113,44 @@ static pci::ConfigHeader ProbePciFunction(pci::IConfigSpace *config, uint8_t bus
 
     if (header.isPciBridge()) {
         pci::BridgeConfig bridge = pci::QueryBridge(config, bus, slot, function);
-        ProbePciBus(config, bridge.secondaryBus);
+        probePciBus(config, bridge.secondaryBus);
     }
 
     return header;
 }
 
-static void ProbePciBus(pci::IConfigSpace *config, uint8_t bus) {
+static void probePciBus(pci::IConfigSpace *config, uint8_t bus) {
     for (uint8_t slot = 0; slot < 32; slot++) {
-        ProbePciDevice(config, bus, slot);
+        probePciDevice(config, bus, slot);
     }
 }
 
-static void ProbePciDevice(pci::IConfigSpace *config, uint8_t bus, uint8_t slot) {
-    pci::ConfigHeader header = ProbePciFunction(config, bus, slot, 0);
+static void probePciDevice(pci::IConfigSpace *config, uint8_t bus, uint8_t slot) {
+    pci::ConfigHeader header = probePciFunction(config, bus, slot, 0);
     if (!header.isValid()) return;
 
     if (header.isMultiFunction()) {
         for (uint8_t function = 1; function < 8; function++) {
-            ProbePciFunction(config, bus, slot, function);
+            probePciFunction(config, bus, slot, function);
         }
     }
 }
 
-static void ProbeBusRange(pci::IConfigSpace *config, uint8_t first, uint8_t last) {
+static void probeBusRange(pci::IConfigSpace *config, uint8_t first, uint8_t last) {
     for (uint8_t bus = first; bus < last; bus++) {
-        ProbePciBus(config, bus);
+        probePciBus(config, bus);
     }
 }
 
-void pci::ProbeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg) {
+void pci::probeConfigSpace(IConfigSpace *config, const acpi::Mcfg *mcfg) {
     PciLog.println("| PCI                 | Property              | Value");
     PciLog.println("|---------------------+-----------------------+--------------------");
 
     if (mcfg == nullptr) {
-        ProbeBusRange(config, 0, 255);
+        probeBusRange(config, 0, 255);
     } else {
         for (const acpi::McfgAllocation& allocation : mcfg->mcfgAllocations()) {
-            ProbeBusRange(config, allocation.startBusNumber, allocation.endBusNumber);
+            probeBusRange(config, allocation.startBusNumber, allocation.endBusNumber);
         }
     }
 }
