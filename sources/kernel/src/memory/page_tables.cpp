@@ -449,7 +449,7 @@ OsStatus PageTables::addBackingMemory(AddressMapping mapping) noexcept [[clang::
 }
 
 OsStatus PageTables::reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]] {
-
+    return mCache.reclaimMemory(mapping);
 }
 
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {

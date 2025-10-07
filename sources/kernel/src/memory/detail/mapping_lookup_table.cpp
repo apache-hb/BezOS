@@ -25,6 +25,10 @@ OsStatus MappingLookupTable::removeMemory(AddressMapping mapping) noexcept [[cla
 }
 
 sm::VirtualAddress MappingLookupTable::find(sm::PhysicalAddress paddr) const noexcept [[clang::nonblocking]] {
+    if (mCache.isEmpty()) {
+        return sm::VirtualAddress::invalid();
+    }
+
     auto it = mCache.lowerBound(paddr);
     if (it != mCache.begin()) {
         --it;
@@ -49,7 +53,8 @@ OsStatus MappingLookupTable::reclaimMemory(AddressMapping *mapping [[outparam]])
                 .paddr = key.address,
                 .size = entry.count * x64::kPageSize,
             };
-            mCache.remove(key);
+            OsStatus status = mCache.remove(key);
+            KM_CHECK(status == OsStatusSuccess, "Failed to remove mapping from cache");
             return OsStatusSuccess;
         }
     }
