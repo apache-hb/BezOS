@@ -109,6 +109,17 @@ namespace km {
         detail::ControlBlock *TESTING_getHead() {
             return mHead;
         }
+
+        void dump() {
+            int limit = 200;
+            auto *block = mHead;
+            while (block != nullptr) {
+                auto range = block->range();
+                printf("Block %p - %p %p %zu\n", (void*)range.front.address, (void*)range.back.address, (void*)block, block->size);
+                block = block->next;
+                if (--limit == 0) break;
+            }
+        }
 #endif
     };
 }

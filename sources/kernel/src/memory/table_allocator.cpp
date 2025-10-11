@@ -318,9 +318,8 @@ void km::PageTableAllocator::releaseMemory(VirtualRangeEx range) noexcept [[clan
         }
 
         if (blockRange == overlap) {
-            detail::ControlBlock *next = block->next;
             RemoveBlock(block);
-            block = next;
+            block = block->next;
         } else if (blockRange.startsWith(overlap)) {
             detail::ControlBlock *next = SplitBlock(block, overlap.size());
             RemoveBlock(block);
@@ -329,10 +328,24 @@ void km::PageTableAllocator::releaseMemory(VirtualRangeEx range) noexcept [[clan
             SplitBlock(block, blockRange.size() - overlap.size());
             RemoveBlock(block->next);
             block = block->next;
+            break;
+        } else if (blockRange.contains(overlap)) {
+            detail::ControlBlock *tail = SplitBlock(block, overlap.front - blockRange.front);
+            detail::ControlBlock *middle = SplitBlock(block, overlap.size());
+            RemoveBlock(middle);
+            block = tail;
+            break;
         } else {
             MemLog.fatalf("Something went horribly wrong: ", range, " overlaps ", blockRange);
             KM_PANIC("Internal error.");
         }
+    }
+
+    //
+    // Walk back to the head of the list and update mHead.
+    //
+    while (block != nullptr && block->prev != nullptr) {
+        block = block->prev;
     }
 
     setHead(block);

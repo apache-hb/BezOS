@@ -582,10 +582,29 @@ TEST_F(TableAllocatorTest, ReleaseMemoryMultiple) {
     auto stats = allocator.stats();
     ASSERT_EQ(stats.freeBlocks, kCount * 6);
 
+    allocator.dump();
+
     allocator.releaseMemory(VirtualRangeEx::of(extras[0].get(), kSize));
+
+    allocator.dump();
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 5);
+
     allocator.releaseMemory(VirtualRangeEx::of(extras[1].get(), kSize / 2));
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 4 + (kCount / 2));
+
     allocator.releaseMemory(VirtualRangeEx::of(extras[3].get() + (kSize / 2), kSize / 2));
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 4);
+
     allocator.releaseMemory(VirtualRangeEx::of(extras[2].get() + (kSize / 4), (kSize / 2)));
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 3 + (kCount / 2));
 }
 
 TEST_F(TableAllocatorTest, ReleaseMemoryMultiple2) {
@@ -603,4 +622,53 @@ TEST_F(TableAllocatorTest, ReleaseMemoryMultiple2) {
     allocator.releaseMemory(VirtualRangeEx::of(extras[3].get() + (kSize / 2), kSize));
     allocator.releaseMemory(VirtualRangeEx::of(extras[0].get() + (kSize / 4), kSize));
     allocator.releaseMemory(VirtualRangeEx::of(extras[2].get() + (kSize / 4), (kSize / 4) * 3));
+}
+
+TEST_F(TableAllocatorTest, ReleaseMemoryThenAllocate) {
+    std::vector<TestMemory> extras;
+    for (size_t i = 0; i < 4; i++) {
+        TestMemory extra = GetAllocatorMemory();
+        printf("Adding memory %p - %p\n", extra.get(), (uint8_t*)extra.get() + kSize);
+        allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+        extras.push_back(std::move(extra));
+    }
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 5);
+    uint8_t *extra1 = extras[1].get();
+
+    allocator.releaseMemory(VirtualRangeEx::of(extra1, kSize));
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 4);
+
+    std::vector<void*> ptrs{};
+    while (true) {
+        PageTableAllocation alloc = allocator.allocate(1);
+        if (!alloc.isPresent()) {
+            printf("Allocation returned nullptr\n");
+            break;
+        }
+
+        IsValidPtr(alloc.getVirtual());
+
+        printf("Got ptr %p - %p\n", alloc.getVirtual(), (uint8_t*)alloc.getVirtual() + x64::kPageSize);
+
+        ptrs.push_back(alloc.getVirtual());
+    }
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, 0);
+
+    ASSERT_EQ(ptrs.size(), kCount * 4);
+    for (void *ptr : ptrs) {
+        if (extra1 <= (uint8_t*)ptr && (uint8_t*)ptr < (extra1 + kSize)) {
+            ASSERT_FALSE(true) << "Allocated from released memory: " << ptr;
+        }
+
+        allocator.deallocate(ptr, 1);
+    }
+
+    stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 4);
 }
