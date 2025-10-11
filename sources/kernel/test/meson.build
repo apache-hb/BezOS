@@ -267,7 +267,7 @@ testcases = {
         'sources': files('logger.cpp', '../src/logger/logger.cpp')
     },
     'memory range': {
-        'sources': files('memory_range.cpp'),
+        'sources': files('memory/range.cpp'),
         'link_with': [ libtest_shim ],
     },
     'pat': {

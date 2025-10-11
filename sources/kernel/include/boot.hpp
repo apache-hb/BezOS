@@ -34,7 +34,7 @@ namespace boot {
         uint8_t blueMaskSize;
         uint8_t blueMaskShift;
 
-        km::PhysicalAddressEx paddr;
+        sm::PhysicalAddress paddr;
         void *vaddr;
 
         km::MemoryRangeEx edid;

@@ -917,3 +917,36 @@ TEST_F(PageTableTest, Stats) {
         ASSERT_NE(0, ptStats.ptEntries);
     }
 }
+
+TEST_F(PageTableTest, AddBackingMemory) {
+    auto pt = ptes(km::PageFlags::eAll, 64 * 0x1000);
+    auto& alloc = pt.TESTING_getPageTableAllocator();
+    auto more = GetAllocatorMemory(16 * x64::kPageSize);
+
+    {
+        auto stats = alloc.stats();
+        ASSERT_EQ(64 - (PageTables::minMemoryUsage() / x64::kPageSize), stats.freeBlocks);
+    }
+
+    {
+        // Add some more memory to the allocator
+        AddressMapping backingMemory {
+            .vaddr = (void*)more.get(),
+            .paddr = 0x200000,
+            .size = 16 * x64::kPageSize
+        };
+        OsStatus status = pt.addBackingMemory(backingMemory);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        auto stats = alloc.stats();
+        ASSERT_EQ((64 + 16) - (PageTables::minMemoryUsage() / x64::kPageSize), stats.freeBlocks);
+    }
+
+    {
+        OsStatus status = pt.map(MappingOf(sm::VirtualAddress(0xFFFF800000000000), km::PhysicalAddressEx(0x1000), 0x1000 * 2), km::PageFlags::eAll);
+        ASSERT_EQ(OsStatusSuccess, status);
+
+        auto stats = alloc.stats();
+        ASSERT_EQ(77 - (PageTables::minMemoryUsage() / x64::kPageSize), stats.freeBlocks);
+    }
+}

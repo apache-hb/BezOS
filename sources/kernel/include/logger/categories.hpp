@@ -17,3 +17,4 @@ constinit inline km::Logger ClockLog { "CLOCK" };
 constinit inline km::Logger Ps2Log { "PS/2" };
 constinit inline km::Logger TaskLog { "TASK" };
 constinit inline km::Logger UserLog { "USER" };
+constinit inline km::Logger ErrorLog { "ERROR" };

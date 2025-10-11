@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/range.hpp"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,6 +25,10 @@ namespace km::detail {
                 result = result->prev;
             }
             return result;
+        }
+
+        km::VirtualRangeEx range() const noexcept [[clang::nonblocking]] {
+            return { (uintptr_t)this, (uintptr_t)this + size };
         }
     };
 

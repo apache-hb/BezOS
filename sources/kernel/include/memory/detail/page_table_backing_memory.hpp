@@ -9,6 +9,10 @@ namespace km::detail {
     /// This is responsible for allocating, tracking, and reclaiming memory used for page tables.
     /// It has a cache to track reverse lookups from virtual to physical addresses, this cache also
     /// tracks a reference count for each mapping so that memory can be reclaimed when no longer in use.
+    ///
+    /// @todo It would be nice to use this, but allocating lists of page tables has no iterator
+    ///       and im not sure if it should support iteration. So for now this is all done inside
+    ///       PageTables.
     class PageTableBackingMemory {
         MappingLookupTable mCache;
         PageTableAllocator mAllocator;
@@ -16,9 +20,9 @@ namespace km::detail {
     public:
         PageTableBackingMemory() noexcept [[clang::nonallocating]] = default;
 
-        OsStatus addBackingMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
+        OsStatus addMemory(AddressMapping mapping) noexcept [[clang::nonallocating]];
 
-        OsStatus reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]];
+        OsStatus reclaimMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]];
 
         PageTableAllocation allocate() [[clang::allocating]];
 

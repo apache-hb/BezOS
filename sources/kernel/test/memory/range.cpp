@@ -4,7 +4,10 @@
 
 using namespace km;
 
-TEST(MemoryRangeTest, Contains) {
+class RangeTest : public testing::Test {
+};
+
+TEST_F(RangeTest, Contains) {
     km::MemoryRange range { 0x1000, 0x2000 };
 
     ASSERT_TRUE(range.contains(0x1000));
@@ -14,7 +17,7 @@ TEST(MemoryRangeTest, Contains) {
     ASSERT_FALSE(range.contains(0x2001));
 }
 
-TEST(MemoryRangeTest, ContainsRange) {
+TEST_F(RangeTest, ContainsRange) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1100, 0x1200 };
     km::MemoryRange below = { 0x0000uz, 0x1100 };
@@ -26,20 +29,20 @@ TEST(MemoryRangeTest, ContainsRange) {
     ASSERT_FALSE(second.contains(first));
 }
 
-TEST(MemoryRangeTest, ContainsInnerAdjacent) {
+TEST_F(RangeTest, ContainsInnerAdjacent) {
     km::MemoryRange first = { 0x000000003FFFF000, 0x0000000040004000 };
     km::MemoryRange second = { 0x0000000040000000, 0x0000000040004000 };
 
     ASSERT_TRUE(first.contains(second));
 }
 
-TEST(MemoryRangeTest, Size) {
+TEST_F(RangeTest, Size) {
     km::MemoryRange range { 0x1000, 0x2000 };
 
     ASSERT_EQ(range.size(), 0x1000);
 }
 
-TEST(MemoryRangeTest, Overlaps) {
+TEST_F(RangeTest, Overlaps) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1500, 0x2500 };
     km::MemoryRange smaller = { 0x1100, 0x1200 };
@@ -48,7 +51,7 @@ TEST(MemoryRangeTest, Overlaps) {
     ASSERT_FALSE(first.overlaps(smaller));
 }
 
-TEST(MemoryRangeTest, OverlapIsCommutative) {
+TEST_F(RangeTest, OverlapIsCommutative) {
     km::MemoryRange first = { 0x100000, 0x200000 };
     km::MemoryRange second = { 0x100000, 0x7D47000 };
 
@@ -56,35 +59,35 @@ TEST(MemoryRangeTest, OverlapIsCommutative) {
     ASSERT_TRUE(second.overlaps(first));
 }
 
-TEST(MemoryRangeTest, OverlapsEdge) {
+TEST_F(RangeTest, OverlapsEdge) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x2000, 0x3000 };
 
     ASSERT_FALSE(first.overlaps(second));
 }
 
-TEST(MemoryRangeTest, OverlapsInner) {
+TEST_F(RangeTest, OverlapsInner) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1800, 0x2000 };
 
     ASSERT_TRUE(first.overlaps(second));
 }
 
-TEST(MemoryRangeTest, OverlapsSubset) {
+TEST_F(RangeTest, OverlapsSubset) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1100, 0x1900 };
 
     ASSERT_FALSE(first.overlaps(second));
 }
 
-TEST(MemoryRangeTest, NotOverlapping) {
+TEST_F(RangeTest, NotOverlapping) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x3000, 0x4000 };
 
     ASSERT_FALSE(first.overlaps(second));
 }
 
-TEST(MemoryRangeTest, Intersection) {
+TEST_F(RangeTest, Intersection) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1500, 0x2500 };
     km::MemoryRange smaller = { 0x1100, 0x1200 };
@@ -120,7 +123,7 @@ static void TestRangeCut(km::MemoryRange first, km::MemoryRange second, km::Memo
         << second.front.address << ", " << second.back.address << ")";
 }
 
-TEST(MemoryRangeTest, Cut) {
+TEST_F(RangeTest, Cut) {
     // only the overlapping section is removed
     TestRangeCut({ 0x1000, 0x2000 }, { 0x1500, 0x2500 }, { 0x1000, 0x1500 });
 
@@ -135,7 +138,7 @@ TEST(MemoryRangeTest, Cut) {
     TestRangeCut({ 0x100000, 0x7D47000 }, { 0x7D47000 - 0x100000, 0x7D47000 }, { 0x100000, 0x7D47000 - 0x100000 });
 }
 
-TEST(MemoryRangeTest, IntersectAtEdge) {
+TEST_F(RangeTest, IntersectAtEdge) {
     km::MemoryRange data = { 0xFFFF800000000000, 0xFFFFC00000000000 };
     km::MemoryRange committed = { 0xFFFF7FFFFF000000, 0xFFFF800000000000 };
 
@@ -146,7 +149,7 @@ TEST(MemoryRangeTest, IntersectAtEdge) {
     ASSERT_FALSE(committed.intersects(data));
 }
 
-TEST(MemoryRangeTest, OuterAdjacent) {
+TEST_F(RangeTest, OuterAdjacent) {
     MemoryRange a = { 0x1000, 0x2000 };
     MemoryRange b = { 0x2000, 0x3000 };
     MemoryRange c = { 0x2500, 0x3000 };
@@ -161,7 +164,7 @@ TEST(MemoryRangeTest, OuterAdjacent) {
     }
 }
 
-TEST(MemoryRangeTest, InnerAdjacent) {
+TEST_F(RangeTest, InnerAdjacent) {
     MemoryRange a = { 0x1000, 0x2000 };
     MemoryRange b = { 0x1500, 0x2000 };
     MemoryRange c = { 0x2000, 0x3000 };
@@ -176,7 +179,7 @@ TEST(MemoryRangeTest, InnerAdjacent) {
     }
 }
 
-TEST(MemoryRangeTest, Contiguous) {
+TEST_F(RangeTest, Contiguous) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x2000, 0x3000 };
     km::MemoryRange third = { 0x3000, 0x4000 };
@@ -187,7 +190,7 @@ TEST(MemoryRangeTest, Contiguous) {
     ASSERT_FALSE(km::contiguous(third, first));
 }
 
-TEST(MemoryRangeTest, ContiguousOverlapping) {
+TEST_F(RangeTest, ContiguousOverlapping) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1F00, 0x3000 };
 
@@ -195,14 +198,14 @@ TEST(MemoryRangeTest, ContiguousOverlapping) {
     ASSERT_TRUE(km::contiguous(second, first));
 }
 
-TEST(MemoryRangeTest, IntervalAdjacent) {
+TEST_F(RangeTest, IntervalAdjacent) {
     km::MemoryRange range = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x2000, 0x3000 };
 
     ASSERT_TRUE(km::interval(range, second));
 }
 
-TEST(MemoryRangeTest, IntervalOverlapping) {
+TEST_F(RangeTest, IntervalOverlapping) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1F00, 0x3000 };
 
@@ -210,7 +213,7 @@ TEST(MemoryRangeTest, IntervalOverlapping) {
     ASSERT_TRUE(km::interval(second, first));
 }
 
-TEST(MemoryRangeTest, IntervalContains) {
+TEST_F(RangeTest, IntervalContains) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x1100, 0x1900 };
 
@@ -218,7 +221,7 @@ TEST(MemoryRangeTest, IntervalContains) {
     ASSERT_TRUE(km::interval(second, first));
 }
 
-TEST(MemoryRangeTest, IntervalDisjoint) {
+TEST_F(RangeTest, IntervalDisjoint) {
     km::MemoryRange first = { 0x1000, 0x2000 };
     km::MemoryRange second = { 0x3000, 0x4000 };
 
@@ -226,7 +229,7 @@ TEST(MemoryRangeTest, IntervalDisjoint) {
     ASSERT_FALSE(km::interval(second, first));
 }
 
-TEST(MemoryRangeTest, SplitAtAddress) {
+TEST_F(RangeTest, SplitAtAddress) {
     km::MemoryRange range = { 0x1000, 0x2000 };
 
     auto [first, second] = km::split(range, 0x1500);
@@ -238,7 +241,7 @@ TEST(MemoryRangeTest, SplitAtAddress) {
     ASSERT_EQ(second.back.address, 0x2000);
 }
 
-TEST(MemoryRangeTest, SplitOnRange) {
+TEST_F(RangeTest, SplitOnRange) {
     km::MemoryRange range = { 0x1000, 0x2000 };
     km::MemoryRange other = { 0x1500, 0x1800 };
 
@@ -251,7 +254,7 @@ TEST(MemoryRangeTest, SplitOnRange) {
     ASSERT_EQ(second.back.address, 0x2000);
 }
 
-TEST(MemoryRangeTest, SplitRangeBefore) {
+TEST_F(RangeTest, SplitRangeBefore) {
     km::MemoryRange range = { 0x1000, 0x2000 };
     km::MemoryRange other = { 0x1100, 0x1500 };
 
@@ -264,7 +267,7 @@ TEST(MemoryRangeTest, SplitRangeBefore) {
     EXPECT_EQ(second.back.address, 0x2000);
 }
 
-TEST(MemoryRangeTest, Align) {
+TEST_F(RangeTest, Align) {
     km::MemoryRange range = { 0x1111, 0x3111 };
     km::MemoryRange aligned = km::aligned(range, 0x1000);
     ASSERT_EQ(aligned.front.address, 0x2000);
@@ -274,13 +277,13 @@ TEST(MemoryRangeTest, Align) {
 static_assert(sm::rounddown(0x2111, 0x1000) == 0x2000);
 static_assert(sm::roundup(0x1111, 0x1000) == 0x2000);
 
-TEST(MemoryRangeTest, UnionIntervalEmpty) {
+TEST_F(RangeTest, UnionIntervalEmpty) {
     std::vector<km::MemoryRange> ranges;
     km::MemoryRange result = km::combinedInterval<km::PhysicalAddress>(ranges);
     ASSERT_TRUE(result.isEmpty());
 }
 
-TEST(MemoryRangeTest, UnionIntervalSingle) {
+TEST_F(RangeTest, UnionIntervalSingle) {
     std::vector<km::MemoryRange> ranges = {
         km::MemoryRange { 0x1000, 0x2000 }
     };
@@ -288,7 +291,7 @@ TEST(MemoryRangeTest, UnionIntervalSingle) {
     ASSERT_EQ(result, ranges[0]);
 }
 
-TEST(MemoryRangeTest, UnionIntervalMultiple) {
+TEST_F(RangeTest, UnionIntervalMultiple) {
     std::vector<km::MemoryRange> ranges = {
         km::MemoryRange { 0x1000, 0x2000 },
         km::MemoryRange { 0x4000, 0x5000 },
@@ -298,16 +301,54 @@ TEST(MemoryRangeTest, UnionIntervalMultiple) {
     ASSERT_EQ(result.back, 0x5000);
 }
 
-TEST(MemoryRangeTest, WithExtraHead) {
+TEST_F(RangeTest, WithExtraHead) {
     km::MemoryRange range = { 0x1000, 0x2000 };
     km::MemoryRange result = range.withExtraHead(0x1000);
     ASSERT_EQ(result.front.address, 0x0000);
     ASSERT_EQ(result.back.address, 0x2000);
 }
 
-TEST(MemoryRangeTest, WithExtraTail) {
+TEST_F(RangeTest, WithExtraTail) {
     km::MemoryRange range = { 0x1000, 0x2000 };
     km::MemoryRange result = range.withExtraTail(0x1000);
     ASSERT_EQ(result.front.address, 0x1000);
     ASSERT_EQ(result.back.address, 0x3000);
+}
+
+TEST_F(RangeTest, StartsWith) {
+    VirtualRangeEx range { (sm::VirtualAddress)0x1000, (sm::VirtualAddress)0x2000 };
+    VirtualRangeEx other { (sm::VirtualAddress)0x1000, (sm::VirtualAddress)0x1800 };
+    EXPECT_TRUE(range.startsWith(other));
+    EXPECT_FALSE(other.startsWith(range));
+
+    other = { (sm::VirtualAddress)0x1800, (sm::VirtualAddress)0x2000 };
+    EXPECT_FALSE(range.startsWith(other));
+    EXPECT_FALSE(other.startsWith(range));
+
+    other = { (sm::VirtualAddress)0x0800, (sm::VirtualAddress)0x1800 };
+    EXPECT_FALSE(range.startsWith(other));
+    EXPECT_FALSE(other.startsWith(range));
+
+    other = { (sm::VirtualAddress)0x0800, (sm::VirtualAddress)0x2800 };
+    EXPECT_FALSE(range.startsWith(other));
+    EXPECT_FALSE(other.startsWith(range));
+}
+
+TEST_F(RangeTest, EndsWith) {
+    VirtualRangeEx range { (sm::VirtualAddress)0x1000, (sm::VirtualAddress)0x2000 };
+    VirtualRangeEx other { (sm::VirtualAddress)0x1800, (sm::VirtualAddress)0x2000 };
+    EXPECT_TRUE(range.endsWith(other));
+    EXPECT_FALSE(other.endsWith(range));
+
+    other = { (sm::VirtualAddress)0x1000, (sm::VirtualAddress)0x1800 };
+    EXPECT_FALSE(range.endsWith(other));
+    EXPECT_FALSE(other.endsWith(range));
+
+    other = { (sm::VirtualAddress)0x0800, (sm::VirtualAddress)0x1800 };
+    EXPECT_FALSE(range.endsWith(other));
+    EXPECT_FALSE(other.endsWith(range));
+
+    other = { (sm::VirtualAddress)0x0800, (sm::VirtualAddress)0x2800 };
+    EXPECT_FALSE(range.endsWith(other));
+    EXPECT_FALSE(other.endsWith(range));
 }

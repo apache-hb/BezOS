@@ -513,3 +513,94 @@ TEST_F(TableAllocatorTest, AllocateListFragmented3) {
         allocator.deallocate(ptr, 1);
     }
 }
+
+TEST_F(TableAllocatorTest, AddMemory) {
+    TestMemory extra = GetAllocatorMemory();
+    allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+
+    size_t totalBlocks = (kSize / x64::kPageSize) * 2;
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(totalBlocks, &list));
+
+    for (size_t i = 0; i < totalBlocks; i++) {
+        void *ptr = list.next().getVirtual();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+}
+
+TEST_F(TableAllocatorTest, ReleaseMemory) {
+    TestMemory extra = GetAllocatorMemory();
+    allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+
+    size_t totalBlocks = (kSize / x64::kPageSize) * 2;
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(totalBlocks, &list));
+
+    for (size_t i = 0; i < totalBlocks; i++) {
+        void *ptr = list.next().getVirtual();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+
+    allocator.releaseMemory(VirtualRangeEx::of(extra.get(), kSize));
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, 0);
+}
+
+TEST_F(TableAllocatorTest, AddMemoryMultiple) {
+    std::vector<TestMemory> extras;
+    for (size_t i = 0; i < 4; i++) {
+        TestMemory extra = GetAllocatorMemory();
+        allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+        extras.push_back(std::move(extra));
+    }
+
+    size_t totalBlocks = (kSize / x64::kPageSize) * 5;
+    detail::PageTableList list;
+    ASSERT_TRUE(allocator.allocateList(totalBlocks, &list));
+
+    for (size_t i = 0; i < totalBlocks; i++) {
+        void *ptr = list.next().getVirtual();
+        IsValidPtr(ptr);
+        allocator.deallocate(ptr, 1);
+    }
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 5);
+}
+
+TEST_F(TableAllocatorTest, ReleaseMemoryMultiple) {
+    std::vector<TestMemory> extras;
+    for (size_t i = 0; i < 5; i++) {
+        TestMemory extra = GetAllocatorMemory();
+        allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+        extras.push_back(std::move(extra));
+    }
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 6);
+
+    allocator.releaseMemory(VirtualRangeEx::of(extras[0].get(), kSize));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[1].get(), kSize / 2));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[3].get() + (kSize / 2), kSize / 2));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[2].get() + (kSize / 4), (kSize / 2)));
+}
+
+TEST_F(TableAllocatorTest, ReleaseMemoryMultiple2) {
+    std::vector<TestMemory> extras;
+    for (size_t i = 0; i < 4; i++) {
+        TestMemory extra = GetAllocatorMemory();
+        allocator.addMemory(VirtualRangeEx::of(extra.get(), kSize));
+        extras.push_back(std::move(extra));
+    }
+
+    auto stats = allocator.stats();
+    ASSERT_EQ(stats.freeBlocks, kCount * 5);
+
+    allocator.releaseMemory(VirtualRangeEx::of(extras[1].get() - (kSize / 2), kSize / 2));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[3].get() + (kSize / 2), kSize));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[0].get() + (kSize / 4), kSize));
+    allocator.releaseMemory(VirtualRangeEx::of(extras[2].get() + (kSize / 4), (kSize / 4) * 3));
+}

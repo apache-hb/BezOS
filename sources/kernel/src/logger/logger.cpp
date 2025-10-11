@@ -42,7 +42,10 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
     if (mLock.try_lock()) {
-        if (mQueue.isSetup()) writeAllMessages();
+        if (mQueue.isSetup()) {
+            writeAllMessages();
+        }
+
         write({ message.location, message.message, message.logger, message.level });
         mLock.unlock();
         return OsStatusSuccess;

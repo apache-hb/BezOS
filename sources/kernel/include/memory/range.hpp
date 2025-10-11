@@ -150,6 +150,10 @@ namespace km {
             return front >= address;
         }
 
+        constexpr bool isAfter(AnyRange range) const {
+            return front >= range.back;
+        }
+
         constexpr AnyRange offsetBy(intptr_t offset) const {
             T newFront = std::bit_cast<T>(std::bit_cast<uintptr_t>(front) + offset);
             T newBack = std::bit_cast<T>(std::bit_cast<uintptr_t>(back) + offset);
@@ -207,6 +211,14 @@ namespace km {
             return {std::min(front, other.front), std::max(back, other.back)};
         }
 
+        constexpr bool startsWith(AnyRange other) const {
+            return front == other.front && other.back <= back;
+        }
+
+        constexpr bool endsWith(AnyRange other) const {
+            return back == other.back && other.front >= front;
+        }
+
         /// @brief Return a copy of this range with the overlapping area cut out.
         ///
         /// Cut off a range from this range. If there is no overlap the original range
@@ -223,6 +235,17 @@ namespace km {
             if (other.back >= back) return {std::min(front, other.front), std::max(front, other.front)};
 
             return *this;
+        }
+
+        constexpr AnyRange intersection(AnyRange other) const {
+            T newFront = std::max(front, other.front);
+            T newBack = std::min(back, other.back);
+
+            if (newFront >= newBack) {
+                return {newFront, newFront};
+            }
+
+            return {newFront, newBack};
         }
 
         constexpr bool operator==(const AnyRange& other) const = default;

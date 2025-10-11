@@ -37,7 +37,7 @@ TEST_F(MappingLookupCacheTest, AddAndFind) {
     sm::VirtualAddress invalid = cache.find(0x100000 - x64::kPageSize);
     EXPECT_EQ(invalid, sm::VirtualAddress::invalid());
 
-    invalid = cache.find(mapping.paddr.address + mapping.size + 1);
+    invalid = cache.find(mapping.physicalAddress() + mapping.size + 1);
     EXPECT_EQ(invalid, sm::VirtualAddress::invalid());
 }
 
@@ -51,22 +51,22 @@ TEST_F(MappingLookupCacheTest, Reclaim) {
     ASSERT_EQ(cache.addMemory(mapping), OsStatusSuccess);
 
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
-        cache.retain({ mapping.paddr.address + i });
+        cache.retain(mapping.physicalAddress() + i);
     }
 
     km::AddressMapping reclaimed;
     EXPECT_EQ(cache.reclaimMemory(&reclaimed), OsStatusNotFound);
 
     for (size_t i = 0; i < mapping.size; i += x64::kPageSize) {
-        cache.release({ mapping.paddr.address + i });
+        cache.release(mapping.physicalAddress() + i);
     }
 
     EXPECT_EQ(cache.reclaimMemory(&reclaimed), OsStatusSuccess);
     EXPECT_EQ(reclaimed.vaddr, mapping.vaddr);
-    EXPECT_EQ(reclaimed.paddr, mapping.paddr);
+    EXPECT_EQ(reclaimed.physicalAddress(), mapping.physicalAddress());
     EXPECT_EQ(reclaimed.size, mapping.size);
 
-    sm::VirtualAddress invalid = cache.find(mapping.paddr.address);
+    sm::VirtualAddress invalid = cache.find(mapping.physicalAddress());
     EXPECT_EQ(invalid, sm::VirtualAddress::invalid());
 
     EXPECT_EQ(cache.reclaimMemory(&reclaimed), OsStatusNotFound);

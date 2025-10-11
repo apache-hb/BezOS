@@ -49,6 +49,14 @@ namespace km {
         PhysicalAddress paddr;
         size_t size;
 
+        sm::VirtualAddress virtualAddress() const {
+            return vaddr;
+        }
+
+        sm::PhysicalAddress physicalAddress() const {
+            return paddr.address;
+        }
+
         constexpr MemoryRange physicalRange() const {
             return { paddr, paddr + size };
         }

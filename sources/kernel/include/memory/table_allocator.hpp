@@ -78,6 +78,10 @@ namespace km {
 
         void defragment() noexcept [[clang::nonallocating]];
 
+        void addMemory(VirtualRangeEx range) noexcept [[clang::nonallocating]];
+
+        void releaseMemory(VirtualRangeEx range) noexcept [[clang::nonallocating]];
+
         [[nodiscard]]
         PteAllocatorStats stats() const noexcept [[clang::nonblocking]];
 

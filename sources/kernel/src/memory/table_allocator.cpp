@@ -1,4 +1,5 @@
 #include "memory/table_allocator.hpp"
+#include "logger/categories.hpp"
 
 /// @brief Split a block and return the newly created block
 static km::detail::ControlBlock *SplitBlock(km::detail::ControlBlock *block, size_t size) {
@@ -272,6 +273,69 @@ void km::PageTableAllocator::defragment() noexcept [[clang::nonallocating]] {
     // Update the head.
     //
     mHead = block;
+}
+
+void km::PageTableAllocator::addMemory(VirtualRangeEx range) noexcept [[clang::nonallocating]] {
+    if (range.size() == 0 || range.size() % mBlockSize != 0) {
+        MemLog.fatalf("Invalid range. ", range, " block size: ", mBlockSize);
+        KM_PANIC("Invalid range.");
+    }
+
+    if (alignedOut(range, mBlockSize) != range) {
+        MemLog.fatalf("Range is not aligned to block size. ", range, " block size: ", mBlockSize);
+        KM_PANIC("Range is not aligned to block size.");
+    }
+
+    detail::ControlBlock *block = std::bit_cast<detail::ControlBlock*>(range.front);
+    *block = detail::ControlBlock {
+        .next = mHead,
+        .size = range.size(),
+        .slide = 0,
+    };
+
+    mHead = block;
+
+    //
+    // TODO: we should probably insert the block in sorted order rather than sorting the entire list again.
+    //
+    defragment();
+}
+
+void km::PageTableAllocator::releaseMemory(VirtualRangeEx range) noexcept [[clang::nonallocating]] {
+    defragment();
+
+    detail::ControlBlock *block = mHead;
+    while (block != nullptr) {
+        auto blockRange = block->range();
+        if (blockRange.isAfter(range)) {
+            break;
+        }
+
+        auto overlap = km::intersection(blockRange, range);
+        if (overlap.isEmpty()) {
+            block = block->next;
+            continue;
+        }
+
+        if (blockRange == overlap) {
+            detail::ControlBlock *next = block->next;
+            RemoveBlock(block);
+            block = next;
+        } else if (blockRange.startsWith(overlap)) {
+            detail::ControlBlock *next = SplitBlock(block, overlap.size());
+            RemoveBlock(block);
+            block = next;
+        } else if (blockRange.endsWith(overlap)) {
+            SplitBlock(block, blockRange.size() - overlap.size());
+            RemoveBlock(block->next);
+            block = block->next;
+        } else {
+            MemLog.fatalf("Something went horribly wrong: ", range, " overlaps ", blockRange);
+            KM_PANIC("Internal error.");
+        }
+    }
+
+    setHead(block);
 }
 
 km::PteAllocatorStats km::PageTableAllocator::stats() const noexcept [[clang::nonblocking]] {

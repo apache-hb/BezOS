@@ -90,6 +90,8 @@ namespace km {
 
         void deallocate(sm::VirtualAddress vaddr, sm::PhysicalAddress paddr, size_t pages) noexcept [[clang::nonallocating]];
 
+        PageTableAllocation claimListEntry(detail::PageTableList& list);
+
         void setEntryFlags(x64::Entry& entry, PageFlags flags, PhysicalAddressEx address) noexcept [[clang::nonblocking]];
 
         x64::PageMapLevel3 *getPageMap3(x64::PageMapLevel4 *l4, uint16_t pml4e, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
@@ -145,7 +147,7 @@ namespace km {
         OsStatus earlyUnmap(VirtualRange range, VirtualRange *remaining);
         void earlyUnmapWithList(int earlyAllocations, VirtualRange range, VirtualRange *remaining, detail::PageTableList& buffer) noexcept [[clang::nonallocating]];
 
-        PhysicalAddressEx getBackingAddressUnlocked(const void *ptr) const;
+        sm::PhysicalAddress getBackingAddressUnlocked(const void *ptr) const;
 
         void reclaim2m(x64::pdte& pde);
 
