@@ -69,7 +69,7 @@ namespace km {
             return { vaddr, (const char*)vaddr + size };
         }
 
-        VirtualRangeEx virtualRangeEx() const {
+        VirtualRangeEx virtualRangeEx() const noexcept [[clang::nonblocking]] {
             return { (uintptr_t)vaddr, (uintptr_t)vaddr + size };
         }
 

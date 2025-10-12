@@ -172,7 +172,7 @@ namespace km {
         PhysicalAddressEx root() const { return mTables.root(); }
 
         [[nodiscard]]
-        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[gnu::nonnull]]);
+        OsStatus map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[outparam]]);
 
         [[nodiscard]]
         OsStatus map(PmmAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[gnu::nonnull]]);

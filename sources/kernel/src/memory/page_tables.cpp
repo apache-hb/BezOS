@@ -317,7 +317,7 @@ size_t PageTables::countPagesForMapping(VirtualRange range) {
     return count;
 }
 
-OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableList *list) {
+OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableList *list, PageMappingResult *result [[outparam]]) {
     //
     // Pre-allocate enough page tables to fullfill the request.
     //
@@ -351,6 +351,11 @@ OsStatus PageTables::allocatePageTables(VirtualRange range, detail::PageTableLis
     if (mAllocator.allocateList(requiredPages, list)) {
         return OsStatusSuccess;
     }
+
+    size_t totalPagesRequired = requiredPages;
+    size_t extraPagesRequired = totalPagesRequired - (stats.freeBlocks + count);
+
+    *result = PageMappingResult{totalPagesRequired, extraPagesRequired};
 
     //
     // If both allocations fail then we are out of memory.
@@ -467,7 +472,14 @@ OsStatus PageTables::addBackingMemory(AddressMapping mapping) noexcept [[clang::
 }
 
 OsStatus PageTables::reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]] {
-    return mCache.reclaimMemory(mapping);
+    AddressMapping reclaimed;
+    if (OsStatus status = mCache.reclaimMemory(&reclaimed)) {
+        return status;
+    }
+
+    mAllocator.releaseMemory(reclaimed.virtualRangeEx());
+    *mapping = reclaimed;
+    return OsStatusSuccess;
 }
 
 OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType type) {
@@ -479,13 +491,13 @@ OsStatus PageTables::map(AddressMapping mapping, PageFlags flags, MemoryType typ
     return map(request);
 }
 
-OsStatus PageTables::map(const PageMappingRequest& request) {
+OsStatus PageTables::map(const PageMappingRequest& request, PageMappingResult *result [[outparam]]) {
     km::AddressMapping mapping = request.mapping();
     km::PageFlags flags = request.flags();
     km::MemoryType type = request.type();
 
     detail::PageTableList buffer;
-    if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer)) {
+    if (OsStatus status = allocatePageTables(mapping.virtualRange(), &buffer, result)) {
         return status;
     }
 
@@ -501,6 +513,11 @@ OsStatus PageTables::map(const PageMappingRequest& request) {
     }
 
     return OsStatusSuccess;
+}
+
+OsStatus PageTables::map(const PageMappingRequest& request) {
+    PageMappingResult ignore;
+    return map(request, &ignore);
 }
 
 PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {

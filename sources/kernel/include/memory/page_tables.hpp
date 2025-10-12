@@ -6,6 +6,7 @@
 #include "memory/detail/table_list.hpp"
 
 #include "memory/memory.hpp"
+#include "memory/page_mapping_result.hpp"
 #include "memory/paging.hpp"
 #include "memory/range.hpp"
 #include "memory/table_allocator.hpp"
@@ -157,7 +158,7 @@ namespace km {
         /// @brief Walk the page tables to calculate the number of pages required to map the given range.
         size_t countPagesForMapping(VirtualRange range);
 
-        OsStatus allocatePageTables(VirtualRange range, detail::PageTableList *list);
+        OsStatus allocatePageTables(VirtualRange range, detail::PageTableList *list, PageMappingResult *result [[outparam]]);
 
         /// @brief Private API for @a km::PageTableCommandList.
         OsStatus reservePageTablesForMapping(VirtualRange range, detail::PageTableList& list);
@@ -230,27 +231,13 @@ namespace km {
 
         /// @brief Release a range of free memory back to the system.
         ///
-        /// @param mapping[out] The range of memory that was released.
+        /// @param[out] mapping The range of memory that was released.
         ///
         /// @return The status of the operation.
         /// @retval OsStatusSuccess Some free memory was released, @p mapping contains the range.
         /// @retval OsStatusNotFound There was no free memory to release, @p mapping is unchanged.
         [[nodiscard]]
         OsStatus reclaimBackingMemory(AddressMapping *mapping [[outparam]]) noexcept [[clang::nonallocating]];
-
-        /// @brief Map a range of virtual address space to physical memory.
-        ///
-        /// @param mapping The mapping to create.
-        /// @param flags The flags to use for the mapping.
-        /// @param type The type of memory to map.
-        ///
-        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
-        /// @retval OsStatusOutOfMemory There was not enough memory to map the range, no memory has been mapped.
-        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped.
-        ///
-        /// @return The status of the operation.
-        [[nodiscard]]
-        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         /// @brief Unmap a range of memory.
         ///
@@ -325,6 +312,9 @@ namespace km {
         [[nodiscard]]
         PageSize getPageSize(const void *ptr);
 
+        [[nodiscard]]
+        OsStatus map(const PageMappingRequest& request);
+
         /// @brief Map a range of memory to a virtual address.
         ///
         /// @param request The mapping request.
@@ -335,7 +325,23 @@ namespace km {
         /// @retval OsStatusOutOfMemory There was not enough physical memory to map the range, no memory has been mapped.
         /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
         [[nodiscard]]
-        OsStatus map(const PageMappingRequest& request);
+        OsStatus map(const PageMappingRequest& request, PageMappingResult *result [[outparam]]);
+
+        /// @brief Map a range of virtual address space to physical memory.
+        ///
+        /// Equivalent to <code>map(PageMappingRequest{mapping, flags, type});</code>
+        ///
+        /// @param mapping The mapping to create.
+        /// @param flags The flags to use for the mapping.
+        /// @param type The type of memory to map.
+        ///
+        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+        /// @retval OsStatusOutOfMemory There was not enough memory to map the range, no memory has been mapped.
+        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped.
+        ///
+        /// @return The status of the operation.
+        [[nodiscard]]
+        OsStatus map(AddressMapping mapping, PageFlags flags, MemoryType type = MemoryType::eWriteBack);
 
         /// @brief Gather statistics about the page tables.
         ///

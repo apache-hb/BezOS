@@ -162,7 +162,7 @@ void km::AddressSpace::updateHigherHalfMappings(const PageTables *source) {
     km::copyHigherHalfMappings(&mTables, source);
 }
 
-OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation) {
+OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType type, VmemAllocation *allocation [[outparam]]) {
     if (memory.isEmpty() || (memory != alignedOut(memory, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
