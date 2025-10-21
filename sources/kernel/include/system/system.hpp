@@ -95,7 +95,7 @@ namespace sys {
         }
 
         [[nodiscard]]
-        static OsStatus create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *result [[clang::noescape, gnu::nonnull]]);
+        static OsStatus create(vfs::VfsRoot *vfsRoot, km::AddressSpace *addressSpace, km::PageAllocator *pageAllocator, System *result [[outparam]]);
     };
 
     // internal

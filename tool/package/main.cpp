@@ -1925,6 +1925,32 @@ static void RunBuildStep(const PackageInfo& package, const BuildStep& step) {
             logger.logf("Output logs: {}", out.string());
             throw std::runtime_error("Failed to build package " + package.name);
         }
+    } else if (buildProgram == eScript) {
+        std::string scriptBody = step.scriptBody;
+        ReplacePackagePlaceholders(scriptBody, package);
+
+        auto cfgdir = fs::absolute(gBuildRoot / "build" / package.name);
+        fs::create_directories(cfgdir);
+        auto path = cfgdir / "build.sh";
+        {
+            std::ofstream file(path);
+            file << scriptBody;
+        }
+
+        std::vector<std::string> args = { "/bin/sh", path };
+        args.insert(args.end(), step.args.begin(), step.args.end());
+
+        for (std::string& arg : args) {
+            ReplacePackagePlaceholders(arg, package);
+        }
+
+        auto result = execute(args, sp::environment{env}, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
+        if (result != 0) {
+            logger.logf("{}: build failed with exit code {}", package.name, result);
+            logger.logf("Error logs: {}", err.string());
+            logger.logf("Output logs: {}", out.string());
+            throw std::runtime_error("Failed to run script " + args[1]);
+        }
     } else {
         throw std::runtime_error(std::format("Unknown build program '{}' for '{}'", ConfigureProgramToString(buildProgram), package.name));
     }
@@ -2031,6 +2057,9 @@ static void InstallPackage(const PackageInfo& package) {
             if (result != 0) {
                 throw std::runtime_error("Failed to install package " + package.name);
             }
+        } else if (buildProgram == eScript || buildProgram == eShell) {
+            // just copy everything from the configured build dir to the install dir
+            fs::copy(builddir, package.GetInstallPath(), fs::copy_options::recursive | fs::copy_options::update_existing);
         }
     }
 
@@ -2057,10 +2086,10 @@ static void GenerateArtifact(std::string_view name, const PackageInfo& artifact)
         }
 
         std::map env = script.env;
-        env["PREFIX"] = gInstallPrefix.string();
-        env["BUILD"] = gBuildRoot.string();
-        env["REPO"] = gRepoRoot.string();
-        env["SOURCE"] = gSourceRoot.string();
+        env["PREFIX"] = fs::absolute(gInstallPrefix).string();
+        env["BUILD"] = fs::absolute(gBuildRoot).string();
+        env["REPO"] = fs::absolute(gRepoRoot).string();
+        env["SOURCE"] = fs::absolute(gSourceRoot).string();
 
         logger.logf("{}: execute {}", name, args[1]);
         auto result = execute(args, sp::environment{env});

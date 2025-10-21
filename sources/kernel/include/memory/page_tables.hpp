@@ -25,9 +25,9 @@ namespace km {
 
     /// @brief Manages page tables for an address space.
     ///
-    /// @details All ptes are allocated from a memory pool that is provided at construction.
-    ///          The current implementation expects that the virtual and physical addresses have a fixed
-    ///          offset between them.
+    /// This class is only responsible for managing the page tables themselves. It has
+    /// no knowledge of allocating physical or virtual memory. It is the responsibility
+    /// of the caller to allocate virtual and physical addresses to be mapped.
     class PageTables {
         friend class PageTableCommandList;
 
@@ -312,18 +312,37 @@ namespace km {
         [[nodiscard]]
         PageSize getPageSize(const void *ptr);
 
+        /**
+         * @brief Map a range of memory to a virtual address.
+         *
+         * This method is equivalent to the following codeblock:
+         * @code{.cpp}
+         * PageMappingResult ignored;
+         * OsStatus status = pageTables.map(request, &ignored);
+         * @endcode
+         *
+         * @param request The mapping request.
+         * @return The status of the operation.
+         *
+         * @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+         * @retval OsStatusOutOfMemory There was not enough physical memory to map the range, no memory has been mapped.
+         * @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
+         */
         [[nodiscard]]
         OsStatus map(const PageMappingRequest& request);
 
-        /// @brief Map a range of memory to a virtual address.
-        ///
-        /// @param request The mapping request.
-        ///
-        /// @return The status of the operation.
-        ///
-        /// @retval OsStatusSuccess The mapping was successful, the full range is mapped.
-        /// @retval OsStatusOutOfMemory There was not enough physical memory to map the range, no memory has been mapped.
-        /// @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
+        /**
+         * @brief Map a range of memory to a virtual address.
+         *
+         * @param request The mapping request.
+         * @param[out] result Error information if the mapping fails, undefined if the mapping succeeds.
+         *
+         * @return The status of the operation.
+         *
+         * @retval OsStatusSuccess The mapping was successful, the full range is mapped.
+         * @retval OsStatusOutOfMemory There was not enough physical memory to map the range, no memory has been mapped.
+         * @retval OsStatusInvalidInput The address mapping was malformed, no memory has been mapped
+         */
         [[nodiscard]]
         OsStatus map(const PageMappingRequest& request, PageMappingResult *result [[outparam]]);
 

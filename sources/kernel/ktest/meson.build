@@ -25,6 +25,19 @@ ktest_runner = executable('ktest-runner', 'runner.cpp',
     native : true,
 )
 
+initrd_link_args = [
+    '-T', meson.project_source_root() / 'data/bezos.ld',
+    '-e', 'ClientStart',
+    '-z', 'noexecstack',
+]
+
+ktest_initrd_init = executable('ktest.initrd.elf', 'initrd/init.cpp',
+    cpp_args : cpp_args,
+    link_args : initrd_link_args,
+    link_depends : meson.project_source_root() / 'data/bezos.ld',
+    override_options : [ 'b_coverage=false' ],
+)
+
 testcases = {
     'fail': {
         'sources': files('test/fail.cpp'),
@@ -35,6 +48,10 @@ testcases = {
     },
     'smbios': {
         'sources': files('test/smbios.cpp'),
+    },
+    'system': {
+        'sources': files('test/system.cpp'),
+        'program': ktest_initrd_init,
     },
 }
 
@@ -55,7 +72,7 @@ foreach name, setup : testcases
     # TODO: surely meson has a way to remove keys from a map?
     exe_kwargs = {}
     foreach k, v : kwargs
-        if k != 'should_fail'
+        if (k != 'should_fail') and (k != 'program')
             exe_kwargs += { k: v }
         endif
     endforeach
@@ -64,15 +81,24 @@ foreach name, setup : testcases
         kwargs : exe_kwargs,
     )
 
+    test_args = [
+        '--kernel', image.full_path(),
+        '--limine-install', limine_install.full_path(),
+    ]
+
+    depends = [ image, ktest_runner, limine_install ]
+
+    if setup.has_key('program')
+        test_args += [ '--test-program', setup['program'].full_path() ]
+        depends += [ setup['program'] ]
+    endif
+
     test('virt test ' + name, ktest_runner,
-        args : [
-            '--kernel', image.full_path(),
-            '--limine-install', limine_install.full_path(),
-        ],
+        args : test_args,
         env : {
             'MESON_PREFIX': get_option('prefix'),
         },
-        depends : [ image, ktest_runner, limine_install ],
+        depends : depends,
         suite : 'virt',
         should_fail : setup.get('should_fail', false),
     )

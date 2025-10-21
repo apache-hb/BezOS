@@ -143,10 +143,10 @@ namespace sys {
         OsStatus release(km::MemoryRange range) [[clang::allocating]];
 
         [[nodiscard]]
-        OsStatus allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]];
+        OsStatus allocate(size_t size, size_t align, km::MemoryRange *range [[outparam]]) [[clang::allocating]];
 
         [[nodiscard]]
-        static OsStatus create(km::PageAllocator *heap, MemoryManager *manager [[clang::noescape, gnu::nonnull]]) [[clang::allocating]];
+        static OsStatus create(km::PageAllocator *heap, MemoryManager *manager [[outparam]]) [[clang::allocating]];
 
         [[nodiscard]]
         MemoryManagerStats stats() noexcept [[clang::nonallocating]];

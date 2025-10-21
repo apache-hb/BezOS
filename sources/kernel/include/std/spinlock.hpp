@@ -28,7 +28,7 @@ namespace stdx {
     };
 
     template<typename T>
-    class [[nodiscard, clang::scoped_lockable]] LockGuard {
+    class SCOPED_CAPABILITY [[nodiscard]] LockGuard {
         T& mLock;
 
     public:

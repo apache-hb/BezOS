@@ -2,6 +2,7 @@
 
 #include <bezos/status.h>
 
+#include "panic.hpp"
 #include "std/std.hpp"
 #include <stddef.h>
 
@@ -51,7 +52,50 @@ namespace km {
          * @param hardLimit The hard limit for the resource.
          * @param softLimit The soft limit for the resource.
          */
-        ResourceLimit(std::string_view name, size_t hardLimit, size_t softLimit) noexcept [[clang::nonblocking]];
+        ResourceLimit(std::string_view name, size_t hardLimit, size_t softLimit) noexcept [[clang::nonblocking]]
+            : mName(name)
+            , mHardLimit(hardLimit)
+            , mSoftLimit(softLimit)
+            , mUsed(0)
+        {
+            if (name.empty() || hardLimit == 0 || softLimit == 0 || softLimit > hardLimit) {
+                KM_PANIC("ResourceLimit: invalid parameters");
+            }
+        }
+
+        ResourceLimit(const ResourceLimit& other) noexcept [[clang::nonblocking]]
+            : mName(other.mName)
+            , mHardLimit(other.mHardLimit.load())
+            , mSoftLimit(other.mSoftLimit.load())
+            , mUsed(other.mUsed.load())
+        { }
+
+        ResourceLimit(ResourceLimit&& other) noexcept [[clang::nonblocking]]
+            : mName(other.mName)
+            , mHardLimit(other.mHardLimit.load())
+            , mSoftLimit(other.mSoftLimit.load())
+            , mUsed(other.mUsed.load())
+        { }
+
+        ResourceLimit& operator=(const ResourceLimit& other) noexcept [[clang::nonblocking]] {
+            if (this != &other) {
+                mName = other.mName;
+                mHardLimit.store(other.mHardLimit.load());
+                mSoftLimit.store(other.mSoftLimit.load());
+                mUsed.store(other.mUsed.load());
+            }
+            return *this;
+        }
+
+        ResourceLimit& operator=(ResourceLimit&& other) noexcept [[clang::nonblocking]] {
+            if (this != &other) {
+                mName = other.mName;
+                mHardLimit.store(other.mHardLimit.load());
+                mSoftLimit.store(other.mSoftLimit.load());
+                mUsed.store(other.mUsed.load());
+            }
+            return *this;
+        }
 
         /**
          * @brief Attempt to claim a portion of the resource.
@@ -66,14 +110,28 @@ namespace km {
          * @return If the claim was successful.
          */
         [[nodiscard]]
-        bool use(size_t amount, std::string_view reason) noexcept [[clang::nonblocking]];
+        bool use(size_t amount, std::string_view reason [[maybe_unused]]) noexcept [[clang::nonblocking]] {
+            size_t current = getUsed();
+            while (true) {
+                size_t newUsed = current + amount;
+                if (newUsed > getHardLimit()) {
+                    return false;
+                }
+
+                if (mUsed.compare_exchange_weak(current, newUsed)) {
+                    return true;
+                }
+            }
+        }
 
         /**
          * @brief Release a portion of the resource.
          *
          * @param amount The amount of the resource to release.
          */
-        void release(size_t amount) noexcept [[clang::nonblocking]];
+        void release(size_t amount) noexcept [[clang::nonblocking]] {
+            mUsed.fetch_sub(amount);
+        }
 
         /**
          * @brief Get the hard limit for the resource.
@@ -81,7 +139,9 @@ namespace km {
          * @return The hard limit.
          */
         [[nodiscard]]
-        size_t getHardLimit() const noexcept [[clang::nonblocking]];
+        size_t getHardLimit() const noexcept [[clang::nonblocking]] {
+            return mHardLimit.load();
+        }
 
         /**
          * @brief Get the soft limit for the resource.
@@ -89,7 +149,9 @@ namespace km {
          * @return The soft limit.
          */
         [[nodiscard]]
-        size_t getSoftLimit() const noexcept [[clang::nonblocking]];
+        size_t getSoftLimit() const noexcept [[clang::nonblocking]] {
+            return mSoftLimit.load();
+        }
 
         /**
          * @brief Get the current usage of the resource.
@@ -97,7 +159,9 @@ namespace km {
          * @return The current usage.
          */
         [[nodiscard]]
-        size_t getUsed() const noexcept [[clang::nonblocking]];
+        size_t getUsed() const noexcept [[clang::nonblocking]] {
+            return mUsed.load();
+        }
 
         /**
          * @brief Get the amount of the resource that is still available.
@@ -105,7 +169,9 @@ namespace km {
          * @return The available amount.
          */
         [[nodiscard]]
-        size_t getAvailable() const noexcept [[clang::nonblocking]];
+        size_t getAvailable() const noexcept [[clang::nonblocking]] {
+            return getHardLimit() - getUsed();
+        }
 
         /**
          * @brief Create a resource limit.
@@ -129,6 +195,13 @@ namespace km {
          * @retval OsStatusInvalidInput The input parameters were invalid, no resource limit has been created.
          */
         [[nodiscard]]
-        static OsStatus create(std::string_view name, size_t hardLimit, size_t softLimit, ResourceLimit *result [[outparam]]) noexcept [[clang::nonblocking]];
+        static OsStatus create(std::string_view name, size_t hardLimit, size_t softLimit, ResourceLimit *result [[outparam]]) noexcept [[clang::nonblocking]] {
+            if (name.empty() || hardLimit == 0 || softLimit == 0 || softLimit > hardLimit) {
+                return OsStatusInvalidInput;
+            }
+
+            *result = ResourceLimit(name, hardLimit, softLimit);
+            return OsStatusSuccess;
+        }
     };
 }

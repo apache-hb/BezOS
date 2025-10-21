@@ -596,7 +596,7 @@ OsStatus sys::MemoryManager::release(km::MemoryRange range) [[clang::allocating]
     return OsStatusSuccess;
 }
 
-OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range) [[clang::allocating]] {
+OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange *range [[outparam]]) [[clang::allocating]] {
     stdx::LockGuard guard(mLock);
 
     km::PmmAllocation allocation = mHeap->aligned_alloc(align, size);
@@ -613,7 +613,7 @@ OsStatus sys::MemoryManager::allocate(size_t size, size_t align, km::MemoryRange
     return OsStatusSuccess;
 }
 
-OsStatus sys::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager [[clang::noescape, gnu::nonnull]]) {
+OsStatus sys::MemoryManager::create(km::PageAllocator *heap, MemoryManager *manager [[outparam]]) {
     *manager = MemoryManager(heap);
     return OsStatusSuccess;
 }

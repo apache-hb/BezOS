@@ -31,29 +31,6 @@ namespace fs = std::filesystem;
         throw std::runtime_error("Assertion failed: "s + message); \
     }
 
-#if 0
-static void replaceAll(std::string &str, const std::string &from, const std::string &to) {
-    size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length();
-    }
-}
-
-static std::string virtLastErrorString() {
-    const char *msg = virGetLastErrorMessage();
-    if (msg == nullptr) {
-        return "No error";
-    }
-
-    return msg;
-}
-
-static std::string getTestDomain(std::string id) {
-    return "BezOS-IntegrationTest-"s + id;
-}
-#endif
-
 static std::string getEnvElement(const char *name) {
     const char *value = getenv(name);
     if (value == nullptr) {
@@ -62,36 +39,6 @@ static std::string getEnvElement(const char *name) {
 
     return std::string(value);
 }
-
-#if 0
-static void assertDomainState(virDomainPtr ptr, int expected) {
-    int state;
-    int ret = virDomainGetState(ptr, &state, nullptr, 0);
-    if (ret < 0) {
-        throw std::runtime_error(std::format("Failed to get domain state: {}", virtLastErrorString()));
-    }
-    if (state != expected) {
-        throw std::runtime_error(std::format("Domain state mismatch: expected {}, got {}", expected, state));
-    }
-}
-
-static void killDomain(virConnectPtr conn, const std::string &name) {
-    virDomainPtr domain = virDomainLookupByName(conn, name.c_str());
-    if (domain == nullptr) {
-        return;
-    }
-
-    int ret = virDomainDestroy(domain);
-    if (ret != 0) {
-        std::cerr << "Failed to destroy domain: " << virtLastErrorString() << std::endl;
-    }
-
-    ret = virDomainUndefine(domain);
-    if (ret != 0) {
-        std::cerr << "Failed to undefine domain: " << virtLastErrorString() << std::endl;
-    }
-}
-#endif
 
 static constexpr const char *kLimineConf = R"(
 # Timeout in seconds that Limine will use before automatically booting.
@@ -106,44 +53,6 @@ timeout: 0
     kernel_path: boot():/boot/kernel.elf
 )";
 
-#if 0
-static constexpr const char *kDomainXml = R"(
-<domain type='qemu'>
-    <name>$0</name>
-    <memory unit='MiB'>128</memory>
-    <vcpu placement='static'>4</vcpu>
-    <os>
-        <type arch='x86_64' machine='pc'>hvm</type>
-        <boot dev='cdrom' />
-    </os>
-    <features>
-        <acpi/>
-    </features>
-    <on_poweroff>destroy</on_poweroff>
-    <on_reboot>restart</on_reboot>
-    <on_crash>preserve</on_crash>
-    <devices>
-        <disk type='file' device='cdrom'>
-            <driver name='qemu' type='raw' />
-            <source file='$1' />
-            <target dev='hda' bus='ide' />
-            <readonly />
-            <address type='drive' controller='0' bus='0' target='0' unit='0' />
-        </disk>
-
-        <serial type='file'>
-            <source path='/tmp/$0-serial.log' />
-            <target port='0' />
-        </serial>
-        <console type='file'>
-            <source path='/tmp/$0-serial.log' />
-            <target type='serial' port='0' />
-        </console>
-    </devices>
-</domain>
-)";
-#endif
-
 int main(int argc, const char **argv) try {
     argparse::ArgumentParser program("ktest-runner");
     program.add_argument("--kernel")
@@ -153,6 +62,9 @@ int main(int argc, const char **argv) try {
     program.add_argument("--limine-install")
         .help("Path to the Limine install binary")
         .required();
+
+    program.add_argument("--test-program")
+        .help("Path to the test program to run in the kernel");
 
     try {
         program.parse_args(argc, argv);
@@ -169,6 +81,7 @@ int main(int argc, const char **argv) try {
     std::string limineInstallPath = program.get<std::string>("--limine-install");
 
     auto tmpfolder = fs::temp_directory_path() / ("ktest." + std::to_string(getpid()));
+    auto initrdFolder = tmpfolder / "initrd";
     auto buildFolder = tmpfolder / "build";
     auto runFolder = tmpfolder / "run";
     auto imageFolder = buildFolder / "limine" / "image";
@@ -177,10 +90,29 @@ int main(int argc, const char **argv) try {
     auto limineEfiPath = imageFolder / "EFI" / "BOOT";
     auto kernelIso = runFolder / "bezos-limine.iso";
 
+    fs::create_directories(initrdFolder);
     fs::create_directories(buildFolder);
     fs::create_directories(runFolder);
     fs::create_directories(limineBootPath);
     fs::create_directories(limineEfiPath);
+
+    if (program.is_used("--test-program")) {
+        std::string testProgramPath = program.get<std::string>("--test-program");
+        fs::copy_file(testProgramPath, initrdFolder / "ktest-init", fs::copy_options::overwrite_existing);
+
+        int tar = subprocess::call({
+            "tar", "-C", initrdFolder.string().c_str(), "-cf",
+            (buildFolder / "initrd.tar").string().c_str(),
+            "."
+        });
+
+        if (tar != 0) {
+            std::cerr << "Failed to create initrd tarball" << std::endl;
+            return 1;
+        }
+
+        fs::copy_file(buildFolder / "initrd.tar", bootPath / "initrd" / "initrd.tar", fs::copy_options::overwrite_existing);
+    }
 
     fs::copy_file(kernelPath, bootPath / "kernel.elf", fs::copy_options::overwrite_existing);
 
@@ -237,45 +169,6 @@ int main(int argc, const char **argv) try {
 
     std::cerr << "QEMU exited with code: " << result << std::endl;
     return (result >> 1);
-
-#if 0
-    virConnectPtr conn = virConnectOpen("qemu:///system");
-    KT_ASSERT_NE(conn, nullptr, virtLastErrorString());
-
-    char *uri = virConnectGetURI(conn);
-    KT_ASSERT_NE(uri, nullptr, virtLastErrorString());
-
-    const char *hvType = virConnectGetType(conn);
-    KT_ASSERT_NE(hvType, nullptr, virtLastErrorString());
-
-    auto name = getTestDomain("Launch");
-
-    // If a domain already exists for this test, kill it.
-    killDomain(conn, name);
-
-    std::string xml = kDomainXml;
-    replaceAll(xml, "$0", name);
-    replaceAll(xml, "$1", kernelIso.string());
-
-    virDomainPtr domain = virDomainDefineXMLFlags(conn, xml.c_str(), VIR_DOMAIN_DEFINE_VALIDATE);
-    KT_ASSERT_NE(domain, nullptr, virtLastErrorString() + xml);
-
-    int ret = virDomainCreate(domain);
-    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
-
-    virDomainInfo info;
-    ret = virDomainGetInfo(domain, &info);
-    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
-
-    assertDomainState(domain, VIR_DOMAIN_RUNNING);
-
-    ret = virDomainDestroy(domain);
-    KT_ASSERT_EQ(ret, 0, virtLastErrorString());
-
-    virDomainFree(domain);
-    free(uri);
-    virConnectClose(conn);
-#endif
 
     return 0;
 } catch (const std::exception &e) {

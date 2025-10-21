@@ -5,6 +5,7 @@
     <require package='llvm-compiler-rt' />
     <require package='gcc' />
     <require package='native-binutils' />
+    <require package='ninjatracing' optional='true' />
     <require package='limine' symlink='subprojects/limine' />
     <require package='sysapi' symlink='subprojects/sysapi' />
     <require package='common' symlink='subprojects/common' />

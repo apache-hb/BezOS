@@ -332,8 +332,8 @@ namespace km {
 
         /// @brief Deleted realloc for documentation.
         ///
-        /// Realloc cannot be implemented, the underlying memory may not be acessible. Therefore
-        /// the api contract of realloc cannot be fulfilled. See @ref shrink and @ref grow for
+        /// Realloc cannot be implemented because the underlying memory may not be acessible.
+        /// Therefore the api contract of realloc cannot be fulfilled. See @ref shrink and @ref grow for
         /// alternatives.
         Allocation realloc(Allocation ptr, size_t size) = delete("realloc is not supported");
 
@@ -519,6 +519,7 @@ namespace km {
 
         /// @brief Find an allocation by its address.
         /// @warning If you're using this function, you're doing it wrong.
+        [[nodiscard]]
         OsStatus findAllocation(Address address, Allocation *result [[outparam]]) noexcept [[clang::nonallocating]] {
             TlsfAllocation out;
             if (OsStatus status = mHeap.findAllocation(PhysicalAddress{address.address}, &out)) {

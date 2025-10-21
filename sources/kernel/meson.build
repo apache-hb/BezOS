@@ -20,6 +20,23 @@ cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
 inc = include_directories('include')
+trace_time = get_option('trace_time').disable_auto_if(meson.is_subproject())
+
+has_time_trace = cc.has_argument('-ftime-trace')
+ninjatracing = find_program('ninjatracing', required : trace_time.enabled())
+
+if trace_time.enabled() and has_time_trace
+    add_global_arguments('-ftime-trace', language: ['c', 'cpp'])
+endif
+
+if ninjatracing.found()
+    trace_args = has_time_trace ? [ '--embed-time-trace' ] : [ ]
+    custom_target('gather_time_trace',
+        output : 'trace.json',
+        capture : true,
+        command : [ ninjatracing, meson.global_build_root() / '.ninja_log' ] + trace_args
+    )
+endif
 
 common_args = [
     # '-fmacro-prefix-map=' + meson.current_source_dir() + '=/',
@@ -57,7 +74,8 @@ concurrentqueue = dependency('concurrentqueue')
 frozen = dependency('frozen')
 tlsf = subproject('tlsf')
 stb_sprintf = dependency('stb_sprintf')
-sysapi = subproject('sysapi').get_variable('sysapi_dep')
+sysapi_subproject = subproject('sysapi')
+sysapi = sysapi_subproject.get_variable('sysapi_dep')
 common = subproject('common').get_variable('common_dep')
 
 inc = [ inc, absl.get_variable('absl_include_dir'), tlsf.get_variable('includes') ]
@@ -576,6 +594,34 @@ libsystem_native = static_library('system_native', system_src,
 )
 
 libsystem_nosanitize = static_library('system_nosanitize', system_src,
+    kwargs : nosan_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+system2_src = files(
+    'src/system2/system.cpp',
+    'src/system2/process.cpp',
+    'src/system2/thread.cpp',
+    'src/system2/audit.cpp',
+    'src/system2/access.cpp',
+    'src/system2/pmm.cpp',
+    'src/system2/vmm.cpp',
+)
+
+libsystem2_kernel = static_library('system2', system2_src,
+    kwargs : kernel_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libsystem2_native = static_library('system2_native', system2_src,
+    kwargs : native_kwargs,
+    include_directories : inc,
+    dependencies : deps,
+)
+
+libsystem2_nosanitize = static_library('system2_nosanitize', system2_src,
     kwargs : nosan_kwargs,
     include_directories : inc,
     dependencies : deps,

@@ -20,6 +20,7 @@
     -->
 
     <xi:include href='packages/tools/pkg-config.xml' />
+    <xi:include href='packages/tools/ninjatracing.xml' />
 
     <xi:include href='packages/tools/llvm.xml' />
     <xi:include href='packages/sysapi-headers.xml' />

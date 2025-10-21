@@ -12,7 +12,7 @@ void km::AddressSpace::reserve(VirtualRange range) {
     }
 }
 
-OsStatus km::AddressSpace::reserve(VirtualRangeEx range, VmemAllocation *result [[gnu::nonnull]]) {
+OsStatus km::AddressSpace::reserve(VirtualRangeEx range, VmemAllocation *result [[outparam]]) {
     if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
@@ -43,7 +43,7 @@ OsStatus km::AddressSpace::unmap(VirtualRange range) {
     return OsStatusSuccess;
 }
 
-void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, VmemAllocation *allocation) {
+void *km::AddressSpace::mapGenericObject(MemoryRangeEx range, PageFlags flags, MemoryType type, VmemAllocation *allocation [[outparam]]) {
     uintptr_t offset = (range.front.address & 0xFFF);
     MemoryRangeEx aligned = alignedOut(range, x64::kPageSize);
     if (aligned.isEmpty()) {
@@ -77,7 +77,7 @@ void *km::AddressSpace::map(MemoryRange range, PageFlags flags, MemoryType type)
     return std::bit_cast<void*>(result.address());
 }
 
-OsStatus km::AddressSpace::map(MemoryRange range, const void *, PageFlags flags, MemoryType type, AddressMapping *mapping) {
+OsStatus km::AddressSpace::map(MemoryRange range, const void *, PageFlags flags, MemoryType type, AddressMapping *mapping [[outparam]]) {
     if (range.isEmpty() || (range != alignedOut(range, x64::kPageSize))) {
         return OsStatusInvalidInput;
     }
@@ -104,7 +104,7 @@ OsStatus km::AddressSpace::map(MemoryRange range, const void *, PageFlags flags,
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping) {
+OsStatus km::AddressSpace::mapStack(MemoryRange range, PageFlags flags, StackMapping *mapping [[outparam]]) {
     std::array<VmemAllocation, 3> results;
     MemoryRangeEx stackRange = range.cast<km::PhysicalAddressEx>();
     if (OsStatus status = mapStack(stackRange, flags, &results)) {
@@ -191,7 +191,7 @@ OsStatus km::AddressSpace::map(MemoryRangeEx memory, PageFlags flags, MemoryType
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::map(PmmAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation) {
+OsStatus km::AddressSpace::map(PmmAllocation memory, PageFlags flags, MemoryType type, MappingAllocation *allocation [[outparam]]) {
     VmemAllocation result;
 
     if (OsStatus status = map(memory.range().cast<km::PhysicalAddressEx>(), flags, type, &result)) {
@@ -202,24 +202,7 @@ OsStatus km::AddressSpace::map(PmmAllocation memory, PageFlags flags, MemoryType
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::map(AddressMapping mapping, PageFlags flags, MemoryType type, TlsfAllocation *allocation) {
-    stdx::LockGuard guard(mLock);
-
-    VmemAllocation result;
-    if (OsStatus status = mVmemHeap.reserve(mapping.virtualRange().cast<sm::VirtualAddress>(), &result)) {
-        return status;
-    }
-
-    if (OsStatus status = mTables.map(mapping, flags, type)) {
-        mVmemHeap.free(result);
-        return status;
-    }
-
-    *allocation = TlsfAllocation{result.getBlock()};
-    return OsStatusSuccess;
-}
-
-OsStatus km::AddressSpace::mapStack(PmmAllocation memory, PageFlags flags, StackMappingAllocation *allocation) {
+OsStatus km::AddressSpace::mapStack(PmmAllocation memory, PageFlags flags, StackMappingAllocation *allocation [[outparam]]) {
     std::array<VmemAllocation, 3> results;
     MemoryRangeEx stackRange = memory.range().cast<km::PhysicalAddressEx>();
     if (OsStatus status = mapStack(stackRange, flags, &results)) {
@@ -272,26 +255,6 @@ OsStatus km::AddressSpace::mapStack(MemoryRangeEx memory, PageFlags flags, std::
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::reserve(size_t size, TlsfAllocation *result [[gnu::nonnull]]) {
-    if (size == 0 || size % x64::kPageSize != 0) {
-        return OsStatusInvalidInput;
-    }
-
-    stdx::LockGuard guard(mLock);
-    VmemAllocation allocation = mVmemHeap.alignedAlloc(x64::kPageSize, size);
-    if (allocation.isNull()) {
-        return OsStatusOutOfMemory;
-    }
-
-    *result = TlsfAllocation{allocation.getBlock()};
-    return OsStatusSuccess;
-}
-
-void km::AddressSpace::release(TlsfAllocation allocation) noexcept {
-    stdx::LockGuard guard(mLock);
-    mVmemHeap.free(VmemAllocation{allocation.getBlock()});
-}
-
 OsStatus km::AddressSpace::unmap(MappingAllocation allocation) {
     return unmap(VmemAllocation{allocation.virtualAllocation().getBlock()});
 }
@@ -306,7 +269,7 @@ OsStatus km::AddressSpace::unmap(VmemAllocation allocation) {
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]) {
+OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[outparam]]) {
     if (OsStatus status = km::PageTables::create(pm, pteMemory, flags, &space->mTables)) {
         return status;
     }
@@ -318,7 +281,7 @@ OsStatus km::AddressSpace::create(const PageBuilder *pm, AddressMapping pteMemor
     return OsStatusSuccess;
 }
 
-OsStatus km::AddressSpace::create(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[clang::noescape, gnu::nonnull]]) {
+OsStatus km::AddressSpace::create(const AddressSpace *source, AddressMapping pteMemory, PageFlags flags, VirtualRangeEx vmem, AddressSpace *space [[outparam]]) {
     if (OsStatus status = km::AddressSpace::create(source->pageManager(), pteMemory, flags, vmem, space)) {
         return status;
     }

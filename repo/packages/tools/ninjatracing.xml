@@ -2,9 +2,11 @@
     <download name='ninjatracing'
               file='ninjatracing.zip'
               url='https://github.com/nico/ninjatracing/archive/a669e3644cf22b29cbece31dbed2cfbf34e5f48e.zip'
-              sha256=''
+              sha256='5421cc7fecf2bdbcab4f40198a685f09c6911ce84881fc72d97784321e86b385'
               trim-root-folder='true'
               archive='zip'
               git='https://github.com/nico/ninjatracing.git'
               commit='a669e3644cf22b29cbece31dbed2cfbf34e5f48e' />
+
+    <script path='@REPO@/data/install-ninjatracing.sh' />
 </package>
