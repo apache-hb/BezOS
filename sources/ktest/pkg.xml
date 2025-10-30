@@ -1,0 +1,4 @@
+<package name="ktest" version="1.x">
+    <dependency name="sysapi" version="1.x" />
+    <dependency name="libkernel" version="1.x" />
+</package>

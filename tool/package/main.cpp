@@ -458,12 +458,12 @@ static PackageStatus GetPackageStatusFromString(std::string_view status) {
 }
 
 struct XmlNode {
-    xmlNodePtr node;
+    xmlNodePtr mNode;
 
-    XmlNode(xmlNodePtr node) : node(node) {}
+    XmlNode(xmlNodePtr node) : mNode(node) {}
 
     std::generator<XmlNode> children() const {
-        for (xmlNodePtr child = node->children; child != nullptr; child = child->next) {
+        for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
             co_yield child;
         }
     }
@@ -471,9 +471,9 @@ struct XmlNode {
     std::map<std::string, std::string> properties() const {
         std::map<std::string, std::string> result;
 
-        for (xmlAttrPtr attr = node->properties; attr != nullptr; attr = attr->next) {
+        for (xmlAttrPtr attr = mNode->properties; attr != nullptr; attr = attr->next) {
             const xmlChar *name = attr->name;
-            xmlChar *value = xmlGetProp(node, name);
+            xmlChar *value = xmlGetProp(mNode, name);
 
             result[reinterpret_cast<const char *>(name)] = reinterpret_cast<const char *>(value);
 
@@ -484,7 +484,7 @@ struct XmlNode {
     }
 
     std::optional<std::string> property(std::string name) const {
-        xmlChar *value = xmlGetProp(node, reinterpret_cast<const xmlChar *>(name.c_str()));
+        xmlChar *value = xmlGetProp(mNode, reinterpret_cast<const xmlChar *>(name.c_str()));
         if (value == nullptr) {
             return std::nullopt;
         }
@@ -495,7 +495,7 @@ struct XmlNode {
     }
 
     std::string content() const {
-        auto data = xmlNodeGetContent(node);
+        auto data = xmlNodeGetContent(mNode);
 
         if (data == nullptr) {
             throw std::runtime_error(std::format("Node {} has no content", name()));
@@ -505,10 +505,10 @@ struct XmlNode {
     }
 
     std::string_view name() const {
-        return reinterpret_cast<const char *>(node->name);
+        return reinterpret_cast<const char *>(mNode->name);
     }
 
-    operator xmlNodePtr() const { return node; }
+    operator xmlNodePtr() const { return mNode; }
 };
 
 static std::string_view NodeName(xmlNodePtr node) {

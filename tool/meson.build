@@ -18,6 +18,9 @@ glob = dependency('glob')
 xdrc = find_program('xdrc')
 xdrpp = dependency('xdrpp')
 
+subdir('libpkgtool')
+subdir('pkgtool')
+
 overlayfs_hh = custom_target('overlayfs_hh',
     input : 'package/overlay.x',
     output : 'overlayfs.hh',

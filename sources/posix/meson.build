@@ -1,0 +1,1 @@
+project('posix', 'cpp')

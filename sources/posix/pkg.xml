@@ -1,0 +1,6 @@
+<package name="posix" version="1.x">
+    <build-dependency name="clang" version="20.x" />
+
+    <dependency name="posix-headers" version="1.x" />
+    <dependency name="sysapi" version="1.x" />
+</package>

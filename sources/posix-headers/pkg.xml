@@ -1,0 +1,3 @@
+<package name="posix-headers" version="1.x">
+    <dependency name="sysapi-headers" version="1.x" />
+</package>

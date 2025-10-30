@@ -1,0 +1,3 @@
+<package name="bezos" version="1.x">
+    <dependency name="libkernel" version="1.x" />
+</package>
