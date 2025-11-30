@@ -6,6 +6,8 @@ using pkg::IWorkspace;
 
 namespace fs = std::filesystem;
 
+namespace {
+
 class WorkspaceImpl final : public IWorkspace {
     fs::path mRoot;
     std::map<std::string, std::shared_ptr<pkg::IPackage>> mPackages;
@@ -24,6 +26,8 @@ public:
         }
     }
 };
+
+}
 
 std::shared_ptr<IWorkspace> IWorkspace::ofRootPath(const fs::path& root) {
     return std::make_shared<WorkspaceImpl>(root);

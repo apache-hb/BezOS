@@ -3,9 +3,9 @@
 #include <argparse/argparse.hpp>
 
 class ArgOptions {
-    static constexpr std::string kConfigKey = "--config";
-    static constexpr std::string kTargetKey = "--target";
-    static constexpr std::string kWorkspaceKey = "--workspace";
+    static constexpr char kConfigKey[] = "--config";
+    static constexpr char kTargetKey[] = "--target";
+    static constexpr char kWorkspaceKey[] = "--workspace";
 
     argparse::ArgumentParser parser;
 public:
@@ -41,6 +41,13 @@ public:
     }
 };
 
-int main() {
+int main(int argc, const char **argv) {
+    ArgOptions options;
+    options.parse(argc, argv);
 
+    std::cout << "Config path: " << options.config() << "\n";
+    std::cout << "Target path: " << options.target() << "\n";
+    std::cout << "Workspace path: " << options.workspace() << "\n";
+
+    return 0;
 }

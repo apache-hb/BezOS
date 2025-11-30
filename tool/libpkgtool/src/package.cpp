@@ -12,6 +12,8 @@ namespace fs = std::filesystem;
 
 using XmlDocument = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
 
+namespace {
+
 class PackageName {
     std::string mName;
     std::string mVersion;
@@ -85,6 +87,8 @@ public:
         }
     }
 };
+
+}
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder) {
     return std::make_shared<PackageImpl>(folder);
