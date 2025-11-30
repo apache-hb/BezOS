@@ -37,7 +37,7 @@ namespace obj {
             return false;
         }
 
-        stdx::SharedSpinLock mLock;
+        mutable stdx::SharedSpinLock mLock;
         ObjectName mName GUARDED_BY(mLock);
 
     protected:
