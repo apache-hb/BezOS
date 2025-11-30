@@ -17,6 +17,7 @@ namespace km {
 
     struct PageTableStats {
         PteAllocatorStats allocatorStats;
+        MappingLookupTableStats mappingStats;
         size_t pml4Entries;
         size_t pdptEntries;
         size_t pdEntries;
@@ -31,7 +32,7 @@ namespace km {
     class PageTables {
         friend class PageTableCommandList;
 
-        /// @brief Mapping of virtual addresses to physical addresses for page table lookups.
+        /// @brief Cache of currently used backing memory.
         detail::MappingLookupTable mCache;
 
         /// @brief The page table allocator.

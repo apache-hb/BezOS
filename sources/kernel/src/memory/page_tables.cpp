@@ -523,6 +523,7 @@ OsStatus PageTables::map(const PageMappingRequest& request) {
 PageTableStats PageTables::stats() const noexcept [[clang::nonallocating]] {
     PageTableStats stats{};
     stats.allocatorStats = mAllocator.stats();
+    stats.mappingStats = mCache.stats();
 
     const x64::PageMapLevel4 *root = pml4();
 
