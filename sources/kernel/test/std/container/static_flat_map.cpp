@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <random>
 
 #include "std/container/static_flat_map.hpp"
 
@@ -134,7 +135,7 @@ TEST_F(StaticFlatMapTest, Iterate) {
     }
 
     size_t count = 0;
-    for (FlatMap::Iterator it = map.begin(); it != map.end(); ++it) {
+    for (auto it = map.begin(); it != map.end(); ++it) {
         int key = it.key();
         int value = it.value();
         ASSERT_EQ(value, key * 10);
@@ -164,7 +165,7 @@ TEST_F(StaticFlatMapTest, IterateCxx11) {
 
 TEST_F(StaticFlatMapTest, IterateEmpty) {
     size_t count = 0;
-    for (FlatMap::Iterator it = map.begin(); it != map.end(); ++it) {
+    for (auto it = map.begin(); it != map.end(); ++it) {
         count++;
     }
 
@@ -252,4 +253,54 @@ TEST_F(StaticFlatMapTest, UpperBound) {
 
     it = map.upperBound(1000);
     ASSERT_EQ(it, map.end());
+}
+
+TEST_F(StaticFlatMapTest, RandomOperations) {
+    const int iterations = 10000;
+    std::map<int, int> groundTruth;
+    OsStatus status = OsStatusSuccess;
+
+    std::mt19937 rng(12345);
+    std::uniform_int_distribution<int> distKey(0, 40);
+    std::uniform_int_distribution<int> distValue(0, 1000000);
+    std::uniform_int_distribution<int> distOp(0, 4);
+
+    for (int i = 0; i < iterations; i++) {
+        int key = distKey(rng);
+        int value = distValue(rng);
+        bool doErase = distOp(rng) == 0;
+
+        if (!doErase) {
+            status = map.insert(key, value);
+            if (status == OsStatusSuccess) {
+                groundTruth[key] = value;
+            } else {
+                ASSERT_EQ(status, OsStatusOutOfMemory);
+            }
+        } else {
+            status = map.remove(key);
+
+            if (groundTruth.find(key) != groundTruth.end()) {
+                ASSERT_EQ(status, OsStatusSuccess);
+            } else {
+                ASSERT_EQ(status, OsStatusNotFound);
+            }
+
+            auto n = groundTruth.erase(key);
+
+            if (status == OsStatusSuccess) {
+                ASSERT_EQ(n, 1);
+            } else {
+                ASSERT_EQ(n, 0);
+            }
+        }
+
+        ASSERT_EQ(map.count(), groundTruth.size());
+
+        for (const auto& [gtKey, gtValue] : groundTruth) {
+            int* mapValue = map.find(gtKey);
+            ASSERT_NE(mapValue, nullptr);
+            ASSERT_EQ(*mapValue, gtValue);
+        }
+    }
 }
