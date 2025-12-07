@@ -11,7 +11,7 @@
 #include "panic.hpp"
 
 namespace stdx {
-    template<typename T, typename Allocator = mem::GlobalAllocator<T>>
+    template<typename T, typename Allocator = sm::allocator<T>>
     class Vector2 {
         [[no_unique_address]] Allocator mAllocator{};
 
@@ -21,7 +21,7 @@ namespace stdx {
 
         constexpr OsStatus ensureExtra(size_t extra) {
             if ((count() + extra) >= capacity()) {
-                return reserveExact(capacity() + extra);
+                return reserveAtLeast(capacity() + extra);
             }
 
             return OsStatusSuccess;
@@ -30,7 +30,7 @@ namespace stdx {
         constexpr void destroy() {
             if (mFront != nullptr) {
                 std::destroy_n(mFront, count());
-                mAllocator.deallocate(mFront, capacity() * sizeof(T));
+                mAllocator.deallocate(mFront, capacity());
                 mFront = nullptr;
                 mBack = nullptr;
                 mCapacity = nullptr;
@@ -146,33 +146,64 @@ namespace stdx {
         /// @return The status of the operation.
         constexpr OsStatus reserveExact(size_t size) {
             size_t oldCapacity = capacity();
-            if (size < oldCapacity) {
+            if (size <= oldCapacity) {
                 return OsStatusSuccess;
             }
 
             // need to cache this here for correctness
             size_t currentCount = count();
 
-            if (mFront == nullptr) {
-                mFront = mAllocator.allocate(size);
-                if (mFront == nullptr) {
-                    return OsStatusOutOfMemory;
-                }
+            T *newData = mAllocator.allocate(size);
+            if (newData == nullptr) {
+                return OsStatusOutOfMemory;
+            }
 
+            if (mFront == nullptr) {
+                mFront = newData;
                 mBack = mFront;
                 mCapacity = mFront + size;
             } else {
-                T *newData = mAllocator.allocate(size);
-                if (newData == nullptr) {
-                    return OsStatusOutOfMemory;
-                }
-
                 std::uninitialized_move(mFront, mBack, newData);
                 std::destroy_n(mFront, count());
                 mAllocator.deallocate(mFront, oldCapacity);
                 mFront = newData;
                 mBack = mFront + currentCount;
                 mCapacity = mFront + size;
+            }
+
+            return OsStatusSuccess;
+        }
+
+        constexpr OsStatus reserveAtLeast(size_t size) {
+            size_t oldCapacity = capacity();
+            if (size <= oldCapacity) {
+                return OsStatusSuccess;
+            }
+
+            size_t currentCount = count();
+
+#if __cpp_lib_allocate_at_least >= 202302L
+            auto [memory, actualCapacity] = mAllocator.allocate_at_least(size);
+#else
+            T *memory = mAllocator.allocate(size);
+            size_t actualCapacity = size;
+#endif
+
+            if (memory == nullptr) {
+                return OsStatusOutOfMemory;
+            }
+
+            if (mFront == nullptr) {
+                mFront = memory;
+                mBack = mFront;
+                mCapacity = mFront + actualCapacity;
+            } else {
+                std::uninitialized_move(mFront, mBack, memory);
+                std::destroy_n(mFront, count());
+                mAllocator.deallocate(mFront, oldCapacity);
+                mFront = memory;
+                mBack = mFront + currentCount;
+                mCapacity = mFront + actualCapacity;
             }
 
             return OsStatusSuccess;

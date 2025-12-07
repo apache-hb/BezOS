@@ -110,11 +110,11 @@ namespace mem {
         AllocatorDeleter(IAllocator *allocator) : allocator(allocator) { }
     };
 
-    template<typename T>
-    concept Allocator = requires (T it, size_t n, size_t align) {
-        { it.allocate(n) } -> std::same_as<void*>;
-        { it.allocateAligned(n, align) } -> std::same_as<void*>;
-        { it.deallocate(std::declval<T*>(), n) } noexcept;
+    template<typename A>
+    concept Allocator = requires (A allocator, size_t n, size_t align) {
+        { allocator.allocate(n) } -> std::same_as<void*>;
+        { allocator.allocateAligned(n, align) } -> std::same_as<void*>;
+        { allocator.deallocate(std::declval<void*>(), n) } noexcept;
     };
 
     class GenericAllocator {
@@ -130,6 +130,13 @@ namespace mem {
         void deallocate(void *ptr, size_t) noexcept {
             std::free(ptr);
         }
+
+#if __cpp_lib_allocate_at_least >= 202302L
+        std::allocation_result<void*> allocate_at_least(size_t size) {
+            void *ptr = allocate(size);
+            return { ptr, ptr ? size : 0 };
+        }
+#endif
     };
 
     template<typename T>
@@ -163,6 +170,13 @@ namespace mem {
             delete[] ptr;
             CLANG_DIAGNOSTIC_POP();
         }
+
+#if __cpp_lib_allocate_at_least >= 202302L
+        std::allocation_result<T*> allocate_at_least(size_t n) {
+            T *ptr = allocate(n);
+            return { ptr, ptr ? n : 0 };
+        }
+#endif
     };
 
     template<typename T>
@@ -197,6 +211,56 @@ namespace mem {
         void deallocate(T *ptr, size_t n) noexcept [[clang::nonallocating]] {
             mAllocator->deallocate(ptr, n * sizeof(T));
         }
+
+#if __cpp_lib_allocate_at_least >= 202302L
+        std::allocation_result<T*> allocate_at_least(size_t n) {
+            T *memory = allocate(n);
+            return { memory, n };
+        }
+#endif
+    };
+}
+
+namespace sm {
+    /**
+     * @brief Replacement for std::allocator that supports nothrow allocations.
+     *
+     * @tparam T The type to allocate.
+     */
+    template<typename T>
+    class allocator {
+    public:
+        using value_type = T;
+        using size_type = size_t;
+        using difference_type = ptrdiff_t;
+        using propagate_on_container_move_assignment = std::true_type;
+
+        constexpr allocator() noexcept = default;
+
+        template <class U>
+        constexpr allocator(const allocator<U>&) noexcept { }
+
+        [[nodiscard]]
+        constexpr T *allocate(size_t n) noexcept {
+            static_assert(sizeof(T) >= 0, "cannot allocate memory for an incomplete type"); // NOLINT(bugprone-sizeof-expression) Allow sizeof on incomplete type to provide better error message
+            if (n > std::allocator_traits<allocator>::max_size(*this)) {
+                return nullptr;
+            }
+
+            return static_cast<T*>(::operator new(n * sizeof(T), std::align_val_t(alignof(T)), std::nothrow));
+        }
+
+#if __cpp_lib_allocate_at_least >= 202302L
+        [[nodiscard]]
+        constexpr std::allocation_result<T*> allocate_at_least(size_t n) noexcept {
+            T *memory = allocate(n);
+            return { memory, memory ? n : 0 };
+        }
+#endif
+
+        constexpr void deallocate(T *p, size_t n) noexcept {
+            ::operator delete(static_cast<void*>(p), n * sizeof(T), std::align_val_t(alignof(T)));
+        }
     };
 }
 
@@ -222,6 +286,13 @@ namespace std {
         void deallocate(T *ptr, size_t) {
             free(ptr);
         }
+
+#if __cpp_lib_allocate_at_least >= 202302L
+        std::allocation_result<T*> allocate_at_least(size_t n) {
+            T *memory = allocate(n);
+            return { memory, memory ? n : 0 };
+        }
+#endif
     };
 }
 

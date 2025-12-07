@@ -33,6 +33,8 @@ namespace km {
         using TlsfBlock = detail::TlsfBlock;
         using BlockPtr = detail::TlsfBlock*;
         using BitMap = detail::TlsfBitMap;
+        using BlockPool = PoolAllocator<TlsfBlock>;
+        using FreeList = std::unique_ptr<BlockPtr[]>;
 
         /// @brief The total size of the managed area.
         size_t mSize;
@@ -42,10 +44,10 @@ namespace km {
         size_t mMallocCount;
         size_t mFreeCount;
 
-        PoolAllocator<TlsfBlock> mBlockPool;
+        BlockPool mBlockPool;
         TlsfBlock *mNullBlock;
         size_t mFreeListCount;
-        std::unique_ptr<BlockPtr[]> mFreeList;
+        FreeList mFreeList;
 
         BitMap mInnerFreeMap[detail::kMaxMemoryClass];
         BitMap mTopLevelFreeMap;
@@ -76,7 +78,7 @@ namespace km {
 
         TlsfAllocation allocBestFit(size_t align, size_t size) [[clang::allocating]];
 
-        TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList);
+        TlsfHeap(BlockPool&& pool, TlsfBlock *nullBlock, size_t freeListCount, FreeList freeList);
 
         /// @brief Private API for @a TlsfHeapCommandList.
         void drainBlockList(detail::TlsfBlockList list) noexcept [[clang::nonallocating]];
@@ -342,6 +344,7 @@ namespace km {
         /// Grows an allocation to a larger size if there is adjacent space available. If there
         /// is no adjacent space available, the allocation fails and the original
         /// allocation is unchanged. Cannot be used to shrink allocations, see @ref shrink.
+        /// The base address of the allocation does not change.
         ///
         /// @param ptr The allocation to grow.
         /// @param size The new size of the allocation.
@@ -365,6 +368,7 @@ namespace km {
         ///
         /// Shrinks an allocation to a smaller size. If control structures cannot be
         /// allocated, the allocation fails and the original allocation is unchanged.
+        /// The base address of the allocation does not change.
         ///
         /// @param ptr The allocation to shrink.
         /// @param size The new size of the allocation.
@@ -385,6 +389,7 @@ namespace km {
         ///
         /// Resizes an allocation to a new size using adjacent space. If this operation
         /// fails the original allocation is unchanged.
+        /// The base address of the allocation does not change.
         ///
         /// @param ptr The allocation to resize.
         /// @param size The new size of the allocation.
@@ -402,7 +407,7 @@ namespace km {
             return OsStatusSuccess;
         }
 
-        /// @brief Allocate an aligned allocation.
+        /// @brief Create an aligned allocation.
         ///
         /// @param align The alignment of the allocation.
         /// @param size The size of the allocation.

@@ -101,7 +101,7 @@ void TlsfHeap::init() noexcept {
     std::uninitialized_fill(std::begin(mInnerFreeMap), std::end(mInnerFreeMap), 0);
 }
 
-TlsfHeap::TlsfHeap(PoolAllocator<TlsfBlock>&& pool, TlsfBlock *nullBlock, size_t freeListCount, std::unique_ptr<BlockPtr[]> freeList)
+TlsfHeap::TlsfHeap(BlockPool&& pool, TlsfBlock *nullBlock, size_t freeListCount, FreeList freeList)
     : mSize(nullBlock->size)
     , mReserved(0)
     , mMallocCount(0)
@@ -121,7 +121,7 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[outparam]]) [[clan
     uint16_t secondIndex = detail::SizeToSecondIndex(size, memoryClass);
     size_t freeListCount = detail::GetFreeListSize(memoryClass, secondIndex);
 
-    PoolAllocator<TlsfBlock> pool;
+    BlockPool pool;
     TlsfBlock *nullBlock = pool.construct(TlsfBlock {
         .offset = range.front.address,
         .size = range.size(),
@@ -139,7 +139,7 @@ OsStatus TlsfHeap::create(MemoryRange range, TlsfHeap *heap [[outparam]]) [[clan
         return OsStatusOutOfMemory;
     }
 
-    *heap = TlsfHeap(std::move(pool), nullBlock, freeListCount, std::unique_ptr<BlockPtr[]>(freeList));
+    *heap = TlsfHeap(std::move(pool), nullBlock, freeListCount, FreeList(freeList));
     return OsStatusSuccess;
 }
 

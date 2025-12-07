@@ -992,21 +992,21 @@ PhysicalAddressEx PageTables::getBackingAddressUnlocked(const void *ptr) const {
     return km::PhysicalAddressEx { mPageManager->address(t1) + offset };
 }
 
-km::PhysicalAddressEx PageTables::getBackingAddress(const void *ptr) {
+km::PhysicalAddressEx PageTables::getBackingAddress(const void *ptr) const {
     return getBackingAddressUnlocked(ptr);
 }
 
-km::PageFlags PageTables::getMemoryFlags(const void *ptr) {
+km::PageFlags PageTables::getMemoryFlags(const void *ptr) const {
     PageWalk result = walk(ptr);
     return result.flags();
 }
 
-km::PageSize PageTables::getPageSize(const void *ptr) {
+km::PageSize PageTables::getPageSize(const void *ptr) const {
     PageWalk result = walk(ptr);
     return result.pageSize();
 }
 
-PageWalk PageTables::walk(const void *ptr) {
+PageWalk PageTables::walk(const void *ptr) const {
     return walkUnlocked(ptr);
 }
 

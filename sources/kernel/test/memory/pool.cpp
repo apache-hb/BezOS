@@ -4,7 +4,7 @@
 #include "new_shim.hpp"
 
 template<typename T>
-using Pool = km::PoolAllocator<T>;
+using Pool = km::PoolAllocator<T, sm::allocator<std::byte>>;
 
 class PoolTest : public testing::Test {
 public:

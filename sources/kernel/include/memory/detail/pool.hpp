@@ -31,17 +31,19 @@ namespace km {
         };
 
         template<typename T>
-        struct PoolBlock {
+        class PoolBlock {
+            using Self = PoolBlock<T>;
             using Item = PoolItem<T>;
 
-            uint32_t count;
-            uint32_t firstFreeIndex;
-            Item items[];
+            uint32_t mSizeInBytes;
+            uint32_t mFirstFreeIndex;
+            Item mItems[];
 
+        public:
             void *take() noexcept [[clang::nonblocking]] {
-                if (firstFreeIndex < count) {
-                    Item *item = &items[firstFreeIndex];
-                    firstFreeIndex = item->next;
+                if (mFirstFreeIndex < capacity()) {
+                    Item *item = &mItems[mFirstFreeIndex];
+                    mFirstFreeIndex = item->next;
                     return item->data;
                 }
 
@@ -49,12 +51,12 @@ namespace km {
             }
 
             void give(Item *item) noexcept [[clang::nonblocking]] {
-                item->next = firstFreeIndex;
-                firstFreeIndex = (item - items);
+                item->next = mFirstFreeIndex;
+                mFirstFreeIndex = (item - mItems);
             }
 
             bool contains(Item *item) const noexcept [[clang::nonblocking]] {
-                return item >= items && item < items + count;
+                return item >= mItems && item < mItems + capacity();
             }
 
             bool reclaim(void *ptr) noexcept [[clang::nonblocking]] {
@@ -69,31 +71,45 @@ namespace km {
 
             size_t countFreeSlots() const noexcept [[clang::nonallocating]] {
                 size_t result = 0;
-                size_t index = firstFreeIndex;
-                while (index < count) {
-                    index = items[index].next;
+                size_t index = mFirstFreeIndex;
+                while (index < capacity()) {
+                    index = mItems[index].next;
                     result++;
                 }
                 return result;
             }
 
             size_t capacity() const noexcept [[clang::nonblocking]] {
-                return count;
+                return computeCapacity(memorySize());
+            }
+
+            size_t memorySize() const noexcept [[clang::nonblocking]] {
+                return mSizeInBytes;
             }
 
             bool isEmpty() const noexcept [[clang::nonallocating]] {
                 return countFreeSlots() == capacity();
             }
 
-            void init(size_t blockCount) noexcept [[clang::nonallocating]] {
-                count = blockCount;
-                firstFreeIndex = 0;
+            void init(size_t bytes) noexcept [[clang::nonallocating]] {
+                mSizeInBytes = bytes;
+                mFirstFreeIndex = 0;
 
-                for (size_t i = 0; i < blockCount - 1; i++) {
-                    items[i].next = i + 1;
+                size_t length = capacity();
+
+                for (size_t i = 0; i < length - 1; i++) {
+                    mItems[i].next = i + 1;
                 }
 
-                items[blockCount - 1].next = UINT32_MAX;
+                mItems[length - 1].next = UINT32_MAX;
+            }
+
+            static constexpr size_t blockMemorySize(size_t capacity) noexcept [[clang::nonblocking]] {
+                return sizeof(Self) + (sizeof(Item) * capacity);
+            }
+
+            static constexpr size_t computeCapacity(size_t memorySize) noexcept [[clang::nonblocking]] {
+                return (memorySize - sizeof(Self)) / sizeof(Item);
             }
         };
     }
@@ -106,12 +122,16 @@ namespace km {
     /// use this for physical memory, which is not mapped into the cpu address space.
     ///
     /// @cite D3D12MA
-    template<typename T>
+    template<typename T, typename Allocator = sm::allocator<std::byte>>
     class PoolAllocator {
         using Item = detail::PoolItem<T>;
         using Block = detail::PoolBlock<T>;
 
-        stdx::Vector2<Block*> mBlocks;
+        using BlockAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Block*>;
+
+        [[no_unique_address]] Allocator mAllocator;
+
+        stdx::Vector2<Block*, BlockAllocator> mBlocks;
 
         size_t nextBlockCapacity() const noexcept [[clang::nonblocking]] {
             if (mBlocks.isEmpty()) {
@@ -124,7 +144,16 @@ namespace km {
 
         Block *newBlock() noexcept [[clang::allocating]] {
             size_t nextCapacity = nextBlockCapacity();
-            char *memory = new (std::align_val_t(alignof(Block)), std::nothrow) char[sizeof(Block) + (sizeof(Item) * nextCapacity)];
+
+            //
+            // TODO: I sure hope this returns aligned memory, std::allocator doesnt have an align param :(
+            //
+#if __cpp_lib_allocate_at_least >= 202302L
+            auto [memory, actualCapacity] = mAllocator.allocate_at_least(Block::blockMemorySize(nextCapacity));
+#else
+            size_t actualCapacity = blockMemorySize(nextCapacity);
+            std::byte *memory = mAllocator.allocate(actualCapacity);
+#endif
             if (memory == nullptr) {
                 return nullptr;
             }
@@ -136,7 +165,7 @@ namespace km {
                 return nullptr;
             }
 
-            block->init(nextCapacity);
+            block->init(actualCapacity);
 
             return block;
         }
@@ -145,8 +174,11 @@ namespace km {
 #pragma clang diagnostic ignored "-Wfunction-effects" // we're fine with calling delete in a nonallocating context
 
         void freeBlock(Block *block) noexcept [[clang::nonallocating]] {
+            std::byte *storage = std::bit_cast<std::byte*>(block);
+            size_t size = block->memorySize();
+
             std::destroy_at(block);
-            operator delete[]((char*)block, std::align_val_t(alignof(Block)));
+            mAllocator.deallocate(storage, size);
         }
 
 #pragma clang diagnostic pop
@@ -154,16 +186,25 @@ namespace km {
     public:
         UTIL_NOCOPY(PoolAllocator);
 
+        friend void swap(PoolAllocator& lhs, PoolAllocator& rhs) noexcept {
+            std::swap(lhs.mAllocator, rhs.mAllocator);
+            std::swap(lhs.mBlocks, rhs.mBlocks);
+        }
+
+        constexpr PoolAllocator(Allocator allocator = Allocator{}) noexcept [[clang::nonallocating]]
+            : mAllocator(allocator)
+            , mBlocks(BlockAllocator{allocator})
+        { }
+
         constexpr PoolAllocator(PoolAllocator&& other) noexcept = default;
+
         constexpr PoolAllocator& operator=(PoolAllocator&& other) noexcept {
             if (this != &other) {
-                clear();
-                mBlocks = std::move(other.mBlocks);
+                swap(*this, other);
             }
             return *this;
         }
 
-        constexpr PoolAllocator() noexcept [[clang::nonallocating]] = default;
         constexpr ~PoolAllocator() noexcept {
             clear();
         }
@@ -199,7 +240,7 @@ namespace km {
                 }
             }
 
-            std::unreachable();
+            KM_PANIC("Attempted to release a pointer that was not allocated by this pool");
         }
 
         template<typename... Args>
@@ -246,7 +287,7 @@ namespace km {
             for (Block *block : mBlocks) {
                 size_t freeBlocks = block->countFreeSlots();
                 freeSlots += freeBlocks;
-                totalSlots += block->count;
+                totalSlots += block->capacity();
                 controlMemory += sizeof(Block) + (sizeof(Item) * freeBlocks);
             }
 

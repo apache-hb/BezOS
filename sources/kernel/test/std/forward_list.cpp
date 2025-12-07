@@ -7,7 +7,7 @@
 #include "std/forward_list.hpp"
 
 template<typename T>
-using Afl = sm::AtomicForwardList<T, std::allocator<T>>;
+using Afl = sm::AtomicForwardList<T, sm::allocator<std::byte>>;
 
 TEST(AtomicForwardListTest, Construct) {
     Afl<std::string> list;

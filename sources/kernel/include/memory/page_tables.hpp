@@ -279,7 +279,7 @@ namespace km {
         ///
         /// @return The page walk result.
         [[nodiscard]]
-        PageWalk walk(const void *ptr);
+        PageWalk walk(const void *ptr) const;
 
         /// @brief Compact page tables, pruning empty tables.
         ///
@@ -295,7 +295,7 @@ namespace km {
         ///
         /// @return The physical address that backs the given virtual address.
         [[nodiscard]]
-        PhysicalAddressEx getBackingAddress(const void *ptr);
+        PhysicalAddressEx getBackingAddress(const void *ptr) const;
 
         /// @brief Get the memory flags for a given address.
         ///
@@ -303,7 +303,7 @@ namespace km {
         ///
         /// @return The memory flags for the given address.
         [[nodiscard]]
-        PageFlags getMemoryFlags(const void *ptr);
+        PageFlags getMemoryFlags(const void *ptr) const;
 
         /// @brief Get the page size used to map a given address.
         ///
@@ -311,7 +311,7 @@ namespace km {
         ///
         /// @return The page size used to map the given address.
         [[nodiscard]]
-        PageSize getPageSize(const void *ptr);
+        PageSize getPageSize(const void *ptr) const;
 
         /**
          * @brief Map a range of memory to a virtual address.

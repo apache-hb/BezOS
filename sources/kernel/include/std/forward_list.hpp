@@ -1,9 +1,12 @@
 #pragma once
 
-#include "allocator/allocator.hpp"
+#include <bezos/status.h>
+
 #include "common/util/util.hpp"
+#include "allocator/allocator.hpp"
 
 #include <atomic>
+#include <memory>
 
 namespace sm {
     /// @brief A multi-producer, single-consumer atomic forward list.
@@ -14,20 +17,26 @@ namespace sm {
     ///
     /// @tparam T The type of the elements in the list.
     /// @tparam Allocator The allocator to use for the list nodes.
-    template<typename T, typename Allocator = mem::GlobalAllocator<T>>
+    template<typename T, typename Allocator = sm::allocator<std::byte>>
     class AtomicForwardList {
         struct ListNode {
             T value;
             std::atomic<ListNode*> next;
         };
+
+        using NodeAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<ListNode>;
     public:
 
         UTIL_NOCOPY(AtomicForwardList);
 
         /// @brief Construct an empty list.
         ///
+        /// @param allocator The allocator to use for the list nodes.
+        ///
         /// @details This requires external synchronization.
-        constexpr AtomicForwardList() = default;
+        constexpr AtomicForwardList(Allocator allocator = Allocator{})
+            : AtomicForwardList(nullptr, allocator)
+        { }
 
         /// @details This requires external synchronization.
         constexpr AtomicForwardList(AtomicForwardList&& other) noexcept {
@@ -58,7 +67,7 @@ namespace sm {
                 //
                 if (mHead.compare_exchange_strong(head, head->next)) {
                     T value = head->value;
-                    delete head;
+                    mAllocator.deallocate(head, 1);
                     return value;
                 }
             }
@@ -69,15 +78,22 @@ namespace sm {
         /// @brief Add an element to the front of the list.
         ///
         /// @details This is internally synchronized.
-        void push(T value) {
+        OsStatus push(T value) {
+            void *storage = mAllocator.allocate(1);
+            if (storage == nullptr) {
+                return OsStatusOutOfMemory;
+            }
+
             ListNode* head = mHead;
-            ListNode* node = new ListNode{ std::move(value), head };
+            ListNode* node = new (storage) ListNode{ std::move(value), head };
             while (!mHead.compare_exchange_strong(head, node)) {
                 //
                 // If the head has changed, we need to update the next pointer.
                 //
                 node->next = head;
             }
+
+            return OsStatusSuccess;
         }
 
         AtomicForwardList exchange(AtomicForwardList&& replace) {
@@ -101,20 +117,23 @@ namespace sm {
 
         /// @details This requires external synchronization.
         constexpr friend void swap(AtomicForwardList& lhs, AtomicForwardList& rhs) {
+            std::swap(lhs.mAllocator, rhs.mAllocator);
             std::swap(lhs.mHead, rhs.mHead);
         }
 
     private:
-        AtomicForwardList(ListNode *head)
-            : mHead(head)
+        AtomicForwardList(ListNode *head, NodeAllocator allocator = NodeAllocator{})
+            : mAllocator(allocator)
+            , mHead(head)
         { }
 
+        [[no_unique_address]] NodeAllocator mAllocator;
         std::atomic<ListNode*> mHead = nullptr;
 
         constexpr void destroy() {
             for (ListNode *node = mHead; node != nullptr; ) {
                 ListNode *next = node->next;
-                delete node;
+                mAllocator.deallocate(node, 1);
                 node = next;
             }
         }

@@ -120,7 +120,7 @@ namespace sm {
 
         /// @brief Construct a new StaticFlatMap.
         ///
-        /// @param storage A pointer to the memory to use for the map. Must be at least computeRequiredStorage(1) bytes.
+        /// @param storage A pointer to the memory to use for the map. Must be at least `computeRequiredStorage(1)` bytes.
         /// @param size The size of the storage in bytes.
         /// @param compare The comparison function for the keys.
         StaticFlatMap(void *storage [[gnu::nonnull]], size_t size, Compare compare = Compare{}) noexcept [[clang::nonallocating]]
