@@ -717,6 +717,7 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result [[outparam]
         km::MemoryRange blockRange { block->offset, block->offset + block->size };
         if (blockRange.contains(range) || blockRange == range) {
             if (block->isUsed()) {
+                MemLog.infof("Block ", blockRange, " is already used, cannot reserve ", range);
                 // The range is already in use
                 return OsStatusNotAvailable;
             }
@@ -730,16 +731,14 @@ OsStatus TlsfHeap::reserve(MemoryRange range, TlsfAllocation *result [[outparam]
             }
 
             return OsStatusSuccess;
-        } else if (blockRange.overlaps(range)) {
+        } else if (blockRange.overlaps(range) && !outerAdjacent(blockRange, range)) {
             //
             // If the range overlaps with an existing allocation then we know it is not available
             // because all free adjacent ranges are merged together.
             //
+            MemLog.infof("Block ", blockRange, " overlaps with ", range, ", cannot reserve");
             return OsStatusNotAvailable;
         }
-
-        MemLog.infof("Block: ", sm::VirtualAddress(block->offset), " (", block->size, ") does not contain range ", range);
-        MemLog.infof("Next: ", (void*)block->next, " Prev: ", (void*)block->prev);
 
         block = block->prev;
     }
@@ -1032,7 +1031,8 @@ void TlsfHeap::reset() noexcept [[clang::nonallocating]] {
 void TlsfHeap::dump() const noexcept [[clang::nonallocating]] {
     TlsfBlock *block = mNullBlock;
     while (block != nullptr) {
-        MemLog.infof("Block: ", sm::VirtualAddress(block->offset), " (", block->size, ") ", block->isFree() ? "Free" : "Used");
+        auto range = km::VirtualRangeEx::of(block->offset, block->size);
+        MemLog.infof("Block: ", range, " is ", block->isFree() ? "free" : "used");
         block = block->prev;
     }
 }

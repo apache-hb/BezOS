@@ -354,7 +354,7 @@ OsStatus AddressSpaceManager::unmapSegment(MemoryManager *manager, Iterator it, 
     }
 }
 
-OsStatus AddressSpaceManager::splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] {
+OsStatus AddressSpaceManager::splitAtAddress(MemoryManager *manager [[maybe_unused]], sm::VirtualAddress address [[maybe_unused]]) [[clang::allocating]] {
     KM_PANIC("Not implemented");
 }
 
@@ -385,7 +385,7 @@ OsStatus AddressSpaceManager::map(MemoryManager *manager, sm::VirtualAddress add
         return status;
     }
 
-    auto segment = AddressSegment { memory.cast<km::PhysicalAddressEx>(), allocation };
+    auto segment = AddressSegment { memory.cast<sm::PhysicalAddress>(), allocation };
     addSegment(std::move(segment));
 
     *mapping = result;
@@ -457,7 +457,7 @@ OsStatus AddressSpaceManager::allocateVirtual(km::MemoryRange memory, sm::Virtua
     return OsStatusSuccess;
 }
 
-OsStatus AddressSpaceManager::map(const AddressSpaceMappingRequest& request, km::AddressMapping *result [[outparam]]) {
+OsStatus AddressSpaceManager::map(const AddressSpaceMappingRequest& request [[maybe_unused]], km::AddressMapping *result [[outparam, maybe_unused]]) {
     KM_PANIC("Not implemented");
 }
 
@@ -762,11 +762,16 @@ km::PhysicalAddressEx AddressSpaceManager::getPageMap() const noexcept [[clang::
     return mPageTables.root();
 }
 
+void AddressSpaceManager::dumpUnlocked() noexcept {
+    for (const auto& [_, segment] : segments()) {
+        MemLog.dbgf("Segment: {Mapping=`", segment.mapping(), "`, HasBackingMemory=", segment.hasBackingMemory(), "}");
+    }
+    mHeap.dump();
+}
+
 void AddressSpaceManager::dump() noexcept {
     stdx::LockGuard guard(mLock);
-    for (const auto& [_, segment] : segments()) {
-        MemLog.dbgf("Segment: ", segment.getBackingMemory(), " ", segment.range());
-    }
+    dumpUnlocked();
 }
 
 void AddressSpaceManager::destroy(MemoryManager *manager) [[clang::allocating]] {

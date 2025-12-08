@@ -1,5 +1,3 @@
-#include <atomic>
-#include <iterator>
 #include <posix/stdlib.h>
 
 #include <posix/errno.h>
@@ -8,42 +6,61 @@
 #include <posix/string.h>
 #include <posix/ctype.h>
 
+#include <posix/sys/mman.h>
+
 #include <bezos/facility/process.h>
 
 #include <rpmalloc/rpmalloc.h>
+#include <tlsf.h>
 
 #include "private.hpp"
 
+#include <atomic>
+#include <iterator>
+
 namespace {
 struct InitMalloc {
+    // TODO: this is dumb and to workaround not having on demand paging yet
+    static constexpr size_t kHeapSize = (0x1000 * 256 * 16); // 16MB
+
+    void *mMemory;
+    tlsf_t mHeap;
+
     InitMalloc() {
-        int err = rpmalloc_initialize(nullptr);
-        assert(err == 0);
+        mMemory = mmap(nullptr, kHeapSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        assert(mMemory != MAP_FAILED);
+
+        mHeap = tlsf_create_with_pool(mMemory, kHeapSize);
     }
 
     ~InitMalloc() {
-        rpmalloc_finalize();
+        tlsf_destroy(mHeap);
+        munmap(mMemory, kHeapSize);
     }
 
     void *malloc(size_t size) {
-        DebugLog(eOsLogInfo, "rpmalloc: %zu", size);
-        return rpmalloc(size);
+        DebugLog(eOsLogInfo, "tlsf_malloc: %zu", size);
+        return tlsf_malloc(mHeap, size);
     }
 
     void *aligned_alloc(size_t alignment, size_t size) {
-        return rpaligned_alloc(alignment, size);
+        return tlsf_memalign(mHeap, alignment, size);
     }
 
     void *calloc(size_t n, size_t size) {
-        return rpcalloc(n, size);
+        void *ptr = malloc(n * size);
+        if (ptr) {
+            memset(ptr, 0, n * size);
+        }
+        return ptr;
     }
 
     void *realloc(void *ptr, size_t size) {
-        return rprealloc(ptr, size);
+        return tlsf_realloc(mHeap, ptr, size);
     }
 
     void free(void *ptr) {
-        rpfree(ptr);
+        return tlsf_free(mHeap, ptr);
     }
 };
 

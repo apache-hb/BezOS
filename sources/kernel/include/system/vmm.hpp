@@ -87,6 +87,8 @@ namespace sys {
         OsStatus unmapSegment(MemoryManager *manager, Iterator it, km::VirtualRange range, km::VirtualRange *remaining) [[clang::allocating]] REQUIRES(mLock);
 
         OsStatus splitAtAddress(MemoryManager *manager, sm::VirtualAddress address) [[clang::allocating]] REQUIRES(mLock);
+
+        void dumpUnlocked() noexcept REQUIRES(mLock);
     public:
         UTIL_NOCOPY(AddressSpaceManager);
 

@@ -1,0 +1,114 @@
+Another spurious crash during SMP startup
+
+[INIT] BSP ID: 0
+[ISR] APIC Startup: 0xFEE00800, Base address: 0x00000000FEE00000, State: Enabled, Type: Application Processor
+[INIT] Started AP 1, Spurious Vector: 34
+[ISR] APIC Startup: 0xFEE00800, Base address: 0x00000000FEE00000, State: Enabled, Type: Application Processor
+[INIT] Started AP 2, Spurious Vector: 34
+[ISR] APIC Startup: 0xFEE00800, Base address: 0x00000000FEE00000, State: Enabled, Type: Application Processor
+[INIT] Started AP 3, Spurious Vector: 34
+[UBSAN] [UBSAN] Load invalid value: /home/elliothb/github/bezos/install/llvm-libcxx/include/c++/v1/__atomic/support/c11.h:81:10
+[UBSAN] [UBSAN] Load invalid value: /home/elliothb/github/bezos/install/llvm-libcxx/include/c++/v1/__atomic/support/c11.h:81:10
+[UBSAN] [UBSAN] Load invalid value: /home/elliothb/github/bezos/install/llvm-libcxx/include/c++/v1/__atomic/support/c11.h:81:10
+[CLOCK] Current time: 2025-12-7T18:35:25Z
+[CLOCK] Boot time: 2025-12-7T18:35:25Z
+[CLOCK] Boot ticks: 14753888
+[UBSAN] [UBSAN] Type: 'bool' (kind=0, info=6), Address: 0xFF
+[UBSAN] [UBSAN] Type: 'bool' (kind=0, info=6), Address: 0xFF
+[CLOCK] Frequency: 100.0 MHz
+| 0xFFFF80000005FDF0 | 0xFFFFFFFF8002EC59| 0xFFFF800000127DF0 | 0xFFFFFFFF8002EC59
+
+| 0xFFFF80000005FE60 | 0xFFFFFFFF8001E8D9
+| 0xFFFF800000127E60 | 0xFFFFFFFF8001E8D9| 0xFFFF80000005FFF0 | 0xFFFFFFFF8006F67F
+
+| 0xFFFF800000127FF0 | 0xFFFFFFFF8006F67F
+| 0xFFFF80000005FFF0 | 0x0| 0xFFFF800000127FF0 | 0x0 Invalid stack frame
+ Invalid stack frame
+llvm-addr2line -e install/kernel/bin/bezos-limine.elfllvm-addr2line -e install/kernel/bin/bezos-limine.elf 0xFFFFFFFF8002EC59 0xFFFFFFFF8002EC59 0xFFFFFFFF8001E8D9 0xFFFFFFFF8001E8D9 0xFFFFFFFF8006F67F 0xFFFFFFFF8006F67F 0x0 0x0
+
+[INIT] Assertion failed 'UBSAN Load Invalid Value'
+[INIT] Assertion failed 'UBSAN Load Invalid Value'
+[INIT] void UbsanReportError(stdx::StringView) (../../../sources/kernel/src/sanitizer/ubsan.cpp:218)
+
+[INIT] void UbsanReportError(stdx::StringView) (../../../sources/kernel/src/sanitizer/ubsan.cpp:218)
+
+|----Stack trace-----+----------------
+|----Stack trace-----+----------------
+| Frame              | Program Counter
+| Frame              | Program Counter
+|--------------------+----------------
+|--------------------+----------------
+| 0xFFFF800000127B30 | 0xFFFFFFFF80035228| 0xFFFF80000005FB30 | 0xFFFFFFFF80035228
+
+| 0xFFFF80000005FDB0 | 0xFFFFFFFF8002E286| 0xFFFF800000127DB0 | 0xFFFFFFFF8002E286
+
+| 0xFFFF80000005FDF0 | 0xFFFFFFFF8002EC59
+| 0xFFFF800000127DF0 | 0xFFFFFFFF8002EC59| 0xFFFF80000005FE60 | 0xFFFFFFFF8001E8D9
+
+| 0xFFFF800000127E60 | 0xFFFFFFFF8001E8D9
+| 0xFFFF80000005FFF0 | 0xFFFFFFFF8006F67F
+| 0xFFFF800000127FF0 | 0xFFFFFFFF8006F67F
+| 0xFFFF80000005FFF0 | 0x0| 0xFFFF800000127FF0 | 0x0 Invalid stack frame Invalid stack frame
+
+llvm-addr2line -e install/kernel/bin/bezos-limine.elfllvm-addr2line -e install/kernel/bin/bezos-limine.elf 0xFFFFFFFF80035228 0xFFFFFFFF80035228 0xFFFFFFFF8002E286 0xFFFFFFFF8002E286 0xFFFFFFFF8002EC59 0xFFFFFFFF8002EC59 0xFFFFFFFF8001E8D9 0xFFFFFFFF8001E8D9 0xFFFFFFFF8006F67F 0xFFFFFFFF8006F67F 0x0 0x0
+
+[VFS] Mounting '/Init'
+[AQ] Created topic HID.PS2:dd4ece3c-ec81-11ef-8b71-c761047b867e
+[PS/2] Controller channel 1: AT Keyboard
+[PS/2] Controller channel 2: Mouse
+[INIT] PS/2 controller: Ok
+[INIT] PS/2 keyboard: Present
+[INIT] PS/2 mouse: Present
+[ACPI] IRQ PIN 1 redirected to APIC 0:36
+[PS/2] Keyboard ISR: 36
+[PS/2] Controller IRQs: Present, Not Present (0x0)
+[INIT] Creating master task.
+[INIT] Create master thread.
+[UBSAN] [UBSAN] Type: 'bool' (kind=0, info=6), Address: 0xFF
+| 0xFFFF8000000C3DF0 | 0xFFFFFFFF8002EC59
+| 0xFFFF8000000C3E60 | 0xFFFFFFFF8001E8D9
+| 0xFFFF8000000C3FF0 | 0xFFFFFFFF8006F67F
+| 0xFFFF8000000C3FF0 | 0x0 Invalid stack frame
+llvm-addr2line -e install/kernel/bin/bezos-limine.elf 0xFFFFFFFF8002EC59 0xFFFFFFFF8001E8D9[INIT] Kernel master task.
+ 0xFFFFFFFF8006F67F 0x0
+[INIT] Assertion failed 'UBSAN Load Invalid Value'
+[INIT] void UbsanReportError(stdx::StringView) (../../../sources/kernel/src/sanitizer/ubsan.cpp:218)
+
+|----Stack trace-----+----------------
+| Frame              | Program Counter
+|--------------------+----------------
+| 0xFFFF8000000C3B30 | 0xFFFFFFFF80035228
+| 0xFFFF8000000C3DB0 | 0xFFFFFFFF8002E286
+| 0xFFFF8000000C3DF0 | 0xFFFFFFFF8002EC59
+| 0xFFFF8000000C3E60 | 0xFFFFFFFF8001E8D9[SYS] Creating process: INIT.ELF (2)
+
+| 0xFFFF8000000C3FF0 | 0xFFFFFFFF8006F67F
+| 0xFFFF8000000C3FF0 | 0x0 Invalid stack frame
+llvm-addr2line -e install/kernel/bin/bezos-limine.elf 0xFFFFFFFF80035228 0xFFFFFFFF8002E286 0xFFFFFFFF8002EC59 0xFFFFFFFF8001E8D9 0xFFFFFFFF8006F67F 0x0
+[MEM] Unmapping range: 0x100000-0x113000
+[SYS] Mapped vmem 0x100000-0x113000 from file into 'INIT.ELF' (0x00000000074C2000)
+[MEM] Unmapping range: 0x113000-0x116000
+[SYS] Mapped vmem 0x113000-0x116000 from file into 'INIT.ELF' (0x00000000074C2000)
+[INIT] Beginning notification work.
+[SYS] VmemCreate: Size: 0x2000, Alignment: 0x1000, BaseAddress: 0x0000000000116000, AddressIsHint: False, Flags: RWU, ZeroMemory: True, Mode: Commit
+[SYS] VmemCreate: Created vmem 0x116000-0x118000 -> 0x00000000074D9000-0x00000000074DB000 (8kb)
+[SYS] Created vmem 0x116000-0x118000 -> 0x00000000074D9000-0x00000000074DB000 (8kb) (RWU) in INIT.ELF (0x00000000074C2000)
+[MEM] Unmapping range: 0x116000-0x117000
+[MEM] Block: 0x0000000000118000-0x0000000100000000 does not contain range 0x0000000000116000-0x0000000000117000
+[SYS] Failed to map file: 0x0000000000116000 0x00000000074DB000-0x00000000074DC000 Not available (0x0000001E)
+[INIT] Failed to map guest memory. Not available (0x0000001E)
+[SYS] Destroying process: INIT.ELF requested by SYSTEM - 2 - 0
+[SYS] Destroying process: INIT.ELF 2 - 0
+[MEM] Releasing memory range: 0x0000000007483000-0x00000000074C3000
+[SYS] Failed to load init process: Not available (0x0000001E)
+[INIT] Failed to create INIT process: Not available (0x0000001E)
+[INIT] Assertion failed 'Failed to create init process.'
+[INIT] OsStatus kernelMasterTask() (../../../sources/kernel/src/main.cpp:1336)
+
+|----Stack trace-----+----------------
+| Frame              | Program Counter
+|--------------------+----------------
+| 0xFFFF80000070DB50 | 0xFFFFFFFF80035228
+| 0xFFFF80000070DFF0 | 0xFFFFFFFF800240CB
+| 0xFFFF80000070DFF0 | 0x0 Invalid stack frame
+llvm-addr2line -e install/kernel/bin/bezos-limine.elf 0xFFFFFFFF80035228 0xFFFFFFFF800240CB 0x0

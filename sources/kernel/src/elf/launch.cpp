@@ -276,6 +276,10 @@ static OsStatus MapProgram(sys::InvokeContext *invoke, OsDeviceHandle file, OsPr
     }
 
     for (elf::ProgramHeader ph : phArray) {
+        InitLog.infof("Program Header: Type=", km::Hex((uint32_t)ph.type), " VAddr=", km::Hex(ph.vaddr), " MemSz=", sm::bytes(ph.memsz), " FileSz=", sm::bytes(ph.filesz), " Offset=", km::Hex(ph.offset), " Flags=", km::Hex((uint32_t)ph.flags));
+    }
+
+    for (elf::ProgramHeader ph : phArray) {
         if (ph.type != elf::ProgramHeaderType::eLoad) {
             continue;
         }

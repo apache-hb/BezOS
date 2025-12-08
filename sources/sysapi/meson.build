@@ -103,8 +103,10 @@ custom_target('crtstart',
 )
 
 rpmalloc = subproject('rpmalloc')
+tlsf = subproject('tlsf')
 
 src = [
+    tlsf.get_variable('sources'),
     rpmalloc.get_variable('sources'),
     'src/posix/private.cpp',
 
@@ -144,7 +146,7 @@ c_args = [
 ]
 
 libposix = static_library('bezos-posix', src,
-    include_directories : [ inc, rpmalloc.get_variable('includes') ],
+    include_directories : [ inc, rpmalloc.get_variable('includes'), tlsf.get_variable('includes') ],
     dependencies : [ bezos_dep, stb ],
     c_args : c_args,
     install : true,

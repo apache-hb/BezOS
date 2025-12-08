@@ -22,6 +22,7 @@ link_args = [
     '-T', meson.current_source_dir() / 'data/bezos.ld',
     '-e', 'ClientStart',
     '-z', 'noexecstack',
+    '-fPIE',
 ]
 
 cpp_args = [

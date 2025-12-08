@@ -333,6 +333,8 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs::IFileH
         return status;
     }
 
+    SysLog.infof("Mapping file: {BaseAddress=", info.baseAddress, ", Size=", sm::bytes(info.size), ", Flags=", km::Hex((uint32_t)info.flags), ", Memory=", memory, "}");
+
     km::AddressMapping mapping;
 
     if (info.baseAddress.isNull()) {
@@ -345,6 +347,7 @@ OsStatus sys::Process::vmemMapFile(System *system, VmemMapInfo info, vfs::IFileH
     } else {
         if (OsStatus status = mAddressSpace.map(&system->mMemoryManager, info.baseAddress, memory, info.flags, km::MemoryType::eWriteBack, &mapping)) {
             SysLog.warnf("Failed to map file: ", info.baseAddress, " ", memory, " ", OsStatusId(status));
+            mAddressSpace.dump();
             OsStatus inner = system->mMemoryManager.release(memory);
             KM_ASSERT(inner == OsStatusSuccess);
             return status;
