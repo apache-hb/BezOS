@@ -581,8 +581,6 @@ void ClientStart(const struct OsClientStartInfo *) {
     std::string text;
     std::string cwd = "/Users/Guest";
 
-    free(malloc(1)); // TODO: stupid hack, remove this once i debug malloc in posix sysapi
-
     auto addChar = [&](char c) {
         text.push_back(c);
         tty.Format("{}", c);

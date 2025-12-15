@@ -2,6 +2,8 @@
 
 #include <map>
 
+#include "xml.hpp"
+
 using pkg::IWorkspace;
 
 namespace fs = std::filesystem;
@@ -15,15 +17,32 @@ public:
     WorkspaceImpl(const fs::path& root)
         : mRoot(root)
     {
-        auto sources = root / "sources";
+        auto workspace = mRoot / "workspace.xml";
+        auto doc = XmlDocument::parse(workspace);
 
-        for (const auto& entry : fs::directory_iterator(sources)) {
-            if (entry.is_directory()) {
-                mPackages[entry.path().filename().string()] = pkg::IPackage::of(entry);
-            } else {
-                throw std::runtime_error("Unexpected file in sources folder: " + entry.path().string());
-            }
+        auto node = doc.root();
+        if (node.name() != "workspace") {
+            throw std::runtime_error(std::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <workspace>", node.path(), node.line(), node.name(), workspace.string()));
         }
+
+        for (const auto& child : node.children()) {
+            if (child.name() != "package") {
+                throw std::runtime_error(std::format("ERROR [{}:{}]: Unexpected element <{}> in {}, expected <package>", child.path(), child.line(), child.name(), workspace.string()));
+            }
+
+            auto inner = child.expect("path");
+            auto package = pkg::IPackage::of(root / inner);
+
+            mPackages.emplace(package->name(), package);
+        }
+    }
+
+    std::shared_ptr<pkg::IPackage> package(std::string_view name) const override {
+        return mPackages.at(std::string{name});
+    }
+
+    std::map<std::string, std::shared_ptr<pkg::IPackage>> packages() const override {
+        return mPackages;
     }
 };
 

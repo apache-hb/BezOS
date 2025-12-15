@@ -4,7 +4,7 @@
 
 class ArgOptions {
     static constexpr char kConfigKey[] = "--config";
-    static constexpr char kTargetKey[] = "--target";
+    static constexpr char kProfileKey[] = "--profile";
     static constexpr char kWorkspaceKey[] = "--workspace";
 
     argparse::ArgumentParser parser;
@@ -13,11 +13,11 @@ public:
         : parser{"BezOS package repository manager"}
     {
         parser.add_argument(kConfigKey)
-            .help("Path to the configuration file")
-            .default_value("repo.xml");
+            .help("Path to the workspace configuration file")
+            .default_value("workspace.xml");
 
-        parser.add_argument(kTargetKey)
-            .help("Path to target file")
+        parser.add_argument(kProfileKey)
+            .help("Path to profile file")
             .required();
 
         parser.add_argument(kWorkspaceKey)
@@ -32,8 +32,8 @@ public:
         return parser.get<std::string>(kConfigKey);
     }
 
-    std::string target() const {
-        return parser.get<std::string>(kTargetKey);
+    std::string profile() const {
+        return parser.get<std::string>(kProfileKey);
     }
 
     std::string workspace() const {
@@ -46,7 +46,7 @@ int main(int argc, const char **argv) {
     options.parse(argc, argv);
 
     std::cout << "Config path: " << options.config() << "\n";
-    std::cout << "Target path: " << options.target() << "\n";
+    std::cout << "Profile path: " << options.profile() << "\n";
     std::cout << "Workspace path: " << options.workspace() << "\n";
 
     return 0;

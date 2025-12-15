@@ -1,8 +1,12 @@
 #pragma once
 
+#include <filesystem>
 #include <generator>
 #include <string>
 #include <optional>
+
+#include <libxml/parser.h>
+#include <libxml/xinclude.h>
 
 #include <libxml/tree.h>
 
@@ -57,4 +61,32 @@ public:
     }
 
     operator xmlNodePtr() const { return get(); }
+};
+
+class XmlDocument {
+    using XmlDoc = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
+    XmlDoc mDocument;
+
+public:
+    XmlDocument(xmlDocPtr doc)
+        : mDocument(doc, xmlFreeDoc)
+    { }
+
+    XmlNode root() const {
+        return xmlDocGetRootElement(mDocument.get());
+    }
+
+    static XmlDocument parse(const std::filesystem::path& path) {
+        xmlDocPtr document = xmlReadFile(path.string().c_str(), nullptr, 0);
+        if (document == nullptr) {
+            throw std::runtime_error("Failed to parse " + path.string());
+        }
+
+        if (xmlXIncludeProcess(document) == -1) {
+            xmlFreeDoc(document);
+            throw std::runtime_error("Failed to process xinclude in " + path.string());
+        }
+
+        return XmlDocument { document };
+    }
 };

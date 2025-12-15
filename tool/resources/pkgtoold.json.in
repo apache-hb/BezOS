@@ -1,0 +1,8 @@
+{
+    // This file is used by pkgtoold to determine which folders are allowed to have
+    // overlay filesystems created within them. This is to prevent security escalation
+    // attacks by limiting where overlays can be created.
+    "whitelist": [
+        "@REPO@"
+    ]
+}

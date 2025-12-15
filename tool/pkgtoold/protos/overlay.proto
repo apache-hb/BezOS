@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package bezos.pkgtoold.overlay;
+
+message CreateOverlayRequest {
+    string overlay_path = 1;
+    repeated string lower_dirs = 2;
+    string upper_dir = 3;
+    string work_dir = 4;
+}
+
+message CreateOverlayResponse {
+    int32 status = 1;
+    string detail = 2;
+}
+
+message DestroyOverlayRequest {
+    string overlay_path = 1;
+}
+
+message DestroyOverlayResponse {
+    int32 status = 1;
+    string detail = 2;
+}
+
+service FsOverlayService {
+    rpc CreateOverlay(CreateOverlayRequest) returns (CreateOverlayResponse);
+    rpc DestroyOverlay(DestroyOverlayRequest) returns (DestroyOverlayResponse);
+}

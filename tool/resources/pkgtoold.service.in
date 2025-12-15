@@ -1,0 +1,11 @@
+[Unit]
+Description=BezOS Package Tool OverlayFS Daemon
+
+[Service]
+Type=simple
+ExecStart=@MESON_INSTALL_PREFIX@/bin/pkgtoold --config @MESON_INSTALL_PREFIX@/etc/pkgtoold.json
+Restart=on-failure
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
