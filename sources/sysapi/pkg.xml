@@ -1,3 +1,5 @@
 <package name="sysapi" version="1.x">
+    <build with="meson" />
+
     <dependency name="sysapi-headers" version="1.x" />
 </package>

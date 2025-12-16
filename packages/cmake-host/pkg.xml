@@ -1,0 +1,5 @@
+<package name="cmake-host" version="3.x">
+    <build-dependency name="clang-host" version="22.x" />
+
+    <build with="build.sh" />
+</package>

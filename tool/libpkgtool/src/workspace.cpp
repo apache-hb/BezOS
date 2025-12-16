@@ -1,6 +1,7 @@
 #include "pkgtool/pkgtool.hpp"
 
 #include <map>
+#include <print>
 
 #include "xml.hpp"
 
@@ -15,25 +16,33 @@ class WorkspaceImpl final : public IWorkspace {
     std::map<std::string, std::shared_ptr<pkg::IPackage>> mPackages;
 public:
     WorkspaceImpl(const fs::path& root)
-        : mRoot(root)
+        : mRoot(root.parent_path())
     {
-        auto workspace = mRoot / "workspace.xml";
-        auto doc = XmlDocument::parse(workspace);
+        auto doc = XmlDocument::parse(root);
 
         auto node = doc.root();
         if (node.name() != "workspace") {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <workspace>", node.path(), node.line(), node.name(), workspace.string()));
+            throw std::runtime_error(std::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <workspace>", node.path(), node.line(), node.name(), mRoot.string()));
         }
 
         for (const auto& child : node.children()) {
+            if (child.name() == "text" || child.name() == "comment") {
+                continue;
+            }
+
             if (child.name() != "package") {
-                throw std::runtime_error(std::format("ERROR [{}:{}]: Unexpected element <{}> in {}, expected <package>", child.path(), child.line(), child.name(), workspace.string()));
+                throw std::runtime_error(std::format("ERROR [{}:{}]: Unexpected element {} in {}, expected <package>", child.path(), child.line(), child.name(), mRoot.string()));
             }
 
             auto inner = child.expect("path");
-            auto package = pkg::IPackage::of(root / inner);
 
-            mPackages.emplace(package->name(), package);
+            auto path = mRoot / inner;
+            try {
+                auto package = pkg::IPackage::of(path);
+                mPackages.emplace(package->name(), package);
+            } catch (const std::exception& e) {
+                throw std::runtime_error(std::format("ERROR [{}:{}]: Failed to load package at {}: {}", child.path(), child.line(), (mRoot / inner).string(), e.what()));
+            }
         }
     }
 

@@ -6,6 +6,8 @@ Type=simple
 ExecStart=@MESON_INSTALL_PREFIX@/bin/pkgtoold --config @MESON_INSTALL_PREFIX@/etc/pkgtoold.json
 Restart=on-failure
 KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

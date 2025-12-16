@@ -1,0 +1,3 @@
+<package name="initrd" version="1.x">
+    <build with="build.sh" />
+</package>

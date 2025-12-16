@@ -28,7 +28,7 @@ src = files('src/pkgtoold.cpp')
 
 liboverlayd = library('overlayd', generated, src,
     include_directories: inc,
-    dependencies: [pkgtool_dep, grpc, protobuf],
+    dependencies: [grpc, protobuf],
     install: true,
 )
 
@@ -56,6 +56,6 @@ src = files('src/daemon.cpp')
 
 pkgtoold = executable('pkgtoold', src,
     include_directories: inc,
-    dependencies: [pkgtool_dep, overlayd_dep, grpc, grpcpp],
+    dependencies: [overlayd_dep, grpc, grpcpp],
     install: true,
 )

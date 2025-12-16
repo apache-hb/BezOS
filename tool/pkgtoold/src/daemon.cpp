@@ -97,6 +97,8 @@ bool isInstalled() {
 #define LOCALHOST_PATH "localhost:22081"
 
 int main(int argc, const char **argv) {
+    setvbuf(stdout, nullptr, _IONBF, 0);
+
     grpc::EnableDefaultHealthCheckService(true);
     bool installed = isInstalled();
     if (!installed) {

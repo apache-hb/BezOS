@@ -39,21 +39,24 @@ public:
         return result;
     }
 
-    std::string expect(const std::string& name) const {
-        auto prop = property(name);
-        if (!prop.has_value()) {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Node <{}> is missing required property {}", mNode->doc->name, mNode->line, this->name(), name));
+    std::string expect(const std::string& prop) const {
+        auto result = property(prop);
+        if (!result.has_value()) {
+            throw std::runtime_error(std::format("ERROR [{}:{}]: Node <{}> is missing required property {}", path(), line(), name(), prop));
         }
 
-        return *prop;
+        return *result;
     }
 
     unsigned line() const {
         return xmlGetLineNo(mNode);
     }
 
-    std::string_view path() const {
-        return reinterpret_cast<const char *>(mNode->doc->name);
+    std::string path() const {
+        xmlChar *path = xmlGetNodePath(mNode);
+        std::string result = reinterpret_cast<const char *>(path);
+        xmlFree(path);
+        return result;
     }
 
     std::string_view name() const {

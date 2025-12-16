@@ -17,9 +17,9 @@ sqlitecpp = dependency('sqlitecpp')
 indicators = dependency('indicators')
 glob = dependency('glob')
 
+subdir('pkgtoold')
 subdir('libpkgtool')
 subdir('pkgtool')
-subdir('pkgtoold')
 
 configure_file(
     input: 'resources/pkgtoold.service.in',

@@ -16,7 +16,7 @@ $(PKGTOOL_MESON): $(PKGTOOL_SRC)
 	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool)
 
 $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
-	meson install -C $(PKGTOOL_BUILD) --quiet
+	sudo meson install -C $(PKGTOOL_BUILD) --quiet
 
 pkgtool: $(PKGTOOL)
 

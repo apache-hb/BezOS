@@ -1,0 +1,3 @@
+<package name="system" version="1.x">
+    <build with="meson" />
+</package>

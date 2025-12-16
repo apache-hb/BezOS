@@ -1,0 +1,17 @@
+<workspace>
+    <package path="packages/clang-host" />
+    <package path="packages/cmake-host" />
+
+    <package path="sources/sysapi-headers" />
+    <package path="sources/posix-headers" />
+    <package path="sources/sysapi" />
+    <package path="sources/posix" />
+    <package path="sources/system" />
+
+    <package path="sources/libkernel" />
+    <package path="sources/ktest" />
+    <package path="sources/bezos" />
+
+    <package path="sources/initrd" />
+    <package path="sources/image" />
+</workspace>

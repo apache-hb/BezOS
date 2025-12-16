@@ -1,10 +1,10 @@
-src = files('src/workspace.cpp', 'src/package.cpp')
+src = files('src/workspace.cpp', 'src/package.cpp', 'src/pkgtool.cpp')
 
 inc = include_directories('include')
 
 libpkgtool = library('pkgtool', src,
     include_directories: inc,
-    dependencies: [libxml2],
+    dependencies: [libxml2, pkgtoold_api_dep],
     install: true,
 )
 

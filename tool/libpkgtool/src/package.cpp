@@ -29,7 +29,7 @@ public:
 
     static PackageName ofXmlNode(const XmlNode& node) {
         auto name = node.expect("name");
-        auto version = node.expect("version");
+        auto version = node.property("version").value_or("0.0.0");
 
         return PackageName(name, version);
     }
@@ -65,6 +65,10 @@ public:
 
         for (auto child : root.children()) {
             auto name = child.name();
+            if (name == "text" || name == "comment") {
+                continue;
+            }
+
             if (name == "dependency") {
                 mDependencies.emplace_back(PackageName::ofXmlNode(child));
             } else if (name == "build-dependency") {
@@ -72,17 +76,69 @@ public:
             } else if (name == "test-dependency") {
                 mTestDependencies.emplace_back(PackageName::ofXmlNode(child));
             } else if (name == "build") {
-                mBuildTool = child.expect("tool");
+                mBuildTool = child.expect("with");
             } else {
                 throw std::runtime_error(std::format("ERROR [{}:{}]: Unknown element <{}> in {}", child.path(), child.line(), name, pkginfo.string()));
             }
         }
+
+        if (mBuildTool.empty()) {
+            throw std::runtime_error(std::format("ERROR [{}:{}]: Missing <build> element in {}", root.path(), root.line(), pkginfo.string()));
+        }
     }
 
     std::string name() const override {
-        return mFolder.filename().string();
+        return mName;
+    }
+
+    std::string buildTool() const override {
+        return mBuildTool;
+    }
+
+    std::filesystem::path path() const override {
+        return mFolder;
+    }
+
+    std::vector<std::string> buildDependencies() const override {
+        std::vector<std::string> result;
+        for (const auto& dep : mBuildDependencies) {
+            result.push_back(dep.name());
+        }
+        return result;
+    }
+
+    std::vector<std::string> testDependencies() const override {
+        std::vector<std::string> result;
+        for (const auto& dep : mTestDependencies) {
+            result.push_back(dep.name());
+        }
+        return result;
+    }
+
+    std::vector<std::string> dependencies() const override {
+        std::vector<std::string> result;
+        for (const auto& dep : mDependencies) {
+            result.push_back(dep.name());
+        }
+        return result;
     }
 };
+}
+
+std::filesystem::path pkg::packageBuildPath(IPackage& package) {
+    return package.path() / "target/build";
+}
+
+std::filesystem::path pkg::packageSysrootPath(IPackage& package) {
+    return package.path() / "target/sysroot";
+}
+
+std::filesystem::path pkg::packageInstallPath(IPackage& package) {
+    return package.path() / "target/install";
+}
+
+std::filesystem::path pkg::packagePrivatePath(IPackage& package) {
+    return package.path() / "target/internal";
 }
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder) {
