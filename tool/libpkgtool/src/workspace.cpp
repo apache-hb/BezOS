@@ -1,7 +1,7 @@
 #include "pkgtool/pkgtool.hpp"
 
 #include <map>
-#include <print>
+#include <set>
 
 #include "xml.hpp"
 
@@ -53,8 +53,41 @@ public:
     std::map<std::string, std::shared_ptr<pkg::IPackage>> packages() const override {
         return mPackages;
     }
+
+    std::filesystem::path path() const override {
+        return mRoot;
+    }
 };
 
+}
+
+std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& workspace, const std::string& name) {
+    std::vector<std::shared_ptr<IPackage>> result;
+    std::set<std::string> visited;
+
+    const auto& packages = workspace.packages();
+    auto visit = [&](this auto&& self, const std::string& name) {
+        if (visited.contains(name)) {
+            return;
+        }
+
+        visited.insert(name);
+
+        if (!packages.contains(name)) {
+            throw std::runtime_error("Unknown package: " + name);
+        }
+
+        auto& package = packages.at(name);
+        for (const auto& dep : package->dependencies()) {
+            self(dep);
+        }
+
+        result.push_back(package);
+    };
+
+    visit(name);
+
+    return result;
 }
 
 std::shared_ptr<IWorkspace> IWorkspace::ofRootPath(const fs::path& root) {

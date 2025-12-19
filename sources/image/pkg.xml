@@ -1,3 +1,5 @@
 <package name="image" version="1.x">
     <build with="build.sh" />
+
+    <dependency name="initrd" />
 </package>

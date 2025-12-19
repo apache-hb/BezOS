@@ -17,7 +17,11 @@ namespace pkg {
 
         virtual std::shared_ptr<IPackage> package(std::string_view name) const = 0;
         virtual std::map<std::string, std::shared_ptr<IPackage>> packages() const = 0;
+
+        virtual std::filesystem::path path() const = 0;
     };
+
+    std::vector<std::shared_ptr<IPackage>> dependencyClosure(IWorkspace& workspace, const std::string& name);
 
     class IPackage {
     public:
@@ -42,7 +46,7 @@ namespace pkg {
      * @param package The package
      * @return The build path
      */
-    std::filesystem::path packageBuildPath(IPackage& package);
+    std::filesystem::path packageBuildPath(IWorkspace& workspace, IPackage& package);
 
     /**
      * @brief Get the sysroot path for a package
@@ -52,7 +56,7 @@ namespace pkg {
      * @param package The package
      * @return The sysroot path
      */
-    std::filesystem::path packageSysrootPath(IPackage& package);
+    std::filesystem::path packageSysrootPath(IWorkspace& workspace, IPackage& package);
 
     /**
      * @brief Get the install path for a package
@@ -62,7 +66,7 @@ namespace pkg {
      * @param package The package
      * @return The install path
      */
-    std::filesystem::path packageInstallPath(IPackage& package);
+    std::filesystem::path packageInstallPath(IWorkspace& workspace, IPackage& package);
 
     /**
      * @brief Get the private path for a package
@@ -72,7 +76,7 @@ namespace pkg {
      * @param package The package
      * @return The private path
      */
-    std::filesystem::path packagePrivatePath(IPackage& package);
+    std::filesystem::path packagePrivatePath(IWorkspace& workspace, IPackage& package);
 
     class IPkgTool {
     public:
@@ -83,5 +87,7 @@ namespace pkg {
         virtual std::shared_ptr<IWorkspace> workspace() const = 0;
 
         virtual void buildPackage(const std::string& name, const std::vector<std::string>& options) = 0;
+
+        virtual void createPackageEnvironment(const std::string& name) = 0;
     };
 }

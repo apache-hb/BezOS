@@ -67,6 +67,11 @@ int main(int argc, const char **argv) try {
         std::cout << "Package: " << name << " at " << package->path() << "\n";
     }
 
+    auto closure = pkg::dependencyClosure(*workspace, "image");
+    for (const auto& package : closure) {
+        std::cout << " - " << package->name() << "\n";
+    }
+
     return 0;
 } catch (const std::exception& ex) {
     std::cerr << "Error: " << ex.what() << "\n";

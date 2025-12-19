@@ -1,6 +1,7 @@
 #include "pkgtool/pkgtool.hpp"
 #include "pkgtoold/api.hpp"
-#include <set>
+
+#include <print>
 
 namespace fs = std::filesystem;
 
@@ -8,6 +9,62 @@ namespace {
 class PkgToolImpl final : public pkg::IPkgTool {
     std::shared_ptr<pkg::IWorkspace> mWorkspace;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
+
+    void setupPackageFilesystem(pkg::IPackage& package) {
+        auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
+        auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
+        auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
+        auto workdir = internaldir / "work";
+
+        fs::create_directories(sysroot);
+        fs::create_directories(installdir);
+        fs::create_directories(internaldir);
+        fs::create_directories(workdir);
+    }
+
+    void createOverlayEnvironment(pkg::IPackage& package) {
+        auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
+        auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
+        auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
+        auto workdir = internaldir / "work";
+
+        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package.name());
+
+        pkg::CreateOverlayCommand overlayCommand;
+        overlayCommand.overlayPath = sysroot.string();
+        overlayCommand.upperDir = installdir.string();
+        for (const auto& dependency : dependencies) {
+            auto path = pkg::packageInstallPath(*mWorkspace, *dependency);
+            overlayCommand.lowerDirs.push_back(fs::absolute(path).string());
+        }
+        overlayCommand.workDir = workdir.string();
+
+        mOverlayClient->createOverlay(overlayCommand);
+    }
+
+    void createSymlinkEnvironment(pkg::IPackage& package) {
+        auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
+        auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
+        auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
+        auto workdir = internaldir / "work";
+
+        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package.name());
+
+        for (const auto& dependency : dependencies) {
+            auto path = pkg::packageInstallPath(*mWorkspace, *dependency);
+
+            for (const auto& entry : fs::recursive_directory_iterator(fs::absolute(path))) {
+                if (entry.is_directory()) {
+                    continue;
+                }
+
+                auto relativePath = fs::relative(entry.path(), fs::absolute(path));
+                auto targetPath = sysroot / relativePath;
+                fs::create_directories(targetPath.parent_path());
+                fs::create_symlink(entry.path(), targetPath);
+            }
+        }
+    }
 public:
     PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IFsOverlayClient> overlayClient)
         : mWorkspace(workspace)
@@ -19,49 +76,23 @@ public:
     }
 
     void buildPackage(const std::string& name, const std::vector<std::string>& options) override {
+        createPackageEnvironment(name);
+    }
+
+    void createPackageEnvironment(const std::string& name) override {
         auto package = mWorkspace->package(name);
         if (!package) {
             throw std::runtime_error("Package not found: " + name);
         }
 
-        auto tool = package->buildTool();
-        auto builddir = pkg::packageBuildPath(*package);
-        auto sysroot = pkg::packageSysrootPath(*package);
-        auto installdir = pkg::packageInstallPath(*package);
-        auto internaldir = pkg::packagePrivatePath(*package);
+        setupPackageFilesystem(*package);
 
-        fs::create_directories(builddir);
-        fs::create_directories(sysroot);
-        fs::create_directories(installdir);
-        fs::create_directories(internaldir);
-
-        std::set<std::string> dependencies;
-
-        auto allPackages = mWorkspace->packages();
-
-        auto gatherDependencies = [&](this auto&& self, const std::shared_ptr<pkg::IPackage>& pkg) -> void {
-            for (const auto& depName : pkg->dependencies()) {
-                if (!allPackages.contains(depName)) {
-                    throw std::runtime_error(std::format("Could not resolve {} for {}", depName, pkg->name()));
-                }
-
-                dependencies.insert(depName);
-                self(allPackages.at(depName));
-            }
-        };
-
-        gatherDependencies(package);
-
-        pkg::CreateOverlayCommand overlayCommand;
-        overlayCommand.overlayPath = sysroot.string();
-        overlayCommand.upperDir = installdir.string();
-        for (const auto& depName : dependencies) {
-            auto depPackage = allPackages.at(depName);
-            overlayCommand.lowerDirs.push_back(pkg::packageInstallPath(*depPackage).string());
+        if (mOverlayClient->isOverlaySupported()) {
+            createOverlayEnvironment(*package);
+        } else {
+            std::println("[WARN] OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
+            createSymlinkEnvironment(*package);
         }
-        overlayCommand.workDir = (internaldir / "work").string();
-
-        mOverlayClient->createOverlay(overlayCommand);
     }
 };
 }

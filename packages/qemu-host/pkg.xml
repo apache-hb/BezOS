@@ -1,0 +1,3 @@
+<package name="qemu-host" version="7.x">
+    <build with="build.sh" />
+</package>

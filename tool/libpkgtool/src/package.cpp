@@ -125,20 +125,20 @@ public:
 };
 }
 
-std::filesystem::path pkg::packageBuildPath(IPackage& package) {
-    return package.path() / "target/build";
+std::filesystem::path pkg::packageBuildPath(IWorkspace& workspace, IPackage& package) {
+    return workspace.path() / "build" / package.name() / "target/build";
 }
 
-std::filesystem::path pkg::packageSysrootPath(IPackage& package) {
-    return package.path() / "target/sysroot";
+std::filesystem::path pkg::packageSysrootPath(IWorkspace& workspace, IPackage& package) {
+    return workspace.path() / "build" / package.name() / "target/sysroot";
 }
 
-std::filesystem::path pkg::packageInstallPath(IPackage& package) {
-    return package.path() / "target/install";
+std::filesystem::path pkg::packageInstallPath(IWorkspace& workspace, IPackage& package) {
+    return workspace.path() / "build" / package.name() / "target/install";
 }
 
-std::filesystem::path pkg::packagePrivatePath(IPackage& package) {
-    return package.path() / "target/internal";
+std::filesystem::path pkg::packagePrivatePath(IWorkspace& workspace, IPackage& package) {
+    return workspace.path() / "build" / package.name() / "target/internal";
 }
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder) {

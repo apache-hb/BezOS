@@ -45,6 +45,8 @@ namespace pkg {
         virtual void createOverlay(const CreateOverlayCommand& command) = 0;
         virtual void destroyOverlay(const DestroyOverlayCommand& command) = 0;
 
+        virtual bool isOverlaySupported() const = 0;
+
         static std::shared_ptr<IFsOverlayClient> create();
     };
 }

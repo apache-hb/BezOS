@@ -16,10 +16,12 @@ namespace fs = std::filesystem;
 using namespace bezos::pkgtoold::overlay;
 
 class FsOverlayClientImpl final : public pkg::IFsOverlayClient {
+    std::shared_ptr<grpc::Channel> mChannel;
     std::unique_ptr<FsOverlayService::Stub> mStub;
 public:
     FsOverlayClientImpl(std::shared_ptr<grpc::Channel> channel)
-        : mStub(FsOverlayService::NewStub(channel))
+        : mChannel(channel)
+        , mStub(FsOverlayService::NewStub(channel))
     { }
 
     void createOverlay(const pkg::CreateOverlayCommand& command) override {
@@ -60,6 +62,10 @@ public:
         if (int err = response.status()) {
             throw pkg::RpcException{err, std::format("FsOverlayService::DestroyOverlay failed: {} ({})", response.detail(), response.status())};
         }
+    }
+
+    bool isOverlaySupported() const override {
+        return mChannel->GetState(true) != GRPC_CHANNEL_SHUTDOWN;
     }
 };
 
