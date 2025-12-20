@@ -4,6 +4,7 @@ grpc_cpp_plugin = find_program('grpc_cpp_plugin')
 protoc = find_program('protoc')
 grpc = dependency('grpc')
 grpcpp = dependency('grpc++')
+grpcpp_ext_reflection = dependency('grpc++_ext_reflection')
 protobuf = dependency('protobuf')
 
 generated = custom_target(
@@ -43,7 +44,7 @@ src = files('src/api.cpp')
 
 libpkgtoold_api = library('pkgtoold-api', src,
     include_directories: inc,
-    dependencies: [overlayd_dep],
+    dependencies: [overlayd_dep, grpc, grpcpp],
     install: true,
 )
 
@@ -56,6 +57,6 @@ src = files('src/daemon.cpp')
 
 pkgtoold = executable('pkgtoold', src,
     include_directories: inc,
-    dependencies: [overlayd_dep, grpc, grpcpp],
+    dependencies: [overlayd_dep, grpc, grpcpp, grpcpp_ext_reflection, sqlitecpp],
     install: true,
 )

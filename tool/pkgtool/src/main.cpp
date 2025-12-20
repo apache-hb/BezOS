@@ -65,12 +65,16 @@ int main(int argc, const char **argv) try {
     auto packages = workspace->packages();
     for (const auto& [name, package] : packages) {
         std::cout << "Package: " << name << " at " << package->path() << "\n";
+        pkg::setupPackageEnvironment(*workspace, *package);
     }
 
     auto closure = pkg::dependencyClosure(*workspace, "image");
     for (const auto& package : closure) {
         std::cout << " - " << package->name() << "\n";
     }
+
+    auto pkgtool = pkg::IPkgTool::create(workspace);
+    pkgtool->createPackageEnvironment("image");
 
     return 0;
 } catch (const std::exception& ex) {

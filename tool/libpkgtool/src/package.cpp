@@ -123,22 +123,38 @@ public:
         return result;
     }
 };
+
+std::filesystem::path baseBuildPath(pkg::IWorkspace& workspace) {
+    return workspace.path() / "build" / "env";
+}
 }
 
 std::filesystem::path pkg::packageBuildPath(IWorkspace& workspace, IPackage& package) {
-    return workspace.path() / "build" / package.name() / "target/build";
+    return baseBuildPath(workspace) / package.name() / "target/build";
 }
 
 std::filesystem::path pkg::packageSysrootPath(IWorkspace& workspace, IPackage& package) {
-    return workspace.path() / "build" / package.name() / "target/sysroot";
+    return baseBuildPath(workspace) / package.name() / "target/sysroot";
 }
 
 std::filesystem::path pkg::packageInstallPath(IWorkspace& workspace, IPackage& package) {
-    return workspace.path() / "build" / package.name() / "target/install";
+    return baseBuildPath(workspace) / package.name() / "target/install";
 }
 
 std::filesystem::path pkg::packagePrivatePath(IWorkspace& workspace, IPackage& package) {
-    return workspace.path() / "build" / package.name() / "target/internal";
+    return baseBuildPath(workspace) / package.name() / "target/internal";
+}
+
+void pkg::setupPackageEnvironment(IWorkspace& workspace, IPackage& package) {
+    auto sysroot = fs::absolute(pkg::packageSysrootPath(workspace, package));
+    auto installdir = fs::absolute(pkg::packageInstallPath(workspace, package));
+    auto internaldir = fs::absolute(pkg::packagePrivatePath(workspace, package));
+    auto workdir = internaldir / "work";
+
+    fs::create_directories(sysroot);
+    fs::create_directories(installdir);
+    fs::create_directories(internaldir);
+    fs::create_directories(workdir);
 }
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder) {

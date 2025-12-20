@@ -39,7 +39,7 @@ public:
         grpc::ClientContext context;
         grpc::Status status = mStub->CreateOverlay(&context, request, &response);
         if (!status.ok()) {
-            throw pkg::RpcException{-1, std::format("FsOverlayService::CreateOverlay failed: {}", status.error_message())};
+            throw pkg::RpcException{-1, std::format("FsOverlayService::CreateOverlay status failed: {}", status.error_message())};
         }
 
         if (int err = response.status()) {

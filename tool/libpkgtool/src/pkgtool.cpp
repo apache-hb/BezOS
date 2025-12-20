@@ -10,18 +10,6 @@ class PkgToolImpl final : public pkg::IPkgTool {
     std::shared_ptr<pkg::IWorkspace> mWorkspace;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
 
-    void setupPackageFilesystem(pkg::IPackage& package) {
-        auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
-        auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
-        auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
-        auto workdir = internaldir / "work";
-
-        fs::create_directories(sysroot);
-        fs::create_directories(installdir);
-        fs::create_directories(internaldir);
-        fs::create_directories(workdir);
-    }
-
     void createOverlayEnvironment(pkg::IPackage& package) {
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
         auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
@@ -34,6 +22,10 @@ class PkgToolImpl final : public pkg::IPkgTool {
         overlayCommand.overlayPath = sysroot.string();
         overlayCommand.upperDir = installdir.string();
         for (const auto& dependency : dependencies) {
+            if (dependency->name() == package.name()) {
+                continue;
+            }
+
             auto path = pkg::packageInstallPath(*mWorkspace, *dependency);
             overlayCommand.lowerDirs.push_back(fs::absolute(path).string());
         }
@@ -46,7 +38,6 @@ class PkgToolImpl final : public pkg::IPkgTool {
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
         auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
         auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
-        auto workdir = internaldir / "work";
 
         std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package.name());
 
@@ -66,9 +57,9 @@ class PkgToolImpl final : public pkg::IPkgTool {
         }
     }
 public:
-    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IFsOverlayClient> overlayClient)
+    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace)
         : mWorkspace(workspace)
-        , mOverlayClient(overlayClient)
+        , mOverlayClient(pkg::IFsOverlayClient::create())
     { }
 
     std::shared_ptr<pkg::IWorkspace> workspace() const override {
@@ -85,7 +76,7 @@ public:
             throw std::runtime_error("Package not found: " + name);
         }
 
-        setupPackageFilesystem(*package);
+        pkg::setupPackageEnvironment(*mWorkspace, *package);
 
         if (mOverlayClient->isOverlaySupported()) {
             createOverlayEnvironment(*package);
@@ -98,6 +89,5 @@ public:
 }
 
 std::shared_ptr<pkg::IPkgTool> pkg::IPkgTool::create(std::shared_ptr<IWorkspace> workspace) {
-    auto overlayClient = pkg::IFsOverlayClient::create();
-    return std::make_shared<PkgToolImpl>(workspace, overlayClient);
+    return std::make_shared<PkgToolImpl>(workspace);
 }

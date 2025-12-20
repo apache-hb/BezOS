@@ -78,6 +78,8 @@ namespace pkg {
      */
     std::filesystem::path packagePrivatePath(IWorkspace& workspace, IPackage& package);
 
+    void setupPackageEnvironment(IWorkspace& workspace, IPackage& package);
+
     class IPkgTool {
     public:
         virtual ~IPkgTool() = default;
