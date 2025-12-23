@@ -1,4 +1,5 @@
 #include "pkgtool/pkgtool.hpp"
+#include "src/tools/basic.hpp"
 #include "src/xml.hpp"
 
 #include <vector>
@@ -37,15 +38,19 @@ public:
 
 class PackageImpl final : public IPackage {
     fs::path mFolder;
+
     std::vector<PackageName> mDependencies;
     std::vector<PackageName> mBuildDependencies;
     std::vector<PackageName> mTestDependencies;
-    std::string mBuildTool;
+
+    std::shared_ptr<pkg::ITool> mConfigureTool;
+    std::shared_ptr<pkg::ITool> mBuildTool;
+    std::shared_ptr<pkg::ITool> mInstallTool;
 
     std::string mName;
     std::string mVersion;
 public:
-    PackageImpl(const fs::path& folder)
+    PackageImpl(const fs::path& folder, pkg::IWorkspace& workspace)
         : mFolder(folder)
     {
         auto pkginfo = mFolder / "pkg.xml";
@@ -75,15 +80,39 @@ public:
                 mBuildDependencies.emplace_back(PackageName::ofXmlNode(child));
             } else if (name == "test-dependency") {
                 mTestDependencies.emplace_back(PackageName::ofXmlNode(child));
+            } else if (name == "configure") {
+                if (mConfigureTool != nullptr) {
+                    throw std::runtime_error("Package " + mName + " has multiple configure tools defined");
+                }
+
+                mConfigureTool = pkg::getTool(child, workspace, *this);
             } else if (name == "build") {
-                mBuildTool = child.expect("with");
+                if (mBuildTool != nullptr) {
+                    throw std::runtime_error("Package " + mName + " has multiple build tools defined");
+                }
+
+                mBuildTool = pkg::getTool(child, workspace, *this);
+            } else if (name == "install") {
+                if (mInstallTool != nullptr) {
+                    throw std::runtime_error("Package " + mName + " has multiple install tools defined");
+                }
+
+                mInstallTool = pkg::getTool(child, workspace, *this);
             } else {
-                throw std::runtime_error(std::format("ERROR [{}:{}]: Unknown element <{}> in {}", child.path(), child.line(), name, pkginfo.string()));
+                throw std::runtime_error(std::format("ERROR {}: Unknown element <{}> in {}", locationToString(child), name, pkginfo.string()));
             }
         }
 
-        if (mBuildTool.empty()) {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Missing <build> element in {}", root.path(), root.line(), pkginfo.string()));
+        if (mBuildTool == nullptr) {
+            mBuildTool = mConfigureTool;
+        }
+
+        if (mInstallTool == nullptr) {
+            mInstallTool = mBuildTool;
+        }
+
+        if (mConfigureTool == nullptr || mBuildTool == nullptr || mInstallTool == nullptr) {
+            throw std::runtime_error("Package " + mName + " is missing build tool definitions");
         }
     }
 
@@ -91,7 +120,7 @@ public:
         return mName;
     }
 
-    std::string buildTool() const override {
+    std::shared_ptr<pkg::ITool> buildTool() const override {
         return mBuildTool;
     }
 
@@ -125,7 +154,15 @@ public:
 };
 
 std::filesystem::path baseBuildPath(pkg::IWorkspace& workspace) {
-    return workspace.path() / "build" / "env";
+    return fs::absolute(workspace.path() / "build" / "env");
+}
+
+void replaceAll(std::string& str, std::string_view from, std::string_view to) {
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
 }
 }
 
@@ -145,10 +182,25 @@ std::filesystem::path pkg::packagePrivatePath(IWorkspace& workspace, IPackage& p
     return baseBuildPath(workspace) / package.name() / "target/internal";
 }
 
+std::string pkg::evaluate(const std::string& text, IWorkspace& workspace) {
+    std::string result = text;
+    replaceAll(result, "${workspace.path}", workspace.path().string());
+    return result;
+}
+
+std::string pkg::evaluate(const std::string& text, IWorkspace& workspace, IPackage& package) {
+    std::string result = evaluate(text, workspace);
+    replaceAll(result, "${package.name}", package.name());
+    replaceAll(result, "${package.path}", package.path().string());
+    replaceAll(result, "${package.build}", pkg::packageBuildPath(workspace, package).string());
+    replaceAll(result, "${package.sysroot}", pkg::packageSysrootPath(workspace, package).string());
+    return result;
+}
+
 void pkg::setupPackageEnvironment(IWorkspace& workspace, IPackage& package) {
-    auto sysroot = fs::absolute(pkg::packageSysrootPath(workspace, package));
-    auto installdir = fs::absolute(pkg::packageInstallPath(workspace, package));
-    auto internaldir = fs::absolute(pkg::packagePrivatePath(workspace, package));
+    auto sysroot = pkg::packageSysrootPath(workspace, package);
+    auto installdir = pkg::packageInstallPath(workspace, package);
+    auto internaldir = pkg::packagePrivatePath(workspace, package);
     auto workdir = internaldir / "work";
 
     fs::create_directories(sysroot);
@@ -157,6 +209,6 @@ void pkg::setupPackageEnvironment(IWorkspace& workspace, IPackage& package) {
     fs::create_directories(workdir);
 }
 
-std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder) {
-    return std::make_shared<PackageImpl>(folder);
+std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder, pkg::IWorkspace& workspace) {
+    return std::make_shared<PackageImpl>(folder, workspace);
 }

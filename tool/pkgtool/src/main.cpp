@@ -12,6 +12,11 @@ class ArgOptions {
     static constexpr char kProfileKey[] = "--profile";
     static constexpr char kWorkspaceKey[] = "--vsc-workspace";
 
+    static constexpr char kFetchKey[] = "--fetch";
+    static constexpr char kConfigureKey[] = "--configure";
+    static constexpr char kBuildKey[] = "--build";
+    static constexpr char kInstallKey[] = "--install";
+
     argparse::ArgumentParser parser;
 public:
     ArgOptions()
@@ -29,6 +34,26 @@ public:
             .help("Path to vscode workspace file to generate")
             .default_value(std::string{"workspace.code-workspace"})
             .implicit_value(std::string{"workspace.code-workspace"});
+
+        parser.add_argument(kFetchKey)
+            .help("List of packages to fetch or update")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
+
+        parser.add_argument(kConfigureKey)
+            .help("List of packages to configure or reconfigure")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
+
+        parser.add_argument(kBuildKey)
+            .help("List of packages to build or rebuild")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
+
+        parser.add_argument(kInstallKey)
+            .help("List of packages to install or reinstall")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
     }
 
     void parse(int argc, const char** argv) {
@@ -45,6 +70,22 @@ public:
 
     std::string workspace() const {
         return parser.get<std::string>(kWorkspaceKey);
+    }
+
+    std::vector<std::string> fetchPackages() const {
+        return parser.get<std::vector<std::string>>(kFetchKey);
+    }
+
+    std::vector<std::string> configurePackages() const {
+        return parser.get<std::vector<std::string>>(kConfigureKey);
+    }
+
+    std::vector<std::string> buildPackages() const {
+        return parser.get<std::vector<std::string>>(kBuildKey);
+    }
+
+    std::vector<std::string> installPackages() const {
+        return parser.get<std::vector<std::string>>(kInstallKey);
     }
 };
 

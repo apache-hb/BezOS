@@ -22,7 +22,7 @@ public:
 
         auto node = doc.root();
         if (node.name() != "workspace") {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <workspace>", node.path(), node.line(), node.name(), mRoot.string()));
+            throw std::runtime_error(std::format("ERROR {}: Invalid root element <{}> in {}, expected <workspace>", locationToString(node), node.name(), mRoot.string()));
         }
 
         for (const auto& child : node.children()) {
@@ -31,17 +31,17 @@ public:
             }
 
             if (child.name() != "package") {
-                throw std::runtime_error(std::format("ERROR [{}:{}]: Unexpected element {} in {}, expected <package>", child.path(), child.line(), child.name(), mRoot.string()));
+                throw std::runtime_error(std::format("ERROR {}: Unexpected element {} in {}, expected <package>", locationToString(node), child.name(), mRoot.string()));
             }
 
             auto inner = child.expect("path");
 
             auto path = mRoot / inner;
             try {
-                auto package = pkg::IPackage::of(path);
+                auto package = pkg::IPackage::of(path, *this);
                 mPackages.emplace(package->name(), package);
             } catch (const std::exception& e) {
-                throw std::runtime_error(std::format("ERROR [{}:{}]: Failed to load package at {}: {}", child.path(), child.line(), (mRoot / inner).string(), e.what()));
+                throw std::runtime_error(std::format("ERROR {}: Failed to load package at {}: {}", locationToString(node), (mRoot / inner).string(), e.what()));
             }
         }
     }

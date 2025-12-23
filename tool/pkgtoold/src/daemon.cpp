@@ -365,7 +365,7 @@ bool isInstalled() {
 #define LOCALHOST_PATH "localhost:22081"
 #define STORAGE_PATH "/var/lib/pkgtoold/overlays.db"
 
-int main(int argc, const char **argv) {
+int main(int argc, const char **argv) try {
     setvbuf(stdout, nullptr, _IONBF, 0);
 
     grpc::EnableDefaultHealthCheckService(true);
@@ -381,6 +381,16 @@ int main(int argc, const char **argv) {
 
     OverlayStorage storage{installed ? STORAGE_PATH : "overlays.db"};
     OverlayManager manager;
+
+    for (const auto& overlay : storage.getOverlays()) {
+        printf("Hydrating overlay fs at %s\n", overlay.getOverlayPath().c_str());
+        auto err = manager.createOverlay(overlay);
+        if (!err.isSuccess()) {
+            printf("Failed to hydrate overlay fs at %s: %s\n", overlay.getOverlayPath().c_str(), err.message.c_str());
+        } else {
+            printf("Overlay fs at %s hydrated successfully\n", overlay.getOverlayPath().c_str());
+        }
+    }
 
     std::string address = installed ? std::format("unix://{}", pkg::pkgtooldUnixSocketPath()) : LOCALHOST_PATH;
     FsOverlayServiceImpl service{&storage, &manager};
@@ -404,4 +414,7 @@ int main(int argc, const char **argv) {
     printf("pkgtoold gRPC server shutting down\n");
 
     return 0;
+} catch (const std::exception& ex) {
+    fprintf(stderr, "Fatal error: %s\n", ex.what());
+    return 1;
 }

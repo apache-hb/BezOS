@@ -39,6 +39,17 @@ public:
         return result;
     }
 
+    std::generator<std::pair<std::string, std::string>> properties() const {
+        for (xmlAttrPtr attr = mNode->properties; attr != nullptr; attr = attr->next) {
+            const xmlChar *name = attr->name;
+            xmlChar *value = xmlGetProp(mNode, name);
+
+            co_yield {reinterpret_cast<const char *>(name), reinterpret_cast<const char *>(value)};
+
+            xmlFree(value);
+        }
+    }
+
     std::string expect(const std::string& prop) const {
         auto result = property(prop);
         if (!result.has_value()) {
@@ -48,7 +59,7 @@ public:
         return *result;
     }
 
-    unsigned line() const {
+    long line() const {
         return xmlGetLineNo(mNode);
     }
 
@@ -59,12 +70,34 @@ public:
         return result;
     }
 
+    std::string file() const {
+        xmlDocPtr doc = mNode->doc;
+
+        if (doc->URL == nullptr) {
+            return ":memory:";
+        }
+
+        if (doc->URL == nullptr) {
+            return ":memory:";
+        }
+
+        return reinterpret_cast<const char *>(doc->URL);
+    }
+
+    xmlElementType type() const {
+        return mNode->type;
+    }
+
     std::string_view name() const {
         return reinterpret_cast<const char *>(mNode->name);
     }
 
     operator xmlNodePtr() const { return get(); }
 };
+
+inline std::string locationToString(const XmlNode& node) {
+    return std::format("[{}:{}] {}", node.file(), node.line(), node.path());
+}
 
 class XmlDocument {
     using XmlDoc = std::unique_ptr<xmlDoc, decltype(&xmlFreeDoc)>;
@@ -77,6 +110,14 @@ public:
 
     XmlNode root() const {
         return xmlDocGetRootElement(mDocument.get());
+    }
+
+    std::string path() const {
+        if (mDocument->URL == nullptr) {
+            return ":memory:";
+        }
+
+        return reinterpret_cast<const char *>(mDocument->URL);
     }
 
     static XmlDocument parse(const std::filesystem::path& path) {

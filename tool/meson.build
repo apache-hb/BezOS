@@ -6,6 +6,7 @@ project('tools', 'cpp',
     ]
 )
 
+gtest_main = dependency('gtest_main')
 libxml2 = dependency('libxml-2.0')
 openssl = dependency('openssl')
 curl = dependency('libcurl')

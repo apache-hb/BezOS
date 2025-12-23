@@ -8,6 +8,7 @@
 namespace pkg {
     class IWorkspace;
     class IPackage;
+    class ITool;
 
     class IWorkspace {
     public:
@@ -27,10 +28,11 @@ namespace pkg {
     public:
         virtual ~IPackage() = default;
 
-        static std::shared_ptr<IPackage> of(const std::filesystem::path& folder);
+        static std::shared_ptr<IPackage> of(const std::filesystem::path& folder, IWorkspace& workspace);
 
         virtual std::string name() const = 0;
-        virtual std::string buildTool() const = 0;
+
+        virtual std::shared_ptr<ITool> buildTool() const = 0;
 
         virtual std::filesystem::path path() const = 0;
 
@@ -77,6 +79,9 @@ namespace pkg {
      * @return The private path
      */
     std::filesystem::path packagePrivatePath(IWorkspace& workspace, IPackage& package);
+
+    std::string evaluate(const std::string& text, IWorkspace& workspace);
+    std::string evaluate(const std::string& text, IWorkspace& workspace, IPackage& package);
 
     void setupPackageEnvironment(IWorkspace& workspace, IPackage& package);
 
