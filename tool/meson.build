@@ -6,6 +6,8 @@ project('tools', 'cpp',
     ]
 )
 
+cpp = meson.get_compiler('cpp')
+
 gtest_main = dependency('gtest_main')
 libxml2 = dependency('libxml-2.0')
 openssl = dependency('openssl')
@@ -17,6 +19,7 @@ libarchive = dependency('libarchive')
 sqlitecpp = dependency('sqlitecpp')
 indicators = dependency('indicators')
 glob = dependency('glob')
+quill = dependency('quill')
 
 subdir('pkgtoold')
 subdir('libpkgtool')

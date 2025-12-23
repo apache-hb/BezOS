@@ -1,5 +1,7 @@
 #include "pkgtool/state.hpp"
 
+#include <print>
+
 #include <SQLiteCpp/SQLiteCpp.h>
 
 namespace sqlite = SQLite;
@@ -50,14 +52,42 @@ class IWorkspaceStateImpl final : public pkg::IWorkspaceState {
         INSERT OR IGNORE INTO dependencies (package, dependency, scope) VALUES (?, ?, ?);
     )sql";
 
-    static constexpr char kGetDependantPackages[] = R"sql(
+    static constexpr char kGetReverseDependencies[] = R"sql(
         WITH RECURSIVE dependants AS (
-            SELECT package, dependency FROM dependencies WHERE dependency = ? AND scope IN (?, ?, ?)
+            SELECT package, dependency FROM dependencies WHERE dependency = ? AND scope IN (SELECT name FROM scopes)
             UNION
             SELECT d.package, d.dependency FROM dependencies d
             JOIN dependants ON d.dependency = dependants.package
         )
-        SELECT package FROM dependants;
+        SELECT DISTINCT package FROM dependants;
+    )sql";
+
+    static constexpr char kGetAllDependencies[] = R"sql(
+        WITH RECURSIVE deps AS (
+            SELECT dependency FROM dependencies WHERE package = ? AND scope IN (SELECT name FROM scopes)
+            UNION
+            SELECT d.dependency FROM dependencies d
+            JOIN deps ON d.package = deps.dependency
+        )
+        SELECT DISTINCT dependency FROM deps;
+    )sql";
+
+    static constexpr char kGetDirectDependencies[] = R"sql(
+        SELECT DISTINCT dependency FROM dependencies WHERE package = ? AND scope IN (SELECT name FROM scopes);
+    )sql";
+
+    static constexpr char kCreateScopeTable[] = R"sql(
+        CREATE TEMPORARY TABLE IF NOT EXISTS scopes (
+            name TEXT PRIMARY KEY
+        );
+    )sql";
+
+    static constexpr char kClearScopes[] = R"sql(
+        DELETE FROM scopes;
+    )sql";
+
+    static constexpr char kAddScope[] = R"sql(
+        INSERT INTO scopes (name) VALUES (?);
     )sql";
 
     static std::string stateToString(pkg::PackageState state) {
@@ -94,11 +124,33 @@ class IWorkspaceStateImpl final : public pkg::IWorkspaceState {
         return pkg::DependencyScope::eDependency;
     }
 
+    void addScopesToQuery(pkg::DependencyScope scopes) const {
+        sqlite::Statement clear{mDatabase, kClearScopes};
+        clear.exec();
+
+        sqlite::Statement insert{mDatabase, kAddScope};
+        if (pkg::testBit(scopes, pkg::DependencyScope::eDependency)) {
+            insert.bind(1, "dependency");
+            insert.exec();
+        }
+
+        if (pkg::testBit(scopes, pkg::DependencyScope::eBuildDependency)) {
+            insert.bind(1, "build_dependency");
+            insert.exec();
+        }
+
+        if (pkg::testBit(scopes, pkg::DependencyScope::eTestDependency)) {
+            insert.bind(1, "test_dependency");
+            insert.exec();
+        }
+    }
+
 public:
     IWorkspaceStateImpl(const std::filesystem::path& path)
         : mDatabase(path.string(), sqlite::OPEN_CREATE | sqlite::OPEN_READWRITE)
     {
         mDatabase.exec(kSchema);
+        mDatabase.exec(kCreateScopeTable);
     }
 
     pkg::PackageState getPackageState(const std::string& name) const override {
@@ -141,22 +193,47 @@ public:
         stmt.exec();
     }
 
-    std::vector<std::string> getDependantPackages(const std::string& name, pkg::DependencyScope scopes) const override {
+    std::vector<std::string> getReverseDependencies(const std::string& name, pkg::DependencyScope scopes) const override {
         std::vector<std::string> result;
 
-        sqlite::Statement query{mDatabase, kGetDependantPackages};
-        query.bind(1, name);
+        addScopesToQuery(scopes);
 
-        // A bit of a dumb hack, but theres no way to bind an array of values in sqlite
-        query.bind(2, ((int)scopes & (int)pkg::DependencyScope::eDependency) != 0 ? "dependency" : "none");
-        query.bind(3, ((int)scopes & (int)pkg::DependencyScope::eBuildDependency) != 0 ? "build_dependency" : "none");
-        query.bind(4, ((int)scopes & (int)pkg::DependencyScope::eTestDependency) != 0 ? "test_dependency" : "none");
+        sqlite::Statement query{mDatabase, kGetReverseDependencies};
+        query.bind(1, name);
 
         while (query.executeStep()) {
             result.push_back(query.getColumn(0).getString());
         }
 
-        result.push_back(name);
+        return result;
+    }
+
+    std::vector<std::string> getAllDependencies(const std::string& name, pkg::DependencyScope scopes) const override {
+        std::vector<std::string> result;
+
+        addScopesToQuery(scopes);
+
+        sqlite::Statement query{mDatabase, kGetAllDependencies};
+        query.bind(1, name);
+
+        while (query.executeStep()) {
+            result.push_back(query.getColumn(0).getString());
+        }
+
+        return result;
+    }
+
+    std::vector<std::string> getDirectDependencies(const std::string& name, pkg::DependencyScope scopes) const override {
+        std::vector<std::string> result;
+
+        addScopesToQuery(scopes);
+
+        sqlite::Statement query{mDatabase, kGetDirectDependencies};
+        query.bind(1, name);
+
+        while (query.executeStep()) {
+            result.push_back(query.getColumn(0).getString());
+        }
 
         return result;
     }

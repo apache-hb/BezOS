@@ -1,0 +1,10 @@
+[wrap-file]
+directory = quill-11.0.2
+source_url = https://github.com/odygrd/quill/archive/refs/tags/v11.0.2.tar.gz
+source_filename = quill-11.0.2.tar.gz
+source_hash = c4208f717e62fc4a7178917c9c39dbb90276d72c3cefd9077d0b973365d72667
+source_fallback_url = https://wrapdb.mesonbuild.com/v2/quill_11.0.2-1/get_source/quill-11.0.2.tar.gz
+wrapdb_version = 11.0.2-1
+
+[provide]
+quill = quill_dep

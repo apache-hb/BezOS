@@ -21,6 +21,10 @@ namespace pkg {
         eTestDependency = (1 << 2),
     };
 
+    constexpr bool testBit(DependencyScope scopes, DependencyScope scope) {
+        return (static_cast<int>(scopes) & static_cast<int>(scope)) != 0;
+    }
+
     class IWorkspaceState {
     public:
         virtual ~IWorkspaceState() = default;
@@ -32,7 +36,10 @@ namespace pkg {
 
         virtual void addDependency(const std::string& package, const std::string& dependency, DependencyScope scope) = 0;
 
-        virtual std::vector<std::string> getDependantPackages(const std::string& name, DependencyScope scopes) const = 0;
+        virtual std::vector<std::string> getReverseDependencies(const std::string& name, DependencyScope scopes) const = 0;
+
+        virtual std::vector<std::string> getAllDependencies(const std::string& name, DependencyScope scopes) const = 0;
+        virtual std::vector<std::string> getDirectDependencies(const std::string& name, DependencyScope scopes) const = 0;
 
         static std::shared_ptr<IWorkspaceState> ofSqlite(const std::filesystem::path& path);
     };

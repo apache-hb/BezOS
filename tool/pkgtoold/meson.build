@@ -30,6 +30,7 @@ src = files('src/pkgtoold.cpp')
 liboverlayd = library('overlayd', generated, src,
     include_directories: inc,
     dependencies: [grpc, protobuf],
+    cpp_args: cpp.get_supported_arguments('-Wno-inconsistent-missing-override'),
     install: true,
 )
 
@@ -57,6 +58,6 @@ src = files('src/daemon.cpp')
 
 pkgtoold = executable('pkgtoold', src,
     include_directories: inc,
-    dependencies: [overlayd_dep, grpc, grpcpp, grpcpp_ext_reflection, sqlitecpp],
+    dependencies: [overlayd_dep, grpc, grpcpp, grpcpp_ext_reflection, sqlitecpp, quill],
     install: true,
 )

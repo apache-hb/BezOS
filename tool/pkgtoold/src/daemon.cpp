@@ -1,9 +1,10 @@
 #include "pkgtoold/pkgtoold.hpp"
-#include <expected>
+
 #include <overlay.grpc.pb.h>
 
 #include <csignal>
 #include <thread>
+#include <expected>
 
 #include <grpcpp/server_builder.h>
 #include <grpcpp/health_check_service_interface.h>
@@ -13,12 +14,16 @@
 
 #include <sys/mount.h>
 
+#include <quill/SimpleSetup.h>
+#include <quill/LogFunctions.h>
+
 using namespace bezos::pkgtoold::overlay;
 
 namespace fs = std::filesystem;
 namespace sqlite = SQLite;
 
 namespace {
+quill::Logger* gLogger;
 
 struct PosixError {
     int code;
@@ -253,7 +258,7 @@ public:
 
             auto entry = Overlay::create(overlayPath, upperDir, workDir, lowerDirs);
             if (!entry.has_value()) {
-                printf("Warning: invalid overlay entry in storage: %s\n", entry.error().message.c_str());
+                quill::warning(gLogger, "Invalid overlay entry in storage: {}", entry.error().message);
                 continue;
             }
 
@@ -272,7 +277,7 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
         auto overlay = Overlay::ofGrpcRequest(*request);
         if (!overlay.has_value()) {
             auto err = overlay.error();
-            printf("Failed to create overlay from request %s: %s\n", err.message.c_str(), request->DebugString().c_str());
+            quill::warning(gLogger, "Failed to validate overlay request {}: {}", request->DebugString(), err.message);
             response->set_status(err.code);
             response->set_detail(err.message);
             return grpc::Status::OK;
@@ -282,25 +287,24 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
 
         mStorage->removeOverlay(value.getOverlayPath());
 
-        printf("Creating overlay fs: %s\n", request->DebugString().c_str());
+        quill::info(gLogger, "Creating overlay fs: {}", request->DebugString());
 
         auto err = mManager->createOverlay(value);
         if (!err.isSuccess()) {
             response->set_status(err.code);
             response->set_detail(err.message);
 
-            printf("Failed to create overlay fs: %s\n", response->DebugString().c_str());
+            quill::warning(gLogger, "Failed to create overlay fs {}: {}", request->DebugString(), err.message);
 
             return grpc::Status::OK;
         }
 
-        printf("Overlay fs created successfully at %s\n", value.getOverlayPath().c_str());
+        quill::info(gLogger, "Overlay fs created successfully at {}", value.getOverlayPath());
 
         try {
             mStorage->addOverlay(value);
         } catch (const std::exception& ex) {
-            printf("Failed to store overlay info in database: %s\n", ex.what());
-            printf("Continuing without storing overlay info.\n");
+            quill::warning(gLogger, "Failed to store overlay info in database: {}. Continuing on without persistence.", ex.what());
         }
 
         response->set_status(0);
@@ -311,7 +315,7 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
 
     grpc::Status DestroyOverlay(grpc::ServerContext* context, const DestroyOverlayRequest* request, DestroyOverlayResponse* response) override {
         std::string overlayPath = request->overlay_path();
-        printf("Destroying overlay fs at %s\n", overlayPath.c_str());
+        quill::info(gLogger, "Destroying overlay fs at {}", overlayPath);
 
         auto status = mManager->destroyOverlay(overlayPath);
         response->set_status(status.code);
@@ -319,9 +323,9 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
 
         if (status.isSuccess()) {
             mStorage->removeOverlay(overlayPath);
-            printf("Overlay fs at %s destroyed successfully\n", overlayPath.c_str());
+            quill::info(gLogger, "Overlay fs at {} destroyed successfully.", overlayPath);
         } else {
-            printf("Failed to destroy overlay fs at %s: %s\n", overlayPath.c_str(), status.message.c_str());
+            quill::warning(gLogger, "Failed to destroy overlay fs at {}: {}", overlayPath, status.message);
         }
 
         return grpc::Status::OK;
@@ -337,6 +341,7 @@ public:
 std::unique_ptr<grpc::Server> gServer;
 
 void handleShutdown(int signum) {
+    quill::info(gLogger, "Received signal {}, shutting down pkgtoold gRPC server.", signum);
     // Use a separate thread to shutdown the server to avoid deadlocks
     std::jthread other([] {
         if (gServer) {
@@ -360,22 +365,34 @@ bool isInstalled() {
     return std::string_view(path).starts_with("/usr/bin/") || std::string_view(path).starts_with("/bin/");
 }
 
+void setupLogging() {
+    static constexpr char kTimePattern[] = "%Y-%m-%dT%H:%M:%S.%QmsZ";
+    static constexpr char kMessagePattern[] = "%(time) [%(thread_id)] %(short_source_location:<12) %(log_level:<6) %(message)";
+    quill::PatternFormatterOptions pattern{kMessagePattern, kTimePattern, quill::Timezone::GmtTime};
+
+    std::shared_ptr<quill::Sink> sink = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("stdout");
+    gLogger = quill::Frontend::create_or_get_logger("stdout", std::move(sink), pattern);
+
+    quill::Backend::start<quill::FrontendOptions>(quill::BackendOptions{}, quill::SignalHandlerOptions{});
+}
+
 } // namespace
 
 #define LOCALHOST_PATH "localhost:22081"
 #define STORAGE_PATH "/var/lib/pkgtoold/overlays.db"
 
 int main(int argc, const char **argv) try {
-    setvbuf(stdout, nullptr, _IONBF, 0);
+    setupLogging();
 
     grpc::EnableDefaultHealthCheckService(true);
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
     bool installed = isInstalled();
+
     if (!installed) {
-        printf("pkgtoold is not installed system-wide, running over tcp.\n");
+        quill::info(gLogger, "pkgtoold is not installed system-wide, running over tcp.");
     } else {
-        printf("pkgtoold is installed system-wide, hydrating existing overlays from storage (" STORAGE_PATH ").\n");
+        quill::info(gLogger, "Creating storage directory at " STORAGE_PATH " if it does not exist.");
         fs::create_directories("/var/lib/pkgtoold");
     }
 
@@ -383,38 +400,54 @@ int main(int argc, const char **argv) try {
     OverlayManager manager;
 
     for (const auto& overlay : storage.getOverlays()) {
-        printf("Hydrating overlay fs at %s\n", overlay.getOverlayPath().c_str());
+        quill::info(gLogger, "Hydrating overlay fs at {} from storage.", overlay.getOverlayPath());
         auto err = manager.createOverlay(overlay);
         if (!err.isSuccess()) {
-            printf("Failed to hydrate overlay fs at %s: %s\n", overlay.getOverlayPath().c_str(), err.message.c_str());
+            quill::warning(gLogger, "Failed to hydrate overlay fs at {}: {}", overlay.getOverlayPath(), err.message);
         } else {
-            printf("Overlay fs at %s hydrated successfully\n", overlay.getOverlayPath().c_str());
+            quill::info(gLogger, "Overlay fs at {} hydrated successfully.", overlay.getOverlayPath());
         }
     }
 
     std::string address = installed ? std::format("unix://{}", pkg::pkgtooldUnixSocketPath()) : LOCALHOST_PATH;
+
     FsOverlayServiceImpl service{&storage, &manager};
     grpc::ServerBuilder builder;
+    auto cq = builder.AddCompletionQueue();
     builder.AddListeningPort(address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
+    //
+    // The default number of threads is based on the number of cores,
+    // which results in tons of wasted resources for a simple daemon like
+    // this. Limit to 2 threads for now.
+    // On my dev machine with an epyc 9654 i was seeing 192 threads being created, which used 32mb of rss
+    // from stack space alone.
+    // There are more thread pools that grpc doesn't let you configure currently, once
+    // https://github.com/grpc/grpc/issues/28642 is resolved it should be possible to reduce
+    // memory usage further.
+    //
+    grpc::ResourceQuota quota;
+    quota.SetMaxThreads(2);
+    builder.SetResourceQuota(quota);
+
     gServer = builder.BuildAndStart();
     if (gServer == nullptr) {
-        fprintf(stderr, "Failed to start pkgtoold gRPC server\n");
+        quill::error(gLogger, "Failed to start pkgtoold gRPC server.");
         return 1;
     }
 
-    printf("pkgtoold gRPC server listening on %s\n", address.c_str());
+    quill::info(gLogger, "pkgtoold gRPC server listening on {}.", address);
 
     signal(SIGINT, handleShutdown);
     signal(SIGTERM, handleShutdown);
 
     gServer->Wait();
 
-    printf("pkgtoold gRPC server shutting down\n");
+    quill::info(gLogger, "pkgtoold gRPC server shutting down.");
 
     return 0;
 } catch (const std::exception& ex) {
-    fprintf(stderr, "Fatal error: %s\n", ex.what());
+    quill::error(gLogger, "Fatal error in pkgtoold: {}", ex.what());
     return 1;
 }
