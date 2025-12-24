@@ -1,13 +1,19 @@
 #include "pkgtool/state.hpp"
 
-#include <print>
-
 #include <SQLiteCpp/SQLiteCpp.h>
+
+#include <quill/Frontend.h>
+#include <quill/LogMacros.h>
 
 namespace sqlite = SQLite;
 
 namespace {
-class IWorkspaceStateImpl final : public pkg::IWorkspaceState {
+class WorkspaceStateImpl final : public pkg::IWorkspaceState {
+    static inline auto logger() {
+        static auto it = quill::Frontend::create_or_get_logger("WorkspaceStateImpl", quill::Frontend::get_logger("root"));
+        return it;
+    }
+
     sqlite::Database mDatabase;
 
     static constexpr char kSchema[] = R"sql(
@@ -146,7 +152,7 @@ class IWorkspaceStateImpl final : public pkg::IWorkspaceState {
     }
 
 public:
-    IWorkspaceStateImpl(const std::filesystem::path& path)
+    WorkspaceStateImpl(const std::filesystem::path& path)
         : mDatabase(path.string(), sqlite::OPEN_CREATE | sqlite::OPEN_READWRITE)
     {
         mDatabase.exec(kSchema);
@@ -166,12 +172,16 @@ public:
     }
 
     void addPackage(const std::string& name) override {
+        LOG_TRACE_L2(logger(), "Adding package '{}' to workspace state", name);
+
         sqlite::Statement stmt{mDatabase, kAddPackage};
         stmt.bind(1, name);
         stmt.exec();
     }
 
     void setPackageState(const std::string& name, pkg::PackageState state, bool recursive) override {
+        LOG_TRACE_L1(logger(), "Setting package '{}' state to '{}' (recursive={})", name, stateToString(state), recursive);
+
         if (!recursive) {
             sqlite::Statement stmt{mDatabase, kSetPackageStateSingle};
             stmt.bind(1, stateToString(state));
@@ -186,6 +196,8 @@ public:
     }
 
     void addDependency(const std::string& package, const std::string& dependency, pkg::DependencyScope scope) override {
+        LOG_TRACE_L1(logger(), "Adding dependency '{}' to package '{}' with scope '{}'", dependency, package, scopeToString(scope));
+
         sqlite::Statement stmt{mDatabase, kAddDependency};
         stmt.bind(1, package);
         stmt.bind(2, dependency);
@@ -241,5 +253,5 @@ public:
 }
 
 std::shared_ptr<pkg::IWorkspaceState> pkg::IWorkspaceState::ofSqlite(const std::filesystem::path& path) {
-    return std::make_shared<IWorkspaceStateImpl>(path);
+    return std::make_shared<WorkspaceStateImpl>(path);
 }

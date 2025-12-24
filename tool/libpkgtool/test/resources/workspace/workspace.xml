@@ -1,0 +1,5 @@
+<workspace>
+    <package path="packages/package001" />
+    <package path="packages/package002" />
+    <package path="packages/package003" />
+</workspace>

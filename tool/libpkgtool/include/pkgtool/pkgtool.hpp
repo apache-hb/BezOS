@@ -41,6 +41,8 @@ namespace pkg {
         virtual std::vector<std::string> dependencies() const = 0;
     };
 
+    std::filesystem::path workspaceCachePath(IWorkspace& workspace);
+
     /**
      * @brief Get the build path for a package
      * This is the folder where the package is configured and built to.
@@ -83,7 +85,8 @@ namespace pkg {
     std::string evaluate(const std::string& text, IWorkspace& workspace);
     std::string evaluate(const std::string& text, IWorkspace& workspace, IPackage& package);
 
-    void setupPackageEnvironment(IWorkspace& workspace, IPackage& package);
+    void setupWorkspaceLayout(IWorkspace& workspace);
+    void setupPackageBuildLayout(IWorkspace& workspace, IPackage& package);
 
     class IPkgTool {
     public:

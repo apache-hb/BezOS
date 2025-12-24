@@ -1,9 +1,11 @@
-project('tools', 'cpp',
-    default_options : [
-        'cpp_std=gnu++26',
-        'default_library=static',
-        'force_fallback_for=protoc,grpc_cpp_plugin,absl_base',
-    ]
+project(
+  'tools',
+  'cpp',
+  default_options: [
+    'cpp_std=gnu++26',
+    'default_library=static',
+    'force_fallback_for=protoc,grpc_cpp_plugin,absl_base',
+  ],
 )
 
 cpp = meson.get_compiler('cpp')
@@ -26,37 +28,52 @@ subdir('libpkgtool')
 subdir('pkgtool')
 
 configure_file(
-    input: 'resources/pkgtoold.service.in',
-    output: 'pkgtoold.service',
-    configuration: {
-        'MESON_INSTALL_PREFIX': get_option('prefix'),
-    },
-    install: true,
-    install_dir: get_option('prefix') / 'lib/systemd/system',
+  input: 'resources/pkgtoold.service.in',
+  output: 'pkgtoold.service',
+  configuration: {
+    'MESON_INSTALL_PREFIX': get_option('prefix'),
+  },
+  install: true,
+  install_dir: get_option('prefix') / 'lib/systemd/system',
 )
 
 configure_file(
-    input: 'resources/pkgtoold.json.in',
-    output: 'pkgtoold.json',
-    configuration: {
-        'REPO': meson.project_source_root() / '..',
-    },
-    install: true,
-    install_dir: get_option('prefix') / 'etc',
+  input: 'resources/pkgtoold.json.in',
+  output: 'pkgtoold.json',
+  configuration: {
+    'REPO': meson.project_source_root() / '..',
+  },
+  install: true,
+  install_dir: get_option('prefix') / 'etc',
 )
 
 meson.add_install_script('resources/systemd-pkgtoold-install.sh')
 
 src = [
-    'package/main.cpp',
+  'package/main.cpp',
 ]
 
-executable('package.elf', src,
-    install : true,
-    dependencies : [libxml2, openssl, curl, argo, argparse, subprocess, libarchive, sqlitecpp, indicators, glob]
+executable(
+  'package.elf',
+  src,
+  install: true,
+  dependencies: [
+    libxml2,
+    openssl,
+    curl,
+    argo,
+    argparse,
+    subprocess,
+    libarchive,
+    sqlitecpp,
+    indicators,
+    glob,
+  ],
 )
 
-executable('ktest.elf', 'ktest/main.cpp',
-    install : true,
-    dependencies : [argparse, subprocess]
+executable(
+  'ktest.elf',
+  'ktest/main.cpp',
+  install: true,
+  dependencies: [argparse, subprocess],
 )

@@ -5,6 +5,9 @@
 
 #include "xml.hpp"
 
+#include <quill/Frontend.h>
+#include <quill/LogMacros.h>
+
 using pkg::IWorkspace;
 
 namespace fs = std::filesystem;
@@ -12,6 +15,11 @@ namespace fs = std::filesystem;
 namespace {
 
 class WorkspaceImpl final : public IWorkspace {
+    static inline auto logger() {
+        static auto it = quill::Frontend::create_or_get_logger("WorkspaceImpl", quill::Frontend::get_logger("root"));
+        return it;
+    }
+
     fs::path mRoot;
     std::map<std::string, std::shared_ptr<pkg::IPackage>> mPackages;
 public:
@@ -61,7 +69,7 @@ public:
 
 }
 
-std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& workspace, const std::string& name) {
+std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& workspace, const std::string& packageName) {
     std::vector<std::shared_ptr<IPackage>> result;
     std::set<std::string> visited;
 
@@ -82,10 +90,12 @@ std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& w
             self(dep);
         }
 
-        result.push_back(package);
+        if (package->name() != packageName) {
+            result.push_back(package);
+        }
     };
 
-    visit(name);
+    visit(packageName);
 
     return result;
 }

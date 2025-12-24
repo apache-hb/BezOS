@@ -1,22 +1,28 @@
 #include "pkgtool/pkgtool.hpp"
 #include "pkgtoold/api.hpp"
 
-#include <print>
+#include <quill/Frontend.h>
+#include <quill/LogMacros.h>
 
 namespace fs = std::filesystem;
 
 namespace {
 class PkgToolImpl final : public pkg::IPkgTool {
+    static inline auto logger() {
+        static auto it = quill::Frontend::create_or_get_logger("PkgToolImpl", quill::Frontend::get_logger("root"));
+        return it;
+    }
+
     std::shared_ptr<pkg::IWorkspace> mWorkspace;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
 
-    void createOverlayEnvironment(pkg::IPackage& package) {
+    void createOverlayEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
+        LOG_TRACE_L1(logger(), "Creating overlay environment for package '{}'", package.name());
+
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
         auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
         auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
         auto workdir = internaldir / "work";
-
-        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package.name());
 
         pkg::CreateOverlayCommand overlayCommand;
         overlayCommand.overlayPath = sysroot.string();
@@ -34,12 +40,12 @@ class PkgToolImpl final : public pkg::IPkgTool {
         mOverlayClient->createOverlay(overlayCommand);
     }
 
-    void createSymlinkEnvironment(pkg::IPackage& package) {
+    void createSymlinkEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
+        LOG_TRACE_L1(logger(), "Creating symlink environment for package '{}'", package.name());
+
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
         auto installdir = fs::absolute(pkg::packageInstallPath(*mWorkspace, package));
         auto internaldir = fs::absolute(pkg::packagePrivatePath(*mWorkspace, package));
-
-        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package.name());
 
         for (const auto& dependency : dependencies) {
             auto path = pkg::packageInstallPath(*mWorkspace, *dependency);
@@ -76,13 +82,19 @@ public:
             throw std::runtime_error("Package not found: " + name);
         }
 
-        pkg::setupPackageEnvironment(*mWorkspace, *package);
+        pkg::setupPackageBuildLayout(*mWorkspace, *package);
+
+        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package->name());
+        if (dependencies.empty()) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no dependencies, skipping environment creation", name);
+            return;
+        }
 
         if (mOverlayClient->isOverlaySupported()) {
-            createOverlayEnvironment(*package);
+            createOverlayEnvironment(*package, dependencies);
         } else {
-            std::println("[WARN] OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
-            createSymlinkEnvironment(*package);
+            LOG_WARNING_LIMIT(std::chrono::days(1), logger(), "OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
+            createSymlinkEnvironment(*package, dependencies);
         }
     }
 };

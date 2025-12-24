@@ -133,4 +133,13 @@ public:
 
         return XmlDocument { document };
     }
+
+    static XmlDocument of(const std::string& content) {
+        xmlDocPtr document = xmlReadMemory(content.c_str(), static_cast<int>(content.size()), "document.xml", nullptr, 0);
+        if (document == nullptr) {
+            throw std::runtime_error("Failed to parse XML content");
+        }
+
+        return XmlDocument { document };
+    }
 };

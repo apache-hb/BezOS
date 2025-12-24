@@ -1,9 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <print>
 #include <sstream>
 
 #include "pkgtool/state.hpp"
+
+#include <quill/Backend.h>
+#include <quill/Frontend.h>
+#include <quill/LogMacros.h>
+#include <quill/sinks/ConsoleSink.h>
 
 namespace fs = std::filesystem;
 
@@ -20,21 +24,35 @@ std::string joinStrings(const std::vector<std::string>& strings, const std::stri
 }
 }
 
+quill::Logger *gLogger;
+
 class WorkspaceStateTest : public testing::Test {
 protected:
     std::shared_ptr<pkg::IWorkspaceState> mState;
 public:
+    static void SetUpTestSuite() {
+        quill::Backend::start();
+
+        quill::ConsoleSinkConfig config;
+        config.set_stream("stderr");
+        auto console = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("root", config);
+        quill::PatternFormatterOptions pattern{"%(time) [%(thread_id)] %(short_source_location:<12) %(log_level:<6) %(message)", "%Y-%m-%dT%H:%M:%S.%QmsZ", quill::Timezone::GmtTime};
+        gLogger = quill::Frontend::create_or_get_logger("root", std::move(console), pattern);
+        gLogger->set_log_level(quill::LogLevel::TraceL1);
+    }
+
+    static void TearDownTestSuite() {
+        gLogger->flush_log();
+        quill::Backend::stop();
+    }
+
     void SetUp() override {
         auto unitTest = testing::UnitTest::GetInstance();
         auto info = unitTest->current_test_info();
-        if (info == nullptr) {
-            FAIL() << "Failed to get current test info";
-        }
-
         auto tmp = fs::temp_directory_path() / (std::format("{}_{}.db", info->test_suite_name(), info->name()));
-        std::println("Creating workspace state at {}", tmp.string());
+        LOG_INFO(gLogger, "Creating workspace state at {}", tmp.string());
         if (fs::exists(tmp)) {
-            std::println("Removing existing temporary database at {}", tmp.string());
+            LOG_INFO(gLogger, "Removing existing temporary database at {}", tmp.string());
             fs::remove(tmp);
         }
 

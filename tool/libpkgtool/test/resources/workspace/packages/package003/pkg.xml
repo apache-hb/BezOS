@@ -1,0 +1,5 @@
+<package name="package003" version="1.x">
+    <build with="meson" />
+
+    <dependency name="package002" />
+</package>

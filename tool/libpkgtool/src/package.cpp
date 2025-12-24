@@ -4,6 +4,9 @@
 
 #include <vector>
 
+#include <quill/Logger.h>
+#include <quill/Frontend.h>
+
 using pkg::IPackage;
 
 namespace fs = std::filesystem;
@@ -37,6 +40,11 @@ public:
 };
 
 class PackageImpl final : public IPackage {
+    static inline auto logger() {
+        static auto it = quill::Frontend::create_or_get_logger("PackageImpl", quill::Frontend::get_logger("root"));
+        return it;
+    }
+
     fs::path mFolder;
 
     std::vector<PackageName> mDependencies;
@@ -103,6 +111,14 @@ public:
             }
         }
 
+        if (mConfigureTool == nullptr) {
+            if (mBuildTool != nullptr) {
+                mConfigureTool = mBuildTool;
+            } else if (mInstallTool != nullptr) {
+                mConfigureTool = mInstallTool;
+            }
+        }
+
         if (mBuildTool == nullptr) {
             mBuildTool = mConfigureTool;
         }
@@ -166,6 +182,10 @@ void replaceAll(std::string& str, std::string_view from, std::string_view to) {
 }
 }
 
+std::filesystem::path pkg::workspaceCachePath(IWorkspace& workspace) {
+    return baseBuildPath(workspace) / "packagecache";
+}
+
 std::filesystem::path pkg::packageBuildPath(IWorkspace& workspace, IPackage& package) {
     return baseBuildPath(workspace) / package.name() / "target/build";
 }
@@ -197,7 +217,11 @@ std::string pkg::evaluate(const std::string& text, IWorkspace& workspace, IPacka
     return result;
 }
 
-void pkg::setupPackageEnvironment(IWorkspace& workspace, IPackage& package) {
+void pkg::setupWorkspaceLayout(IWorkspace& workspace) {
+    fs::create_directories(baseBuildPath(workspace));
+}
+
+void pkg::setupPackageBuildLayout(IWorkspace& workspace, IPackage& package) {
     auto sysroot = pkg::packageSysrootPath(workspace, package);
     auto installdir = pkg::packageInstallPath(workspace, package);
     auto internaldir = pkg::packagePrivatePath(workspace, package);
