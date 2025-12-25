@@ -1,8 +1,9 @@
 src = files(
+  'src/download.cpp',
   'src/package.cpp',
   'src/pkgtool.cpp',
+  'src/proc_mounts.cpp',
   'src/state.cpp',
-  'src/download.cpp',
   'src/tools/autotools.cpp',
   'src/tools/basic.cpp',
   'src/tools/cmake.cpp',
@@ -10,7 +11,6 @@ src = files(
   'src/tools/meson.cpp',
   'src/tools/shell.cpp',
   'src/workspace.cpp',
-  'src/proc_mounts.cpp',
 )
 
 inc = include_directories('include')
@@ -19,7 +19,15 @@ libpkgtool = library(
   'pkgtool',
   src,
   include_directories: inc,
-  dependencies: [libxml2, pkgtoold_api_dep, subprocess, sqlitecpp, quill, curl, openssl],
+  dependencies: [
+    libxml2,
+    pkgtoold_api_dep,
+    subprocess,
+    sqlitecpp,
+    quill,
+    curl,
+    openssl,
+  ],
   install: true,
 )
 
@@ -58,7 +66,7 @@ foreach name, kwargs : testcases
     name,
     test_exe,
     env: {
-        'RESOURCEDIR': meson.current_source_dir() / 'test' / 'resources',
+      'RESOURCEDIR': meson.current_source_dir() / 'test' / 'resources',
     },
     suite: 'libpkgtool',
     protocol: 'gtest',
