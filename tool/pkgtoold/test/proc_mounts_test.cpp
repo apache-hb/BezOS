@@ -1,4 +1,4 @@
-#include "pkgtool/proc_mounts.hpp"
+#include "pkgtoold/proc_mounts.hpp"
 
 #include <gtest/gtest.h>
 
@@ -43,7 +43,7 @@ overlay /home/elliothb/github/bezos/build/env/image/target/sysroot overlay rw,re
 /dev/sdc /var/lib/docker ext4 rw,relatime,discard,errors=remount-ro,data=ordered 0 0
 tmpfs /run/user/1000 tmpfs rw,nosuid,nodev,relatime,size=19766860k,nr_inodes=4941715,mode=700,uid=1000,gid=1000 0 0
 tmpfs /mnt/wslg/run/user/1000 tmpfs rw,nosuid,nodev,relatime,size=19766860k,nr_inodes=4941715,mode=700,uid=1000,gid=1000 0 0
-overlay /home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/sysroot overlay rw,relatime,lowerdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package001/target/install,upperdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/install,workdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/internal/work,uuid=on 0 0
+overlay /home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/sysroot overlay rw,relatime,lowerdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package001/target/install:/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package003/target/install,upperdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/install,workdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/internal/work,uuid=on 0 0
 )";
 
 TEST_F(ProcMountsTest, ParseProcMounts) {
@@ -69,7 +69,7 @@ TEST_F(ProcMountsTest, ParseProcMounts) {
 
     ASSERT_NE(overlay, entries.end());
     ASSERT_EQ(overlay->fstype, "overlay");
-    ASSERT_EQ(overlay->options, "rw,relatime,lowerdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package001/target/install,upperdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/install,workdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/internal/work,uuid=on");
+    ASSERT_EQ(overlay->options, "rw,relatime,lowerdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package001/target/install:/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package003/target/install,upperdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/install,workdir=/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/internal/work,uuid=on");
 }
 
 TEST_F(ProcMountsTest, OfCurrentMachine) {
@@ -85,4 +85,28 @@ TEST_F(ProcMountsTest, OfCurrentMachine) {
         ASSERT_FALSE(entry.fstype.empty()) << "Entry " << i << " with empty fstype found";
         ASSERT_FALSE(entry.options.empty()) << "Entry " << i << " with empty options found";
     }
+}
+
+TEST_F(ProcMountsTest, ParseOverlayEntries) {
+    std::istringstream is{kWslExample};
+    pkg::ProcMounts mounts{is};
+
+    auto overlays = mounts.overlayEntries();
+    ASSERT_EQ(overlays.size(), 5);
+
+    const auto& firstOverlay = overlays[0];
+    ASSERT_EQ(firstOverlay.overlay, "/usr/lib/wsl/lib");
+    ASSERT_EQ(firstOverlay.upper, "/gpu_lib/rw/upper");
+    ASSERT_EQ(firstOverlay.work, "/gpu_lib/rw/work");
+    ASSERT_EQ(firstOverlay.lowers.size(), 2);
+    ASSERT_EQ(firstOverlay.lowers[0], "/gpu_lib_packaged");
+    ASSERT_EQ(firstOverlay.lowers[1], "/gpu_lib_inbox");
+
+    const auto& last = overlays.back();
+    ASSERT_EQ(last.overlay, "/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/sysroot");
+    ASSERT_EQ(last.upper, "/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/install");
+    ASSERT_EQ(last.work, "/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package002/target/internal/work");
+    ASSERT_EQ(last.lowers.size(), 2);
+    ASSERT_EQ(last.lowers[0], "/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package001/target/install");
+    ASSERT_EQ(last.lowers[1], "/home/elliothb/github/bezos/build/tool/test_environments/WorkspaceTest_BuildDependantPackage/workspace/build/env/package003/target/install");
 }

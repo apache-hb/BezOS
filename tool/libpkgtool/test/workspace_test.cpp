@@ -1,6 +1,6 @@
 #include "pkgtool/pkgtool.hpp"
 #include "pkgtool/state.hpp"
-#include "pkgtool/proc_mounts.hpp"
+#include "pkgtoold/proc_mounts.hpp"
 
 #include "pkgtoold/api.hpp"
 

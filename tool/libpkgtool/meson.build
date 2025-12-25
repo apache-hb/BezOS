@@ -2,7 +2,6 @@ src = files(
   'src/download.cpp',
   'src/package.cpp',
   'src/pkgtool.cpp',
-  'src/proc_mounts.cpp',
   'src/state.cpp',
   'src/tools/autotools.cpp',
   'src/tools/basic.cpp',
@@ -44,9 +43,6 @@ testcases = {
   'workspace_test': {
     'sources': files('test/workspace_test.cpp'),
     'dependencies': [pkgtoold_api_dep],
-  },
-  'proc_mounts_test': {
-    'sources': files('test/proc_mounts_test.cpp'),
   },
 }
 

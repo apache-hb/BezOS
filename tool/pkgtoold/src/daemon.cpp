@@ -306,6 +306,61 @@ public:
     }
 };
 
+std::optional<pkg::OverlayMountEntry> findOverlayMount(const std::string& overlay) {
+    auto mounts = pkg::ProcMounts::ofCurrentMachine();
+    auto overlays = mounts.overlayEntries();
+    for (const auto& entry : overlays) {
+        if (entry.overlay == overlay) {
+            return entry;
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool areLowerDirsEqual(
+    const std::vector<std::string>& dirs1,
+    const std::vector<std::string>& dirs2
+) {
+    if (dirs1.size() != dirs2.size()) {
+        return false;
+    }
+
+    auto copy1 = auto{dirs1};
+    auto copy2 = auto{dirs2};
+
+    std::sort(copy1.begin(), copy1.end());
+    std::sort(copy2.begin(), copy2.end());
+
+    return std::equal(copy1.begin(), copy1.end(), copy2.begin());
+}
+
+bool isOverlayEqual(const Overlay& overlay, const pkg::OverlayMountEntry& entry) {
+    if (overlay.getOverlayPath() != entry.overlay) {
+        return false;
+    }
+
+    if (overlay.getUpperDir() != entry.upper) {
+        return false;
+    }
+
+    if (overlay.getWorkDir() != entry.work) {
+        return false;
+    }
+
+    if (overlay.getLowerDirs().size() != entry.lowers.size()) {
+        return false;
+    }
+
+    auto lowers1 = overlay.getLowerDirs();
+    auto lowers2 = entry.lowers;
+
+    std::sort(lowers1.begin(), lowers1.end());
+    std::sort(lowers2.begin(), lowers2.end());
+
+    return std::equal(lowers1.begin(), lowers1.end(), lowers2.begin());
+}
+
 class FsOverlayServiceImpl final : public FsOverlayService::Service {
     OverlayStorage *mStorage;
     OverlayManager *mManager;
@@ -321,6 +376,14 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
         }
 
         auto value = overlay.value();
+
+        auto existing = findOverlayMount(value.getOverlayPath());
+        if (existing.has_value() && areLowerDirsEqual(existing->lowers, value.getLowerDirs())) {
+            quill::info(gLogger, "Overlay fs at {} is already mounted.", value.getOverlayPath());
+            response->set_status(0);
+            response->set_detail("Overlay already mounted");
+            return grpc::Status::OK;
+        }
 
         mStorage->removeOverlay(value.getOverlayPath());
 
@@ -468,7 +531,24 @@ int main(int argc, const char **argv) try {
     OverlayStorage storage{installed ? STORAGE_PATH : "overlays.db"};
     OverlayManager manager;
 
+    auto existing = pkg::ProcMounts::ofCurrentMachine().overlayEntries();
+
+    auto overlayAlreadyMounted = [&](const Overlay& overlay) {
+        return std::any_of(
+            existing.begin(),
+            existing.end(),
+            [&overlay](const pkg::OverlayMountEntry& entry) {
+                return isOverlayEqual(overlay, entry);
+            }
+        );
+    };
+
     for (const auto& overlay : storage.getOverlays()) {
+        if (overlayAlreadyMounted(overlay)) {
+            quill::info(gLogger, "Overlay fs at {} is already mounted, skipping hydration.", overlay.getOverlayPath());
+            continue;
+        }
+
         quill::info(gLogger, "Hydrating overlay fs at {} from storage.", overlay.getOverlayPath());
         auto err = manager.createOverlay(overlay);
         if (!err.isSuccess()) {

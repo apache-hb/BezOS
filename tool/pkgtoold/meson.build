@@ -30,7 +30,7 @@ generated = custom_target(
 
 grpc_inc = include_directories('.')
 
-src = files('src/pkgtoold.cpp')
+src = files('src/pkgtoold.cpp', 'src/proc_mounts.cpp')
 
 liboverlayd = library(
   'overlayd',
@@ -80,3 +80,32 @@ pkgtoold = executable(
   ],
   install: true,
 )
+
+testcases = {
+  'proc_mounts_test': {
+    'sources': files('test/proc_mounts_test.cpp'),
+  },
+}
+
+foreach name, kwargs : testcases
+  # Meson doesn't have a dictionary merge operator, so we have to do this manually
+  kwargs += {
+    'dependencies': kwargs.get('dependencies', []) + [pkgtoold_api_dep, gtest_main],
+  }
+
+  test_exe = executable(
+    name,
+    kwargs: kwargs,
+    include_directories: inc,
+  )
+
+  test(
+    name,
+    test_exe,
+    env: {
+      'RESOURCEDIR': meson.current_source_dir() / 'test' / 'resources',
+    },
+    suite: 'libpkgtoold',
+    protocol: 'gtest',
+  )
+endforeach

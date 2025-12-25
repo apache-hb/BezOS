@@ -11,6 +11,13 @@ namespace pkg {
         std::string options;
     };
 
+    struct OverlayMountEntry {
+        std::string overlay;
+        std::string upper;
+        std::string work;
+        std::vector<std::string> lowers;
+    };
+
     class ProcMounts {
         std::vector<MountEntry> mEntries;
     public:
@@ -21,5 +28,7 @@ namespace pkg {
         std::vector<MountEntry> entries() const {
             return mEntries;
         }
+
+        std::vector<OverlayMountEntry> overlayEntries() const;
     };
 }
