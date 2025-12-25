@@ -10,6 +10,7 @@ src = files(
   'src/tools/meson.cpp',
   'src/tools/shell.cpp',
   'src/workspace.cpp',
+  'src/proc_mounts.cpp',
 )
 
 inc = include_directories('include')
@@ -34,15 +35,23 @@ testcases = {
   },
   'workspace_test': {
     'sources': files('test/workspace_test.cpp'),
+    'dependencies': [pkgtoold_api_dep],
+  },
+  'proc_mounts_test': {
+    'sources': files('test/proc_mounts_test.cpp'),
   },
 }
 
 foreach name, kwargs : testcases
+  # Meson doesn't have a dictionary merge operator, so we have to do this manually
+  kwargs += {
+    'dependencies': kwargs.get('dependencies', []) + [pkgtool_dep, gtest_main],
+  }
+
   test_exe = executable(
     name,
     kwargs: kwargs,
     include_directories: inc,
-    dependencies: [pkgtool_dep, gtest_main],
   )
 
   test(

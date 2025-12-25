@@ -1,4 +1,7 @@
+#include "pkgtool/build.hpp"
 #include "pkgtool/pkgtool.hpp"
+#include "pkgtool/state.hpp"
+
 #include "pkgtoold/api.hpp"
 
 #include <quill/Frontend.h>
@@ -14,6 +17,7 @@ class PkgToolImpl final : public pkg::IPkgTool {
     }
 
     std::shared_ptr<pkg::IWorkspace> mWorkspace;
+    std::shared_ptr<pkg::IWorkspaceState> mState;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
 
     void createOverlayEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
@@ -63,8 +67,9 @@ class PkgToolImpl final : public pkg::IPkgTool {
         }
     }
 public:
-    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace)
+    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IWorkspaceState> state)
         : mWorkspace(workspace)
+        , mState(state)
         , mOverlayClient(pkg::IFsOverlayClient::create())
     { }
 
@@ -72,8 +77,79 @@ public:
         return mWorkspace;
     }
 
+    void fetchPackage(const std::string& name) override {
+
+    }
+
+    void configurePackage(const std::string& name, const std::vector<std::string>& options) override {
+        createPackageEnvironment(name);
+
+        auto package = mWorkspace->package(name);
+
+        auto tool = package->configureTool();
+        if (tool == nullptr) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no configure tool, skipping", name);
+            return;
+        }
+
+        LOG_TRACE_L1(logger(), "Configuring package '{}' using tool '{}'", name, tool->name());
+        tool->configure().throwIfFailed();
+    }
+
     void buildPackage(const std::string& name, const std::vector<std::string>& options) override {
         createPackageEnvironment(name);
+    }
+
+    void installPackage(const std::string& name, const std::vector<std::string>& options) override {
+
+    }
+
+    void fetchPackageIfNeeded(const std::string& name) override {
+        auto state = mState->getPackageState(name);
+        if (state >= pkg::PackageState::eFetched) {
+            LOG_TRACE_L1(logger(), "Package '{}' is already fetched, skipping", name);
+            return;
+        }
+
+        fetchPackage(name);
+
+        mState->setPackageState(name, pkg::PackageState::eFetched, false);
+    }
+
+    void configurePackageIfNeeded(const std::string& name) override {
+        auto state = mState->getPackageState(name);
+        if (state >= pkg::PackageState::eConfigured) {
+            LOG_TRACE_L1(logger(), "Package '{}' is already configured, skipping", name);
+            return;
+        }
+
+        configurePackage(name, {});
+
+        mState->setPackageState(name, pkg::PackageState::eConfigured, false);
+    }
+
+    void buildPackageIfNeeded(const std::string& name) override {
+        auto state = mState->getPackageState(name);
+        if (state >= pkg::PackageState::eBuilt) {
+            LOG_TRACE_L1(logger(), "Package '{}' is already built, skipping", name);
+            return;
+        }
+
+        buildPackage(name, {});
+
+        mState->setPackageState(name, pkg::PackageState::eBuilt, false);
+    }
+
+    void installPackageIfNeeded(const std::string& name) override {
+        auto state = mState->getPackageState(name);
+        if (state >= pkg::PackageState::eInstalled) {
+            LOG_TRACE_L1(logger(), "Package '{}' is already installed, skipping", name);
+            return;
+        }
+
+        installPackage(name, {});
+
+        mState->setPackageState(name, pkg::PackageState::eInstalled, false);
     }
 
     void createPackageEnvironment(const std::string& name) override {
@@ -100,6 +176,6 @@ public:
 };
 }
 
-std::shared_ptr<pkg::IPkgTool> pkg::IPkgTool::create(std::shared_ptr<IWorkspace> workspace) {
-    return std::make_shared<PkgToolImpl>(workspace);
+std::shared_ptr<pkg::IPkgTool> pkg::IPkgTool::create(std::shared_ptr<IWorkspace> workspace, std::shared_ptr<IWorkspaceState> state) {
+    return std::make_shared<PkgToolImpl>(workspace, state);
 }

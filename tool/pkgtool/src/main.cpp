@@ -1,6 +1,7 @@
 #include "pkgtool/pkgtool.hpp"
 
 #include "defer.hpp"
+#include "pkgtool/state.hpp"
 
 #include <argparse/argparse.hpp>
 #include <libxml/parser.h>
@@ -10,6 +11,7 @@
 #include <quill/Frontend.h>
 #include <quill/sinks/ConsoleSink.h>
 #include <quill/LogMacros.h>
+#include <quill/std/FilesystemPath.h>
 
 namespace fs = std::filesystem;
 
@@ -150,7 +152,9 @@ int run(int argc, const char** argv) try {
         LOG_INFO(gLogger, " - {}", package->name());
     }
 
-    auto pkgtool = pkg::IPkgTool::create(workspace);
+    auto state = pkg::IWorkspaceState::ofSqlite(configPath.parent_path() / "build/workspace.db");
+
+    auto pkgtool = pkg::IPkgTool::create(workspace, state);
     pkgtool->createPackageEnvironment("image");
 
     return 0;

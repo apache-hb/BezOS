@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdexcept>
 #include <string>
 
 namespace pkg {
@@ -12,6 +13,12 @@ namespace pkg {
 
         int getExitCode() const {
             return mResult;
+        }
+
+        void throwIfFailed() const {
+            if (mResult != 0) {
+                throw std::runtime_error("Command failed with exit code " + std::to_string(mResult));
+            }
         }
     };
 

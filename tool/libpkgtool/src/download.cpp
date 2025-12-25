@@ -115,13 +115,13 @@ public:
             args.push_back(info.branch);
         }
 
-        auto result = pkg::execute(args);
+        auto result = pkg::execute(logger(), args);
         if (result != 0) {
             throw std::runtime_error("Failed to clone " + info.url);
         }
 
         if (!info.commit.empty()) {
-            auto result = pkg::execute({ "git", "checkout", info.commit }, subprocess::cwd{dir});
+            auto result = pkg::execute(logger(), { "git", "checkout", info.commit }, subprocess::cwd{dir});
             if (result != 0) {
                 throw std::runtime_error("Failed to checkout commit " + info.commit);
             }
@@ -134,4 +134,19 @@ public:
 
 std::shared_ptr<pkg::IDownloadClient> pkg::IDownloadClient::create(const std::filesystem::path& cache) {
     return std::make_shared<DownloadClientImpl>(cache);
+}
+
+void pkg::applyPatch(const std::filesystem::path& target, const std::filesystem::path& patch) {
+    static auto logger = quill::Frontend::create_or_get_logger("ApplyPatch", quill::Frontend::get_logger("root"));
+
+    std::vector<std::string> args = {
+        "patch", "-p1", "-i", patch.string()
+    };
+
+    auto cwd = target.string();
+
+    auto result = pkg::execute(logger, args, subprocess::cwd{cwd});
+    if (result != 0) {
+        throw std::runtime_error(std::format("Failed to apply patch {} to {}", patch.string(), target.string()));
+    }
 }

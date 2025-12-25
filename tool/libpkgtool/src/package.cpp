@@ -54,6 +54,9 @@ class PackageImpl final : public IPackage {
     std::shared_ptr<pkg::ITool> mConfigureTool;
     std::shared_ptr<pkg::ITool> mBuildTool;
     std::shared_ptr<pkg::ITool> mInstallTool;
+    std::shared_ptr<pkg::ITool> mTestTool;
+
+    std::vector<pkg::DownloadInfo> mSources;
 
     std::string mName;
     std::string mVersion;
@@ -82,7 +85,39 @@ public:
                 continue;
             }
 
-            if (name == "dependency") {
+            if (name == "download") {
+                auto file = child.expect("file");
+                auto url = child.expect("url");
+                auto sha256 = child.property("sha256").value_or("");
+                auto format = child.property("archive").value_or("");
+                auto git = child.property("git").value_or("");
+                auto branch = child.property("branch").value_or("");
+                auto commit = child.property("commit").value_or("");
+                bool trimRootFolder = child.property("trim-root-folder").value_or("false") == "true";
+
+                std::vector<fs::path> patches;
+                for (auto patchNode : child.children()) {
+                    if (patchNode.name() != "patch") {
+                        continue;
+                    }
+
+                    auto patchPath = patchNode.expect("file");
+                    patches.push_back(mFolder / patchPath);
+                }
+
+                pkg::DownloadInfo info {
+                    .url = url,
+                    .name = file,
+                    .sha256Hash = sha256,
+                    .format = format,
+                    .trimRootFolder = trimRootFolder,
+                    .git = git,
+                    .branch = branch,
+                    .commit = commit,
+                    .patches = patches,
+                };
+                mSources.push_back(info);
+            } else if (name == "dependency") {
                 mDependencies.emplace_back(PackageName::ofXmlNode(child));
             } else if (name == "build-dependency") {
                 mBuildDependencies.emplace_back(PackageName::ofXmlNode(child));
@@ -136,12 +171,28 @@ public:
         return mName;
     }
 
+    std::shared_ptr<pkg::ITool> configureTool() const override {
+        return mConfigureTool;
+    }
+
     std::shared_ptr<pkg::ITool> buildTool() const override {
         return mBuildTool;
     }
 
+    std::shared_ptr<pkg::ITool> installTool() const override {
+        return mInstallTool;
+    }
+
+    std::shared_ptr<pkg::ITool> testTool() const override {
+        return mTestTool;
+    }
+
     std::filesystem::path path() const override {
         return mFolder;
+    }
+
+    std::vector<pkg::DownloadInfo> sources() const override {
+        return std::vector<pkg::DownloadInfo>{};
     }
 
     std::vector<std::string> buildDependencies() const override {

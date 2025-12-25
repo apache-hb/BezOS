@@ -185,6 +185,10 @@ class OverlayStorage final {
         SELECT 1 FROM overlays WHERE overlay_path = ?;
     )sql";
 
+    static constexpr char kGetOverlay[] = R"sql(
+        SELECT id, upper_dir, work_dir FROM overlays WHERE overlay_path = ?;
+    )sql";
+
     static constexpr char kQueryOverlays[] = R"sql(
         SELECT id, overlay_path, upper_dir, work_dir FROM overlays;
     )sql";
@@ -206,7 +210,7 @@ public:
     }
 
     void removeOverlay(const std::string& path) {
-        sqlite::Statement query(mStorage, kDeleteOverlay);
+        sqlite::Statement query{mStorage, kDeleteOverlay};
         query.bind(1, path);
         query.exec();
     }
@@ -214,7 +218,7 @@ public:
     void addOverlay(const Overlay& overlay) {
         mStorage.exec("BEGIN TRANSACTION;");
 
-        sqlite::Statement insertOverlay(mStorage, kInsertOverlay);
+        sqlite::Statement insertOverlay{mStorage, kInsertOverlay};
         insertOverlay.bind(1, overlay.getOverlayPath());
         insertOverlay.bind(2, overlay.getUpperDir());
         insertOverlay.bind(3, overlay.getWorkDir());
@@ -222,7 +226,7 @@ public:
 
         int overlayId = mStorage.getLastInsertRowid();
 
-        sqlite::Statement insertLowerDir(mStorage, kInsertLowerDir);
+        sqlite::Statement insertLowerDir{mStorage, kInsertLowerDir};
         for (const auto& lowerDir : overlay.getLowerDirs()) {
             insertLowerDir.bind(1, overlayId);
             insertLowerDir.bind(2, lowerDir);
@@ -234,22 +238,55 @@ public:
     }
 
     bool overlayExists(const std::string& overlayPath) {
-        sqlite::Statement query(mStorage, kOverlayExists);
+        sqlite::Statement query{mStorage, kOverlayExists};
         query.bind(1, overlayPath);
         return query.executeStep();
+    }
+
+    std::optional<Overlay> getOverlay(const std::string& overlayPath) {
+        sqlite::Statement queryOverlays{mStorage, kGetOverlay};
+        queryOverlays.bind(1, overlayPath);
+
+        if (!queryOverlays.executeStep()) {
+            quill::info(gLogger, "No overlay fs found at {} in storage.", overlayPath);
+            return std::nullopt;
+        }
+
+        int overlayId = queryOverlays.getColumn(0).getInt();
+        auto upperDir = queryOverlays.getColumn(1).getString();
+        auto workDir = queryOverlays.getColumn(2).getString();
+
+        quill::info(gLogger, "Found overlay fs at {} in storage.", overlayPath);
+
+        sqlite::Statement queryLowerDirs{mStorage, kQueryLowerDirs};
+        queryLowerDirs.bind(1, overlayId);
+        std::vector<std::string> lowerDirs;
+        while (queryLowerDirs.executeStep()) {
+            lowerDirs.emplace_back(queryLowerDirs.getColumn(0).getString());
+        }
+
+        quill::info(gLogger, "Overlay fs at {} has {} lower dirs.", overlayPath, lowerDirs.size());
+
+        auto entry = Overlay::create(overlayPath, upperDir, workDir, lowerDirs);
+        if (!entry.has_value()) {
+            quill::warning(gLogger, "Invalid overlay entry in storage for path {}: {}", overlayPath, entry.error().message);
+            return std::nullopt;
+        }
+
+        return entry.value();
     }
 
     std::vector<Overlay> getOverlays() {
         std::vector<Overlay> overlays;
 
-        sqlite::Statement queryOverlays(mStorage, kQueryOverlays);
+        sqlite::Statement queryOverlays{mStorage, kQueryOverlays};
         while (queryOverlays.executeStep()) {
             int overlayId = queryOverlays.getColumn(0).getInt();
             auto overlayPath = queryOverlays.getColumn(1).getString();
             auto upperDir = queryOverlays.getColumn(2).getString();
             auto workDir = queryOverlays.getColumn(3).getString();
 
-            sqlite::Statement queryLowerDirs(mStorage, kQueryLowerDirs);
+            sqlite::Statement queryLowerDirs{mStorage, kQueryLowerDirs};
             queryLowerDirs.bind(1, overlayId);
             std::vector<std::string> lowerDirs;
             while (queryLowerDirs.executeStep()) {
@@ -313,22 +350,54 @@ class FsOverlayServiceImpl final : public FsOverlayService::Service {
         return grpc::Status::OK;
     }
 
-    grpc::Status DestroyOverlay(grpc::ServerContext* context, const DestroyOverlayRequest* request, DestroyOverlayResponse* response) override {
+    grpc::Status destroyOverlayImpl(grpc::ServerContext* context, const DestroyOverlayRequest* request, DestroyOverlayResponse* response) {
         std::string overlayPath = request->overlay_path();
         quill::info(gLogger, "Destroying overlay fs at {}", overlayPath);
 
-        auto status = mManager->destroyOverlay(overlayPath);
+        auto overlay = mStorage->getOverlay(overlayPath);
+        if (!overlay.has_value()) {
+            quill::warning(gLogger, "No overlay fs found at {} in storage.", overlayPath);
+            response->set_status(ENOENT);
+            response->set_detail("Overlay not found in storage");
+            return grpc::Status::OK;
+        } else {
+            quill::info(gLogger, "Found overlay fs at {} in storage.", overlay->getOverlayPath());
+        }
+
+        auto status = mManager->destroyOverlay(overlay->getOverlayPath());
         response->set_status(status.code);
         response->set_detail(status.message);
+
+        quill::info(gLogger, "Overlay fs at {} unmount operation completed with status: {} - {}", overlayPath, status.code, status.message);
 
         if (status.isSuccess()) {
             mStorage->removeOverlay(overlayPath);
             quill::info(gLogger, "Overlay fs at {} destroyed successfully.", overlayPath);
+
+            try {
+                // The workdir is owned by the root uid so we need to remove it, since the client
+                // won't have permission to do so.
+                fs::remove_all(overlay->getWorkDir());
+            } catch (const std::exception& ex) {
+                quill::warning(gLogger, "Failed to remove workdir at {}: {}", overlay->getWorkDir(), ex.what());
+            }
+
         } else {
             quill::warning(gLogger, "Failed to destroy overlay fs at {}: {}", overlayPath, status.message);
         }
 
         return grpc::Status::OK;
+    }
+
+    grpc::Status DestroyOverlay(grpc::ServerContext* context, const DestroyOverlayRequest* request, DestroyOverlayResponse* response) override {
+        try {
+            return destroyOverlayImpl(context, request, response);
+        } catch (const std::exception& ex) {
+            quill::error(gLogger, "Fatal error in DestroyOverlay: {}", ex.what());
+            response->set_status(EFAULT);
+            response->set_detail(ex.what());
+            return grpc::Status::OK;
+        }
     }
 
 public:

@@ -6,10 +6,15 @@
 
 #include "basic.hpp"
 
-#include <subprocess.hpp>
+#include <quill/Frontend.h>
 
 namespace {
 class MesonBuildTool final : public pkg::BasicBuildTool {
+    static inline auto logger() {
+        static auto it = quill::Frontend::create_or_get_logger("ShellBuildTool", quill::Frontend::get_logger("root"));
+        return it;
+    }
+
     std::filesystem::path mCrossFile;
     std::filesystem::path mNativeFile;
 
@@ -26,7 +31,7 @@ class MesonBuildTool final : public pkg::BasicBuildTool {
         cmd.insert(cmd.end(), args.begin(), args.end());
 
         auto source = mSourcePath.string();
-        int result = pkg::execute(cmd, subprocess::environment{environment()}, subprocess::cwd{source});
+        int result = pkg::execute(logger(), cmd, subprocess::environment{environment()}, subprocess::cwd{source});
 
         return pkg::ExecuteResult{result};
     }

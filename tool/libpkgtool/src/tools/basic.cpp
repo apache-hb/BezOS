@@ -23,7 +23,7 @@ pkg::BasicBuildTool::BasicBuildTool(XmlNode node) {
                 }
                 mEnvironment.emplace(key, value);
             }
-        } else if (child.name() == "option") {
+        } else if (child.name() == "options") {
             for (const auto& [key, value] : child.properties()) {
                 if (mOptions.contains(key)) {
                     std::println("Warning {} Duplicate option {}", locationToString(child), key);
@@ -46,7 +46,7 @@ std::shared_ptr<pkg::ITool> pkg::getTool(XmlNode node, IWorkspace& workspace, IP
     } else if (name == "autotools") {
         return detail::getAutoToolsBuildTool(node);
     } else if (name == "shell") {
-        return detail::getShellBuildTool(node);
+        return detail::getShellBuildTool(node, workspace, package);
     }
 
     throw std::runtime_error(std::format("ERROR {}: Unknown build tool '{}'", locationToString(node), name));

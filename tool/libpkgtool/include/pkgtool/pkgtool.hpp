@@ -1,11 +1,13 @@
 #pragma once
 
+#include "pkgtool/download.hpp"
 #include <filesystem>
 #include <memory>
 #include <vector>
 #include <map>
 
 namespace pkg {
+    class IWorkspaceState;
     class IWorkspace;
     class IPackage;
     class ITool;
@@ -32,9 +34,14 @@ namespace pkg {
 
         virtual std::string name() const = 0;
 
+        virtual std::shared_ptr<ITool> configureTool() const = 0;
         virtual std::shared_ptr<ITool> buildTool() const = 0;
+        virtual std::shared_ptr<ITool> installTool() const = 0;
+        virtual std::shared_ptr<ITool> testTool() const = 0;
 
         virtual std::filesystem::path path() const = 0;
+
+        virtual std::vector<DownloadInfo> sources() const = 0;
 
         virtual std::vector<std::string> buildDependencies() const = 0;
         virtual std::vector<std::string> testDependencies() const = 0;
@@ -92,11 +99,19 @@ namespace pkg {
     public:
         virtual ~IPkgTool() = default;
 
-        static std::shared_ptr<IPkgTool> create(std::shared_ptr<IWorkspace> workspace);
+        static std::shared_ptr<IPkgTool> create(std::shared_ptr<IWorkspace> workspace, std::shared_ptr<IWorkspaceState> state);
 
         virtual std::shared_ptr<IWorkspace> workspace() const = 0;
 
+        virtual void fetchPackage(const std::string& name) = 0;
+        virtual void configurePackage(const std::string& name, const std::vector<std::string>& options) = 0;
         virtual void buildPackage(const std::string& name, const std::vector<std::string>& options) = 0;
+        virtual void installPackage(const std::string& name, const std::vector<std::string>& options) = 0;
+
+        virtual void fetchPackageIfNeeded(const std::string& name) = 0;
+        virtual void configurePackageIfNeeded(const std::string& name) = 0;
+        virtual void buildPackageIfNeeded(const std::string& name) = 0;
+        virtual void installPackageIfNeeded(const std::string& name) = 0;
 
         virtual void createPackageEnvironment(const std::string& name) = 0;
     };

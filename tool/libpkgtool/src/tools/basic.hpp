@@ -27,7 +27,7 @@ std::shared_ptr<ITool> getMesonBuildTool(XmlNode node, IWorkspace& workspace, IP
 std::shared_ptr<ITool> getCMakeBuildTool(XmlNode node);
 std::shared_ptr<ITool> getMakeBuildTool(XmlNode node);
 std::shared_ptr<ITool> getAutoToolsBuildTool(XmlNode node);
-std::shared_ptr<ITool> getShellBuildTool(XmlNode node);
+std::shared_ptr<ITool> getShellBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
 }
 
 std::shared_ptr<ITool> getTool(XmlNode node, IWorkspace& workspace, IPackage& package);
