@@ -20,6 +20,10 @@ namespace sm {
         return (value + multiple - 1) / multiple * multiple;
     }
 
+    static_assert(roundup<size_t>(1, 4) == 4);
+    static_assert(roundup<size_t>(4, 4) == 4);
+    static_assert(roundup<size_t>(5, 4) == 8);
+
     template<std::integral T>
     constexpr T rounddown(T value, T multiple) {
         [[assume(multiple > 0)]];

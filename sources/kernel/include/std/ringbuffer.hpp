@@ -2,6 +2,7 @@
 
 #include "panic.hpp"
 #include "std/std.hpp"
+#include "util/util.hpp"
 
 #include <cstdio>
 #include <cstddef>
@@ -14,6 +15,29 @@
 #include "std/atomic_bitset.hpp"
 
 namespace sm {
+    namespace detail {
+        using size_type = uint32_t;
+        using BitsetWord = std::atomic<uint64_t>;
+        using ElementIndex = std::atomic<size_type>;
+
+        template<typename T>
+        static constexpr size_t underlyingStorageElementCount(size_type capacity) noexcept [[clang::nonblocking, clang::reentrant]] {
+            size_t size = sizeof(T) * (capacity + 1);
+
+            size = sm::roundup(size, alignof(BitsetWord));
+            size += sizeof(BitsetWord) * detail::requiredBitsetSize(capacity);
+
+            size = sm::roundup(size, alignof(ElementIndex));
+            size += sizeof(ElementIndex) * capacity;
+            size = sm::roundup(size, sizeof(T));
+            return (size / sizeof(T));
+        }
+
+        static_assert(underlyingStorageElementCount<uint8_t>(1) == (2 + 6 + 8 + sizeof(size_type)));
+        static_assert(underlyingStorageElementCount<uint64_t>(1) == (2 + 1 + 1));
+        static_assert(underlyingStorageElementCount<uint32_t>(1) == 5);
+    }
+
     /**
      * @brief A fixed size, multi-producer, single-consumer reentrant atomic ringbuffer.
      *
@@ -37,18 +61,18 @@ namespace sm {
         using allocator_type = Allocator;
 
     public:
-        using BitSetAllocator = std::allocator_traits<Allocator>::template rebind_alloc<std::atomic<uint64_t>>;
-        using ElementAllocator = std::allocator_traits<Allocator>::template rebind_alloc<std::atomic<size_type>>;
+        struct alignas(alignof(T)) Storage {
+            std::byte data[sizeof(T)];
+        };
 
-        static constexpr size_type kNotFound = (std::numeric_limits<size_type>::max)();
+        using BitsetWord = detail::BitsetWord;
+        using ElementIndex = detail::ElementIndex;
 
-        [[no_unique_address]] Allocator mAllocator{};
+        using StorageAllocator = std::allocator_traits<Allocator>::template rebind_alloc<Storage>;
 
-        // The storage for the ring buffer, only the range of [normalize(mHead), normalize(mTail)) is valid initialized, all other slots are uninitialized.
-        T* mStorage{};
+        [[no_unique_address]] StorageAllocator mAllocator{};
 
-        std::atomic<uint64_t> *mUsedBits{};
-        std::atomic<size_type> *mElements{};
+        std::byte *mStorageRaw{};
 
         // The capacity of the ring buffer + 1.
         size_type mCapacity{};
@@ -58,15 +82,50 @@ namespace sm {
         std::atomic<size_type> mHead{};
         std::atomic<size_type> mTail{};
 
+        static constexpr size_t storageOffsetForStorage() noexcept [[clang::nonblocking, clang::reentrant]] {
+            return 0;
+        }
+
+        static constexpr size_t storageOffsetForBitset(size_type capacity) noexcept [[clang::nonblocking, clang::reentrant]] {
+            size_t offset = sizeof(T) * (capacity + 1);
+            offset = sm::roundup(offset, alignof(BitsetWord));
+            return offset;
+        }
+
+        static constexpr size_t storageOffsetForElements(size_type capacity) noexcept [[clang::nonblocking, clang::reentrant]] {
+            size_t offset = storageOffsetForBitset(capacity);
+            offset += sizeof(BitsetWord) * detail::requiredBitsetSize(capacity);
+            offset = sm::roundup(offset, alignof(ElementIndex));
+            return offset;
+        }
+
+        T *getStorageAddress() noexcept [[clang::nonblocking, clang::reentrant]] {
+            return reinterpret_cast<T*>(mStorageRaw + storageOffsetForStorage());
+        }
+
+        std::atomic<uint64_t> *getBitsetAddress() noexcept [[clang::nonblocking, clang::reentrant]] {
+            return reinterpret_cast<std::atomic<uint64_t>*>(mStorageRaw + storageOffsetForBitset(capacity()));
+        }
+
+        std::atomic<size_type> *getElementAddress() noexcept [[clang::nonblocking, clang::reentrant]] {
+            return reinterpret_cast<std::atomic<size_type>*>(mStorageRaw + storageOffsetForElements(capacity()));
+        }
+
+        T &getElementAt(size_type index) noexcept [[clang::nonblocking, clang::reentrant]] {
+            T *storage = getStorageAddress();
+            return storage[index];
+        }
+
         void clear() noexcept {
-            if (mStorage) {
+            if (auto storage = getStorageAddress()) {
                 //
                 // Destroy the remaining elements in the buffer
                 //
                 constexpr size_t kBitsPerElement = std::numeric_limits<uint64_t>::digits;
 
+                auto bitset = getBitsetAddress();
                 for (size_t i = 0; i < (capacity() / kBitsPerElement); i++) {
-                    uint64_t word = mUsedBits[i].load();
+                    uint64_t word = bitset[i].load();
                     for (size_t bit = 0; bit < kBitsPerElement; bit++) {
                         size_t index = i * kBitsPerElement + bit;
                         if (index >= capacity()) {
@@ -74,20 +133,14 @@ namespace sm {
                         }
 
                         if (word & (uint64_t{1} << bit)) {
-                            std::destroy_at(&mStorage[index]);
+                            std::destroy_at(&storage[index]);
                         }
                     }
                 }
 
-                mAllocator.deallocate(mStorage, mCapacity);
+                mAllocator.deallocate(reinterpret_cast<Storage*>(mStorageRaw), detail::underlyingStorageElementCount<T>(capacity()));
 
-                BitSetAllocator bitsetAllocator{mAllocator};
-                bitsetAllocator.deallocate(mUsedBits, detail::requiredBitsetSize(capacity()));
-
-                ElementAllocator elementAllocator{mAllocator};
-                elementAllocator.deallocate(mElements, capacity());
-
-                mStorage = nullptr;
+                mStorageRaw = nullptr;
                 mCapacity = 0;
             }
         }
@@ -97,14 +150,12 @@ namespace sm {
         }
 
         size_t allocateElement() noexcept [[clang::nonblocking, clang::reentrant]] {
-            return sm::detail::atomicScanAndSet(mUsedBits, capacity());
+            return sm::detail::atomicScanAndSet(getBitsetAddress(), capacity());
         }
 
-        constexpr AtomicRingQueue(T* storage, std::atomic<uint64_t>* bitset, std::atomic<size_type>* elements, size_type capacity, Allocator allocator) noexcept
+        constexpr AtomicRingQueue(std::byte *storage, size_type capacity, Allocator allocator) noexcept
             : mAllocator(std::move(allocator))
-            , mStorage(storage)
-            , mUsedBits(bitset)
-            , mElements(elements)
+            , mStorageRaw(storage)
             , mCapacity(capacity + 1)
             , mCount(0)
             , mHead(0)
@@ -125,14 +176,12 @@ namespace sm {
         */
         constexpr AtomicRingQueue(AtomicRingQueue&& other) noexcept
             : mAllocator(std::move(other.mAllocator))
-            , mStorage(other.mStorage)
-            , mUsedBits(other.mUsedBits)
-            , mElements(other.mElements)
+            , mStorageRaw(other.mStorageRaw)
             , mCapacity(other.mCapacity)
             , mCount(other.mCount.load())
             , mHead(other.mHead.load())
             , mTail(other.mTail.load()) {
-            other.mStorage = nullptr;
+            other.mStorageRaw = nullptr;
             other.mCapacity = 0;
         }
 
@@ -149,16 +198,14 @@ namespace sm {
                 clear();
 
                 mAllocator = std::move(other.mAllocator);
-                mStorage = other.mStorage;
-                mUsedBits = other.mUsedBits;
-                mElements = other.mElements;
+                mStorageRaw = other.mStorageRaw;
                 mCapacity = other.mCapacity;
                 mCount.store(other.mCount.load());
                 mCount.store(other.mCount.load());
                 mHead.store(other.mHead.load());
                 mTail.store(other.mTail.load());
 
-                other.mStorage = nullptr;
+                other.mStorageRaw = nullptr;
                 other.mCapacity = 0;
             }
             return *this;
@@ -194,14 +241,15 @@ namespace sm {
             auto count = mCount.fetch_add(1);
             if (count >= capacity()) {
                 mCount.fetch_sub(1);
-                sm::detail::atomicClearBit(mUsedBits, index);
+                sm::detail::atomicClearBit(getBitsetAddress(), index);
                 return false;
             }
 
-            std::construct_at(&mStorage[index], std::move(value));
+            std::construct_at(&getElementAt(index), std::move(value));
 
             auto head = mHead.fetch_add(1);
-            auto prev = mElements[normalize(head)].exchange(index);
+            auto elements = getElementAddress();
+            auto prev = elements[normalize(head)].exchange(index);
             KM_CHECK(prev == std::numeric_limits<size_type>::max(), "Multiple consumers detected!");
 
             return true;
@@ -219,7 +267,8 @@ namespace sm {
         */
         [[nodiscard]]
         bool tryPop(T& value) noexcept [[clang::nonblocking, clang::reentrant]] {
-            auto index = mElements[normalize(mTail.load())].exchange(std::numeric_limits<size_type>::max());
+            auto elements = getElementAddress();
+            auto index = elements[normalize(mTail.load())].exchange(std::numeric_limits<size_type>::max());
             if (index == std::numeric_limits<size_type>::max()) {
                 return false;
             }
@@ -227,10 +276,11 @@ namespace sm {
             //
             // Move the value out of storage before we mark the slot as free.
             //
-            value = std::move(mStorage[index]);
-            std::destroy_at(&mStorage[index]);
+            T& underlying = getElementAt(index);
+            value = std::move(underlying);
+            std::destroy_at(&underlying);
 
-            sm::detail::atomicClearBit(mUsedBits, index);
+            sm::detail::atomicClearBit(getBitsetAddress(), index);
 
             mTail.fetch_add(1);
             auto count = mCount.fetch_sub(1);
@@ -270,43 +320,6 @@ namespace sm {
         }
 
         /**
-        * @brief Provided for compatibility with standard containers.
-        *
-        * This is equivalent to `getAllocator()`.
-        *
-        * @return The allocator.
-        */
-        allocator_type get_allocator() const noexcept {
-            return mAllocator;
-        }
-
-        /**
-        * @brief Reset the queue to an empty state with the given storage and capacity.
-        *
-        * @pre @p capacity must be greater than zero.
-        * @pre @p storage must point to valid storage of at least @p capacity + 1 elements.
-        *
-        * The storage must be at least capacity + 1 elements in size. The queue takes ownership of the storage.
-        *
-        * @note This function is not thread-safe and should only be called when no other threads are accessing the queue.
-        *
-        * @param storage The storage to use for the queue.
-        * @param capacity The maximum number of elements the queue can hold.
-        * @param allocator The allocator used to allocate and deallocate the storage.
-        */
-        void reset(T* storage, size_type capacity, Allocator allocator) noexcept {
-            clear();
-
-            mAllocator = std::move(allocator);
-            mStorage = storage;
-            mCapacity = capacity + 1;
-            mCount.store(capacity);
-            mCount.store(0);
-            mHead.store(0);
-            mTail.store(0);
-        }
-
-        /**
          * @brief Create a new queue with the given capacity.
          *
          * @param capacity The maximum number of elements the queue can hold.
@@ -324,32 +337,38 @@ namespace sm {
                 return OsStatusInvalidInput;
             }
 
-            T* storage = allocator.allocate(capacity + 1);
+            StorageAllocator storageAllocator{allocator};
+            size_t elementCount = detail::underlyingStorageElementCount<T>(capacity);
+            auto storage = storageAllocator.allocate(elementCount);
             if (storage == nullptr) {
                 return OsStatusOutOfMemory;
             }
 
-            BitSetAllocator bitsetAllocator{allocator};
-            std::atomic<uint64_t> *bitset = bitsetAllocator.allocate(detail::requiredBitsetSize(capacity));
-            if (bitset == nullptr) {
-                allocator.deallocate(storage, capacity + 1);
-                return OsStatusOutOfMemory;
-            }
+            BitsetWord *bitset = reinterpret_cast<BitsetWord*>(
+                reinterpret_cast<std::byte*>(storage) + storageOffsetForBitset(capacity)
+            );
 
-            ElementAllocator elementAllocator{allocator};
-            std::atomic<size_type> *elements = elementAllocator.allocate(capacity);
-            if (elements == nullptr) {
-                allocator.deallocate(storage, capacity + 1);
-                bitsetAllocator.deallocate(bitset, detail::requiredBitsetSize(capacity));
-                return OsStatusOutOfMemory;
-            }
+            ElementIndex *elements = reinterpret_cast<ElementIndex*>(
+                reinterpret_cast<std::byte*>(storage) + storageOffsetForElements(capacity)
+            );
 
             std::uninitialized_fill_n(bitset, detail::requiredBitsetSize(capacity), 0);
             std::uninitialized_fill_n(elements, capacity, std::numeric_limits<size_type>::max());
 
-            *queue = AtomicRingQueue{storage, bitset, elements, capacity, std::move(allocator)};
+            *queue = AtomicRingQueue{reinterpret_cast<std::byte*>(storage), capacity, std::move(allocator)};
 
             return OsStatusSuccess;
+        }
+
+        /**
+        * @brief Provided for compatibility with standard containers.
+        *
+        * This is equivalent to `getAllocator()`.
+        *
+        * @return The allocator.
+        */
+        allocator_type get_allocator() const noexcept {
+            return mAllocator;
         }
     };
 }
