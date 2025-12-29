@@ -103,7 +103,8 @@ TEST_F(LoggerTest, QueueSubmit) {
         .logger = &logger,
         .message = "Submit message",
     };
-    queue.recordMessage(message);
+    OsStatus status = queue.recordMessage(message);
+    ASSERT_EQ(status, OsStatusSuccess);
     EXPECT_EQ(queue.flush(), 1);
     EXPECT_EQ(appender.mMessages.size(), 1);
     AssertMessage(0, km::LogLevel::eDebug, "Submit message");

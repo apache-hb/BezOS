@@ -19,6 +19,7 @@ namespace km {
         stdx::SpinLock mLock;
         AppenderList mAppenders;
         MessageQueue mQueue;
+        bool mIsSetup{false};
 
         /// @brief Number of messages that were dropped due to the queue being full.
         std::atomic<uint32_t> mDroppedCount{0};

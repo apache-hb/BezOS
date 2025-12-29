@@ -119,9 +119,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
         struct sigaction sigusr1 {
             .sa_sigaction = [](int, siginfo_t *, void *ctx) {
                 std::string value = "From signal handler";
-                if (state.queue->tryPop(value)) {
-                    state.queue->tryPush(value);
-                }
+                state.queue->tryPush(value);
 
                 state.signals += 1;
 
@@ -143,9 +141,7 @@ TEST_F(RingBufferSoakTest, ReentrantSoak) {
 
         while (!state.done.load()) {
             std::string value = "Hello, World!";
-            if (state.queue->tryPop(value)) {
-                state.queue->tryPush(value);
-            }
+            state.queue->tryPush(value);
 
             state.inThread += 1;
         }

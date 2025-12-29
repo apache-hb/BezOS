@@ -42,7 +42,7 @@ OsStatus km::LogQueue::submit(detail::LogMessage message) noexcept [[clang::reen
     CLANG_DIAGNOSTIC_IGNORE("-Wfunction-effects");
 
     if (mLock.try_lock()) {
-        if (mQueue.isSetup()) {
+        if (mIsSetup) {
             writeAllMessages();
         }
 
@@ -66,7 +66,12 @@ OsStatus km::LogQueue::resizeQueue(uint32_t newCapacity) noexcept [[clang::alloc
 }
 
 OsStatus km::LogQueue::create(uint32_t messageQueueCapacity, LogQueue *queue) noexcept [[clang::allocating]] {
-    return MessageQueue::create(messageQueueCapacity, &queue->mQueue);
+    if (OsStatus status = MessageQueue::create(messageQueueCapacity, &queue->mQueue)) {
+        return status;
+    }
+
+    queue->mIsSetup = true;
+    return OsStatusSuccess;
 }
 
 stdx::StringView km::Logger::getName() const noexcept [[clang::reentrant, clang::nonallocating]] {

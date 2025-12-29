@@ -256,6 +256,7 @@ testcases = {
     },
     'ringbuffer': {
         'sources': files('std/ringbuffer.cpp'),
+        'link_with': [ libtest_shim ],
     },
     'static string': {
         'sources': files('std/static_string.cpp'),
@@ -264,7 +265,8 @@ testcases = {
         'sources': files('std/string_view.cpp'),
     },
     'logger': {
-        'sources': files('logger.cpp', '../src/logger/logger.cpp')
+        'sources': files('logger.cpp', '../src/logger/logger.cpp'),
+        'link_with': [ libtest_shim ],
     },
     'memory range': {
         'sources': files('memory/range.cpp'),
@@ -393,7 +395,7 @@ testcases += {
             files('std/soak/ringbuffer_soak.cpp'),
         ],
         'soak': true,
-        'link_with': [ libtlsf_native ],
+        'link_with': [ libtlsf_native, libtest_shim ],
     },
     'rcu shared soak': {
         'sources': [
