@@ -9,6 +9,7 @@ src = files(
   'src/tools/make.cpp',
   'src/tools/meson.cpp',
   'src/tools/shell.cpp',
+  'src/tools/custom.cpp',
   'src/workspace.cpp',
 )
 
@@ -26,6 +27,7 @@ libpkgtool = library(
     quill,
     curl,
     openssl,
+    libarchive,
   ],
   install: true,
 )

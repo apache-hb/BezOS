@@ -79,12 +79,8 @@ public:
         mName = root.expect("name");
         mVersion = root.property("version").value_or("0.0.0");
 
-        for (auto child : root.children()) {
+        for (auto child : root.elements()) {
             auto name = child.name();
-            if (name == "text" || name == "comment") {
-                continue;
-            }
-
             if (name == "download") {
                 auto file = child.expect("file");
                 auto url = child.expect("url");

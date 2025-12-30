@@ -33,11 +33,7 @@ public:
             throw std::runtime_error(std::format("ERROR {}: Invalid root element <{}> in {}, expected <workspace>", locationToString(node), node.name(), mRoot.string()));
         }
 
-        for (const auto& child : node.children()) {
-            if (child.name() == "text" || child.name() == "comment") {
-                continue;
-            }
-
+        for (const auto& child : node.elements()) {
             if (child.name() != "package") {
                 throw std::runtime_error(std::format("ERROR {}: Unexpected element {} in {}, expected <package>", locationToString(node), child.name(), mRoot.string()));
             }

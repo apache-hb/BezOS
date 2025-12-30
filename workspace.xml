@@ -1,4 +1,6 @@
 <workspace>
+    <package path="sources/copy-source" />
+
     <package path="packages/downloads/cmake-source" />
     <package path="packages/cmake-host" />
 

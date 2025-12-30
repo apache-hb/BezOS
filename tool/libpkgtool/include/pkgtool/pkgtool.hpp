@@ -99,7 +99,11 @@ namespace pkg {
     public:
         virtual ~IPkgTool() = default;
 
-        static std::shared_ptr<IPkgTool> create(std::shared_ptr<IWorkspace> workspace, std::shared_ptr<IWorkspaceState> state);
+        static std::shared_ptr<IPkgTool> create(
+            std::shared_ptr<IWorkspace> workspace,
+            std::shared_ptr<IWorkspaceState> state,
+            std::shared_ptr<IDownloadClient> downloadClient
+        );
 
         virtual std::shared_ptr<IWorkspace> workspace() const = 0;
 

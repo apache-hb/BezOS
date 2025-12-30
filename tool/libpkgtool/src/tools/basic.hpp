@@ -38,6 +38,7 @@ std::shared_ptr<ITool> getCMakeBuildTool(XmlNode node, IWorkspace& workspace, IP
 std::shared_ptr<ITool> getMakeBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
 std::shared_ptr<ITool> getAutoToolsBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
 std::shared_ptr<ITool> getShellBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
+std::shared_ptr<ITool> getCustomBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
 }
 
 std::shared_ptr<ITool> getTool(XmlNode node, IWorkspace& workspace, IPackage& package);

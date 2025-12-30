@@ -18,6 +18,7 @@ class PkgToolImpl final : public pkg::IPkgTool {
 
     std::shared_ptr<pkg::IWorkspace> mWorkspace;
     std::shared_ptr<pkg::IWorkspaceState> mState;
+    std::shared_ptr<pkg::IDownloadClient> mDownloadClient;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
 
     void createOverlayEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
@@ -66,10 +67,63 @@ class PkgToolImpl final : public pkg::IPkgTool {
             }
         }
     }
+
+    void fetchPackageImpl(std::shared_ptr<pkg::IPackage> package) {
+        auto sources = package->sources();
+        if (sources.empty()) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no sources, skipping fetch", package->name());
+            return;
+        }
+
+        for (const auto& source : sources) {
+            auto path = mDownloadClient->fetch(source);
+            LOG_TRACE_L1(logger(), "Fetched source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
+            pkg::extractArchive(path, pkg::workspaceCachePath(*mWorkspace) / package->name(), source.format, source.trimRootFolder);
+
+            for (const auto& patch : source.patches) {
+                pkg::applyPatch(pkg::workspaceCachePath(*mWorkspace) / package->name(), patch);
+                LOG_TRACE_L1(logger(), "Applied patch '{}' to package '{}'", patch.string(), package->name());
+            }
+        }
+    }
+
+    void configurePackageImpl(std::shared_ptr<pkg::IPackage> package, const std::vector<std::string>& options) {
+        auto tool = package->configureTool();
+        if (tool == nullptr) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no configure tool, skipping", package->name());
+            return;
+        }
+
+        LOG_TRACE_L1(logger(), "Configuring package '{}' using tool '{}'", package->name(), tool->name());
+        tool->configure().throwIfFailed();
+    }
+
+    void buildPackageImpl(std::shared_ptr<pkg::IPackage> package, const std::vector<std::string>& options) {
+        auto tool = package->buildTool();
+        if (tool == nullptr) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no build tool, skipping", package->name());
+            return;
+        }
+
+        LOG_TRACE_L1(logger(), "Building package '{}' using tool '{}'", package->name(), tool->name());
+        tool->build().throwIfFailed();
+    }
+
+    void installPackageImpl(std::shared_ptr<pkg::IPackage> package, const std::vector<std::string>& options) {
+        auto tool = package->installTool();
+        if (tool == nullptr) {
+            LOG_TRACE_L1(logger(), "Package '{}' has no install tool, skipping", package->name());
+            return;
+        }
+
+        LOG_TRACE_L1(logger(), "Installing package '{}' using tool '{}'", package->name(), tool->name());
+        tool->install().throwIfFailed();
+    }
 public:
-    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IWorkspaceState> state)
+    PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IWorkspaceState> state, std::shared_ptr<pkg::IDownloadClient> downloadClient)
         : mWorkspace(workspace)
         , mState(state)
+        , mDownloadClient(downloadClient)
         , mOverlayClient(pkg::IFsOverlayClient::create())
     { }
 
@@ -78,30 +132,47 @@ public:
     }
 
     void fetchPackage(const std::string& name) override {
+        createPackageEnvironment(name);
 
+        auto package = mWorkspace->package(name);
+        if (!package) {
+            throw std::runtime_error("Package not found: " + name);
+        }
+
+        fetchPackageImpl(package);
     }
 
     void configurePackage(const std::string& name, const std::vector<std::string>& options) override {
         createPackageEnvironment(name);
 
         auto package = mWorkspace->package(name);
-
-        auto tool = package->configureTool();
-        if (tool == nullptr) {
-            LOG_TRACE_L1(logger(), "Package '{}' has no configure tool, skipping", name);
-            return;
+        if (!package) {
+            throw std::runtime_error("Package not found: " + name);
         }
 
-        LOG_TRACE_L1(logger(), "Configuring package '{}' using tool '{}'", name, tool->name());
-        tool->configure().throwIfFailed();
+        configurePackageImpl(package, options);
     }
 
     void buildPackage(const std::string& name, const std::vector<std::string>& options) override {
         createPackageEnvironment(name);
+
+        auto package = mWorkspace->package(name);
+        if (!package) {
+            throw std::runtime_error("Package not found: " + name);
+        }
+
+        buildPackageImpl(package, options);
     }
 
     void installPackage(const std::string& name, const std::vector<std::string>& options) override {
+        createPackageEnvironment(name);
 
+        auto package = mWorkspace->package(name);
+        if (!package) {
+            throw std::runtime_error("Package not found: " + name);
+        }
+
+        installPackageImpl(package, options);
     }
 
     void fetchPackageIfNeeded(const std::string& name) override {
@@ -117,6 +188,8 @@ public:
     }
 
     void configurePackageIfNeeded(const std::string& name) override {
+        fetchPackageIfNeeded(name);
+
         auto state = mState->getPackageState(name);
         if (state >= pkg::PackageState::eConfigured) {
             LOG_TRACE_L1(logger(), "Package '{}' is already configured, skipping", name);
@@ -129,6 +202,8 @@ public:
     }
 
     void buildPackageIfNeeded(const std::string& name) override {
+        configurePackageIfNeeded(name);
+
         auto state = mState->getPackageState(name);
         if (state >= pkg::PackageState::eBuilt) {
             LOG_TRACE_L1(logger(), "Package '{}' is already built, skipping", name);
@@ -141,6 +216,8 @@ public:
     }
 
     void installPackageIfNeeded(const std::string& name) override {
+        buildPackageIfNeeded(name);
+
         auto state = mState->getPackageState(name);
         if (state >= pkg::PackageState::eInstalled) {
             LOG_TRACE_L1(logger(), "Package '{}' is already installed, skipping", name);
@@ -176,6 +253,10 @@ public:
 };
 }
 
-std::shared_ptr<pkg::IPkgTool> pkg::IPkgTool::create(std::shared_ptr<IWorkspace> workspace, std::shared_ptr<IWorkspaceState> state) {
-    return std::make_shared<PkgToolImpl>(workspace, state);
+std::shared_ptr<pkg::IPkgTool> pkg::IPkgTool::create(
+    std::shared_ptr<IWorkspace> workspace,
+    std::shared_ptr<IWorkspaceState> state,
+    std::shared_ptr<IDownloadClient> downloadClient
+) {
+    return std::make_shared<PkgToolImpl>(workspace, state, downloadClient);
 }

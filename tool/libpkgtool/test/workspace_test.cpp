@@ -102,7 +102,9 @@ TEST_F(WorkspaceTest, BuildPackage) {
     auto state = pkg::IWorkspaceState::ofSqlite(mResourceDir / "workspace.db");
     ASSERT_NE(state, nullptr);
 
-    auto pkgtool = pkg::IPkgTool::create(workspace, state);
+    auto downloadClient = pkg::IDownloadClient::create(mResourceDir / "workspace/packagecache");
+
+    auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
 
     pkgtool->configurePackageIfNeeded("package001");
 
@@ -116,7 +118,9 @@ TEST_F(WorkspaceTest, BuildDependantPackage) {
     auto state = pkg::IWorkspaceState::ofSqlite(mResourceDir / "workspace.db");
     ASSERT_NE(state, nullptr);
 
-    auto pkgtool = pkg::IPkgTool::create(workspace, state);
+    auto downloadClient = pkg::IDownloadClient::create(mResourceDir / "workspace/packagecache");
+
+    auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
 
     pkgtool->configurePackageIfNeeded("package001");
     pkgtool->configurePackageIfNeeded("package002");

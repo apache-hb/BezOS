@@ -154,7 +154,9 @@ int run(int argc, const char** argv) try {
 
     auto state = pkg::IWorkspaceState::ofSqlite(configPath.parent_path() / "build/workspace.db");
 
-    auto pkgtool = pkg::IPkgTool::create(workspace, state);
+    auto downloadClient = pkg::IDownloadClient::create(configPath.parent_path() / "build/packagecache");
+
+    auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
     pkgtool->createPackageEnvironment("image");
 
     return 0;

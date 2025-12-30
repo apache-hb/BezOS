@@ -3,5 +3,5 @@
               file="cmake-4.2.1.tar.gz"
               sha256="414aacfac54ba0e78e64a018720b64ed6bfca14b587047b8b3489f407a14a070" />
 
-    <install with="shell" script="copy-source.sh" />
+    <install with="custom" tool="copy-source" />
 </package>

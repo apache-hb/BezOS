@@ -31,4 +31,5 @@ namespace pkg {
     };
 
     void applyPatch(const std::filesystem::path& target, const std::filesystem::path& patch);
+    void extractArchive(const std::filesystem::path& archive, const std::filesystem::path& dst, const std::string& format, bool trimRootFolder);
 }

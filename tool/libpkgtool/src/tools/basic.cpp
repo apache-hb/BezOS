@@ -33,11 +33,12 @@ pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackag
     , mSysrootPath(pkg::packageSysrootPath(workspace, package))
     , mSourcePath(package.path())
 {
-    for (const auto& child : node.children()) {
-        if (child.name() == "text" || child.name() == "comment") {
-            continue;
-        }
+    mEnvironment.emplace("PKGTOOL_PREFIX", mInstallPrefix.string());
+    mEnvironment.emplace("PKGTOOL_SYSROOT", mSysrootPath.string());
+    mEnvironment.emplace("PKGTOOL_BUILDDIR", mBuildPath.string());
+    mEnvironment.emplace("PKGTOOL_SOURCEDIR", mSourcePath.string());
 
+    for (const auto& child : node.elements()) {
         if (child.name() == "env") {
             for (const auto& [key, value] : child.properties()) {
                 if (mEnvironment.contains(key)) {
@@ -69,6 +70,8 @@ std::shared_ptr<pkg::ITool> pkg::getTool(XmlNode node, IWorkspace& workspace, IP
         return detail::getAutoToolsBuildTool(node, workspace, package);
     } else if (name == "shell") {
         return detail::getShellBuildTool(node, workspace, package);
+    } else if (name == "custom") {
+        return detail::getCustomBuildTool(node, workspace, package);
     }
 
     throw std::runtime_error(std::format("ERROR {}: Unknown build tool '{}'", locationToString(node), name));

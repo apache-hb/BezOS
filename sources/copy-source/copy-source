@@ -1,0 +1,3 @@
+#!/bin/sh
+
+rsync -a $PKGTOOL_SOURCEDIR/ $PKGTOOL_PREFIX/

@@ -1,0 +1,3 @@
+<package name="copy-source" version="1.x">
+    <install with="shell" script="install.sh" />
+</package>

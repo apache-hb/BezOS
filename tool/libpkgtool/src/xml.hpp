@@ -28,6 +28,14 @@ public:
         }
     }
 
+    std::generator<XmlNode> elements() const {
+        for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
+            if (child->type == XML_ELEMENT_NODE) {
+                co_yield child;
+            }
+        }
+    }
+
     std::optional<std::string> property(const std::string& name) const {
         xmlChar *value = xmlGetProp(mNode, reinterpret_cast<const xmlChar *>(name.c_str()));
         if (value == nullptr) {

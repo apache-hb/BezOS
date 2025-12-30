@@ -32,10 +32,6 @@ class ShellBuildTool final : public pkg::BasicBuildTool {
         auto source = sourcePath().string();
 
         auto env = environment();
-        env["PKGTOOL_PREFIX"] = installPrefix().string();
-        env["PKGTOOL_SYSROOT"] = sysrootPath().string();
-        env["PKGTOOL_BUILDDIR"] = buildPath().string();
-        env["PKGTOOL_SOURCEDIR"] = source;
 
         int result = pkg::execute(logger(), cmd, subprocess::environment{env}, subprocess::cwd{source});
 

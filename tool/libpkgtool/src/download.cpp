@@ -9,6 +9,12 @@
 
 #include <openssl/sha.h>
 
+#include <archive.h>
+#include <archive_entry.h>
+#include <utime.h>
+
+#include <fstream>
+
 #include "defer.hpp" // must be included last, macro `defer` conflicts with cpp-subprocess
 
 namespace fs = std::filesystem;
@@ -65,6 +71,8 @@ class DownloadClientImpl final : public pkg::IDownloadClient {
         if (ptr == MAP_FAILED) {
             throw std::runtime_error("Failed to map file " + path.string());
         }
+
+        defer { munmap(ptr, size); };
 
         unsigned char buffer[SHA256_DIGEST_LENGTH];
         unsigned char *sha = SHA256((const unsigned char *)ptr, size, buffer);
@@ -130,6 +138,114 @@ public:
         return dst;
     }
 };
+
+void copyArchiveData(struct archive *a, std::ostream& os) {
+    const void *buff;
+    size_t size;
+    int64_t offset;
+
+    while (archive_read_data_block(a, &buff, &size, &offset) == ARCHIVE_OK) {
+        os.write(reinterpret_cast<const char *>(buff), size);
+    }
+}
+
+void copyArchiveEntryContent(struct archive *a, struct archive_entry *entry, std::ofstream& os) {
+    if (archive_entry_size(entry) > 0) {
+        copyArchiveData(a, os);
+    }
+}
+
+static void copyArchiveEntry(struct archive *a, struct archive_entry *entry, const fs::path& dst, const fs::path& entryPath) {
+    fs::path path = entryPath;
+    fs::path file = dst / path;
+
+    std::ofstream os{file, std::ios::binary};
+    if (!os.is_open()) {
+        //
+        // Hacky retry logic in case we get a slightly deformed archive file
+        // that doesn't create parent directories for files.
+        //
+        if (!fs::exists(file.parent_path())) {
+            fs::create_directories(file.parent_path());
+        } else {
+            throw std::runtime_error(std::format("Failed to open file {}", file.string()));
+        }
+
+        std::ofstream os2{file, std::ios::binary};
+        if (!os2.is_open()) {
+            throw std::runtime_error(std::format("Failed to open file {}", file.string()));
+        }
+
+        copyArchiveEntryContent(a, entry, os2);
+    } else {
+        copyArchiveEntryContent(a, entry, os);
+    }
+}
+
+static void extractArchiveImpl(std::string_view name, const fs::path& archive, const fs::path& dst, bool trimRootFolder) {
+    fs::remove_all(dst);
+    fs::create_directories(dst);
+
+    struct archive *a = archive_read_new();
+    archive_read_support_filter_all(a);
+    archive_read_support_format_all(a);
+
+    if (archive_read_open_filename(a, archive.c_str(), 10240) != ARCHIVE_OK) {
+        throw std::runtime_error("Failed to open archive " + archive.string() + " " + (archive_error_string(a) ?: "unknown error"));
+    }
+
+    defer {
+        archive_read_close(a);
+        archive_read_free(a);
+    };
+
+    auto fname = archive.filename().string();
+
+    struct archive_entry *entry;
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        const char *it = archive_entry_pathname(entry);
+        if (it == nullptr) {
+            throw std::runtime_error("Failed to get entry path");
+        }
+        std::string entryPath = it;
+
+        if (trimRootFolder) {
+            entryPath = entryPath.substr(entryPath.find('/') + 1);
+        }
+
+        if (entryPath.empty()) {
+            continue;
+        }
+
+        if (entryPath.ends_with('/')) {
+            fs::create_directories(dst / entryPath);
+            continue;
+        }
+
+        fs::path path = entryPath;
+        fs::path file = dst / path;
+
+        copyArchiveEntry(a, entry, dst, entryPath);
+
+        // preserve mtime
+        auto mtime = archive_entry_mtime(entry);
+        if (mtime > 0) {
+            struct stat times;
+            stat(file.c_str(), &times);
+
+            struct utimbuf utimes;
+            utimes.actime = times.st_atime;
+            utimes.modtime = mtime / 1000000;
+            utime(file.c_str(), &utimes);
+        }
+
+        // preserve permissions
+        auto mode = archive_entry_mode(entry);
+        if (mode > 0) {
+            chmod(file.c_str(), mode);
+        }
+    }
+}
 }
 
 std::shared_ptr<pkg::IDownloadClient> pkg::IDownloadClient::create(const std::filesystem::path& cache) {
@@ -149,4 +265,11 @@ void pkg::applyPatch(const std::filesystem::path& target, const std::filesystem:
     if (result != 0) {
         throw std::runtime_error(std::format("Failed to apply patch {} to {}", patch.string(), target.string()));
     }
+}
+
+void pkg::extractArchive(const std::filesystem::path& archive, const std::filesystem::path& dst, const std::string& format, bool trimRootFolder) {
+    static auto logger = quill::Frontend::create_or_get_logger("ExtractArchive", quill::Frontend::get_logger("root"));
+
+    LOG_INFO(logger, "Extracting archive '{}' to '{}'", archive.string(), dst.string());
+    extractArchiveImpl(archive.filename().string(), archive, dst, trimRootFolder);
 }
