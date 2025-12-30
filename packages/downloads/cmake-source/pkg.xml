@@ -1,0 +1,7 @@
+<package name="cmake-host" version="4.x">
+    <download url="https://github.com/Kitware/CMake/releases/download/v4.2.1/cmake-4.2.1.tar.gz"
+              file="cmake-4.2.1.tar.gz"
+              sha256="414aacfac54ba0e78e64a018720b64ed6bfca14b587047b8b3489f407a14a070" />
+
+    <install with="shell" script="copy-source.sh" />
+</package>

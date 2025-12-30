@@ -6,8 +6,8 @@
 namespace {
 class MakeBuildTool final : public pkg::BasicBuildTool {
 public:
-    MakeBuildTool(XmlNode node)
-        : pkg::BasicBuildTool(node)
+    MakeBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
+        : pkg::BasicBuildTool(node, workspace, package)
     { }
 
     std::string name() const override {
@@ -32,6 +32,6 @@ public:
 };
 }
 
-std::shared_ptr<pkg::ITool> pkg::detail::getMakeBuildTool(XmlNode node) {
-    return std::make_shared<MakeBuildTool>(node);
+std::shared_ptr<pkg::ITool> pkg::detail::getMakeBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package) {
+    return std::make_shared<MakeBuildTool>(node, workspace, package);
 }

@@ -1,5 +1,7 @@
-<package name="cmake-host" version="3.x">
-    <build-dependency name="clang-host" version="22.x" />
+<package name="cmake-host" version="4.x">
+    <configure with="shell" script="bootstrap.sh" />
+    <build with="shell" script="build.sh" />
+    <install with="shell" script="install.sh" />
 
-    <build with="build.sh" />
+    <build-dependency name="cmake-source" version="4.x" />
 </package>

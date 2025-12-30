@@ -11,17 +11,12 @@
 namespace {
 class MesonBuildTool final : public pkg::BasicBuildTool {
     static inline auto logger() {
-        static auto it = quill::Frontend::create_or_get_logger("ShellBuildTool", quill::Frontend::get_logger("root"));
+        static auto it = quill::Frontend::create_or_get_logger("MesonBuildTool", quill::Frontend::get_logger("root"));
         return it;
     }
 
     std::filesystem::path mCrossFile;
     std::filesystem::path mNativeFile;
-
-    std::filesystem::path mBuildPath;
-    std::filesystem::path mInstallPrefix;
-    std::filesystem::path mSysrootPath;
-    std::filesystem::path mSourcePath;
 
     pkg::ExecuteResult runMesonCommand(const std::vector<std::string>& args) {
         std::vector<std::string> cmd = {
@@ -30,7 +25,7 @@ class MesonBuildTool final : public pkg::BasicBuildTool {
 
         cmd.insert(cmd.end(), args.begin(), args.end());
 
-        auto source = mSourcePath.string();
+        auto source = sourcePath().string();
         int result = pkg::execute(logger(), cmd, subprocess::environment{environment()}, subprocess::cwd{source});
 
         return pkg::ExecuteResult{result};
@@ -38,11 +33,7 @@ class MesonBuildTool final : public pkg::BasicBuildTool {
 
 public:
     MesonBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
-        : pkg::BasicBuildTool(node)
-        , mBuildPath(pkg::packageBuildPath(workspace, package))
-        , mInstallPrefix(pkg::packageInstallPath(workspace, package))
-        , mSysrootPath(pkg::packageSysrootPath(workspace, package))
-        , mSourcePath(package.path())
+        : pkg::BasicBuildTool(node, workspace, package)
     { }
 
     std::string name() const override {
@@ -51,8 +42,8 @@ public:
 
     pkg::ExecuteResult configure() override {
         std::vector<std::string> cmd = {
-            "setup", mBuildPath.string(), mSourcePath.string(),
-            "--prefix", mInstallPrefix.string(),
+            "setup", buildPath().string(), sourcePath().string(),
+            "--prefix", installPrefix().string(),
         };
 
         if (!mCrossFile.empty()) {
@@ -74,7 +65,7 @@ public:
 
     pkg::ExecuteResult build() override {
         std::vector<std::string> cmd = {
-            "compile", "-C", mBuildPath.string()
+            "compile", "-C", buildPath().string()
         };
 
         return runMesonCommand(cmd);
@@ -82,7 +73,7 @@ public:
 
     pkg::ExecuteResult install() override {
         std::vector<std::string> cmd = {
-            "install", "-C", mBuildPath.string(), "--skip-subprojects"
+            "install", "-C", buildPath().string(), "--skip-subprojects"
         };
 
         return runMesonCommand(cmd);
@@ -90,7 +81,7 @@ public:
 
     pkg::ExecuteResult test() override {
         std::vector<std::string> cmd = {
-            "test", "-C", mBuildPath.string()
+            "test", "-C", buildPath().string()
         };
 
         return runMesonCommand(cmd);

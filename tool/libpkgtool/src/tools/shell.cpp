@@ -19,11 +19,6 @@ class ShellBuildTool final : public pkg::BasicBuildTool {
         return it;
     }
 
-    fs::path mBuildPath;
-    fs::path mInstallPrefix;
-    fs::path mSysrootPath;
-    fs::path mSourcePath;
-
     fs::path mConfigureScript;
     fs::path mBuildScript;
     fs::path mInstallScript;
@@ -34,12 +29,12 @@ class ShellBuildTool final : public pkg::BasicBuildTool {
             "/bin/sh", script.string()
         };
 
-        auto source = mSourcePath.string();
+        auto source = sourcePath().string();
 
         auto env = environment();
-        env["PKGTOOL_PREFIX"] = mInstallPrefix.string();
-        env["PKGTOOL_SYSROOT"] = mSysrootPath.string();
-        env["PKGTOOL_BUILDDIR"] = mBuildPath.string();
+        env["PKGTOOL_PREFIX"] = installPrefix().string();
+        env["PKGTOOL_SYSROOT"] = sysrootPath().string();
+        env["PKGTOOL_BUILDDIR"] = buildPath().string();
         env["PKGTOOL_SOURCEDIR"] = source;
 
         int result = pkg::execute(logger(), cmd, subprocess::environment{env}, subprocess::cwd{source});
@@ -48,11 +43,7 @@ class ShellBuildTool final : public pkg::BasicBuildTool {
     }
 public:
     ShellBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
-        : pkg::BasicBuildTool(node)
-        , mBuildPath(pkg::packageBuildPath(workspace, package))
-        , mInstallPrefix(pkg::packageInstallPath(workspace, package))
-        , mSysrootPath(pkg::packageSysrootPath(workspace, package))
-        , mSourcePath(package.path())
+        : pkg::BasicBuildTool(node, workspace, package)
         , mConfigureScript(node.name() == "configure" ? node.expect("script") : "")
         , mBuildScript(node.name() == "build" ? node.expect("script") : "")
         , mInstallScript(node.name() == "install" ? node.expect("script") : "")

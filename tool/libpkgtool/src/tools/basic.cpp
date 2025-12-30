@@ -1,4 +1,5 @@
 #include "basic.hpp"
+#include "pkgtool/pkgtool.hpp"
 
 #include <print>
 
@@ -10,7 +11,28 @@ const std::map<std::string, std::string>& pkg::BasicBuildTool::options() const {
     return mOptions;
 }
 
-pkg::BasicBuildTool::BasicBuildTool(XmlNode node) {
+const std::filesystem::path& pkg::BasicBuildTool::buildPath() const {
+    return mBuildPath;
+}
+
+const std::filesystem::path& pkg::BasicBuildTool::installPrefix() const {
+    return mInstallPrefix;
+}
+
+const std::filesystem::path& pkg::BasicBuildTool::sysrootPath() const {
+    return mSysrootPath;
+}
+
+const std::filesystem::path& pkg::BasicBuildTool::sourcePath() const {
+    return mSourcePath;
+}
+
+pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package)
+    : mBuildPath(pkg::packageBuildPath(workspace, package))
+    , mInstallPrefix(pkg::packageInstallPath(workspace, package))
+    , mSysrootPath(pkg::packageSysrootPath(workspace, package))
+    , mSourcePath(package.path())
+{
     for (const auto& child : node.children()) {
         if (child.name() == "text" || child.name() == "comment") {
             continue;
@@ -40,11 +62,11 @@ std::shared_ptr<pkg::ITool> pkg::getTool(XmlNode node, IWorkspace& workspace, IP
     if (name == "meson") {
         return detail::getMesonBuildTool(node, workspace, package);
     } else if (name == "cmake") {
-        return detail::getCMakeBuildTool(node);
+        return detail::getCMakeBuildTool(node, workspace, package);
     } else if (name == "make") {
-        return detail::getMakeBuildTool(node);
+        return detail::getMakeBuildTool(node, workspace, package);
     } else if (name == "autotools") {
-        return detail::getAutoToolsBuildTool(node);
+        return detail::getAutoToolsBuildTool(node, workspace, package);
     } else if (name == "shell") {
         return detail::getShellBuildTool(node, workspace, package);
     }
