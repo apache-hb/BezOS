@@ -12,6 +12,7 @@
 #include <quill/sinks/ConsoleSink.h>
 #include <quill/LogMacros.h>
 #include <quill/std/FilesystemPath.h>
+#include <quill/std/Vector.h>
 
 namespace fs = std::filesystem;
 
@@ -116,7 +117,7 @@ void setupLogger() {
     quill::ConsoleSinkConfig config;
     config.set_stream("stderr");
     auto console = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("root", config);
-    quill::PatternFormatterOptions pattern{"%(time) [%(thread_id)] %(short_source_location:<12) %(log_level:<6) %(message)", "%Y-%m-%dT%H:%M:%S.%QmsZ", quill::Timezone::GmtTime};
+    quill::PatternFormatterOptions pattern{"%(time) [%(thread_id)] %(log_level:<6) %(short_source_location:<12) %(message)", "%Y-%m-%dT%H:%M:%S.%QmsZ", quill::Timezone::GmtTime};
     gLogger = quill::Frontend::create_or_get_logger("root", std::move(console), pattern);
     gLogger->set_log_level(quill::LogLevel::Info);
 }
@@ -141,15 +142,12 @@ int run(int argc, const char** argv) try {
     fs::path configPath = options.config();
 
     auto workspace = pkg::IWorkspace::ofRootPath(configPath);
+    pkg::setupWorkspaceLayout(*workspace);
+
     auto packages = workspace->packages();
     for (const auto& [name, package] : packages) {
-        LOG_INFO(gLogger, "Found package: {} at {}", name, package->path());
+        LOG_TRACE_L2(gLogger, "Found package: {} at {}", name, package->path());
         pkg::setupPackageBuildLayout(*workspace, *package);
-    }
-
-    auto closure = pkg::dependencyClosure(*workspace, "image");
-    for (const auto& package : closure) {
-        LOG_INFO(gLogger, " - {}", package->name());
     }
 
     auto state = pkg::IWorkspaceState::ofSqlite(configPath.parent_path() / "build/workspace.db");
@@ -157,7 +155,84 @@ int run(int argc, const char** argv) try {
     auto downloadClient = pkg::IDownloadClient::create(configPath.parent_path() / "build/packagecache");
 
     auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
-    pkgtool->createPackageEnvironment("image");
+
+    auto fetchList = options.fetchPackages();
+    auto configureList = options.configurePackages();
+    auto buildList = options.buildPackages();
+    auto installList = options.installPackages();
+
+    LOG_INFO(gLogger, "Fetching {}", fetchList);
+    LOG_INFO(gLogger, "Configuring {}", configureList);
+    LOG_INFO(gLogger, "Building {}", buildList);
+    LOG_INFO(gLogger, "Installing {}", installList);
+
+    for (const auto& name : fetchList) {
+        pkgtool->lowerPackageState(name, pkg::PackageState::eUnknown);
+
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
+            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eUnknown);
+        }
+    }
+
+    for (const auto& name : configureList) {
+        pkgtool->lowerPackageState(name, pkg::PackageState::eFetched);
+
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
+            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eFetched);
+        }
+    }
+
+    for (const auto& name : buildList) {
+        pkgtool->lowerPackageState(name, pkg::PackageState::eConfigured);
+
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
+            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eConfigured);
+        }
+    }
+
+    for (const auto& name : installList) {
+        pkgtool->lowerPackageState(name, pkg::PackageState::eBuilt);
+
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
+            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eBuilt);
+        }
+    }
+
+    for (const auto& fetchName : fetchList) {
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, fetchName)) {
+            pkgtool->fetchPackageIfNeeded(depName->name());
+        }
+
+        LOG_INFO(gLogger, "Fetching package '{}'", fetchName);
+        pkgtool->fetchPackageIfNeeded(fetchName);
+    }
+
+    for (const auto& configureName : configureList) {
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, configureName)) {
+            pkgtool->configurePackageIfNeeded(depName->name());
+        }
+
+        LOG_INFO(gLogger, "Configuring package '{}'", configureName);
+        pkgtool->configurePackageIfNeeded(configureName);
+    }
+
+    for (const auto& buildName : buildList) {
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, buildName)) {
+            pkgtool->buildPackageIfNeeded(depName->name());
+        }
+
+        LOG_INFO(gLogger, "Building package '{}'", buildName);
+        pkgtool->buildPackageIfNeeded(buildName);
+    }
+
+    for (const auto& installName : installList) {
+        for (const auto& depName : pkg::buildDependencyClosure(*workspace, installName)) {
+            pkgtool->installPackageIfNeeded(depName->name());
+        }
+
+        LOG_INFO(gLogger, "Installing package '{}'", installName);
+        pkgtool->installPackageIfNeeded(installName);
+    }
 
     return 0;
 } catch (const std::exception& ex) {

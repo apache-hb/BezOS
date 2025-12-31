@@ -21,6 +21,10 @@ namespace pkg {
         eTestDependency = (1 << 2),
     };
 
+    constexpr DependencyScope operator|(DependencyScope a, DependencyScope b) {
+        return static_cast<DependencyScope>(static_cast<int>(a) | static_cast<int>(b));
+    }
+
     constexpr bool testBit(DependencyScope scopes, DependencyScope scope) {
         return (static_cast<int>(scopes) & static_cast<int>(scope)) != 0;
     }
@@ -33,6 +37,8 @@ namespace pkg {
         virtual void setPackageState(const std::string& name, PackageState state, bool recursive) = 0;
 
         virtual void addPackage(const std::string& name) = 0;
+
+        virtual void lowerPackageState(const std::string& name, PackageState state) = 0;
 
         virtual void addDependency(const std::string& package, const std::string& dependency, DependencyScope scope) = 0;
 

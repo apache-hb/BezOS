@@ -1,3 +1,3 @@
 #!/bin/sh
 
-rsync -a $PKGTOOL_SOURCEDIR/ $PKGTOOL_PREFIX/
+rsync --mkpath -a $PKGTOOL_CACHEDIR/ $PKGTOOL_PREFIX/src/cmake

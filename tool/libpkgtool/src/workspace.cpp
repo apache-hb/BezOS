@@ -96,6 +96,45 @@ std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& w
     return result;
 }
 
+std::vector<std::shared_ptr<pkg::IPackage>> pkg::buildDependencyClosure(IWorkspace& workspace, const std::string& packageName) {
+    std::vector<std::shared_ptr<IPackage>> result;
+    std::set<std::string> visited;
+
+    const auto& packages = workspace.packages();
+    auto visit = [&](this auto&& self, const std::string& name) {
+        if (visited.contains(name)) {
+            return;
+        }
+
+        visited.insert(name);
+
+        if (!packages.contains(name)) {
+            throw std::runtime_error("Unknown package: " + name);
+        }
+
+        auto& package = packages.at(name);
+        for (const auto& dep : package->buildDependencies()) {
+            self(dep);
+        }
+
+        for (const auto& dep : package->dependencies()) {
+            self(dep);
+        }
+
+        for (const auto& dep : package->testDependencies()) {
+            self(dep);
+        }
+
+        if (package->name() != packageName) {
+            result.push_back(package);
+        }
+    };
+
+    visit(packageName);
+
+    return result;
+}
+
 std::shared_ptr<IWorkspace> IWorkspace::ofRootPath(const fs::path& root) {
     return std::make_shared<WorkspaceImpl>(root);
 }

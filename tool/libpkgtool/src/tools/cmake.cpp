@@ -15,11 +15,13 @@ class CMakeBuildTool final : public pkg::BasicBuildTool {
         return it;
     }
 
+    std::filesystem::path mCmakeExecutable;
+    std::filesystem::path mCmakeListsFolder;
     std::filesystem::path mToolchainFile;
 
     pkg::ExecuteResult runCMakeCommand(const std::vector<std::string>& args) {
         std::vector<std::string> cmd = {
-            "cmake"
+            mCmakeExecutable.string()
         };
 
         cmd.insert(cmd.end(), args.begin(), args.end());
@@ -33,6 +35,8 @@ class CMakeBuildTool final : public pkg::BasicBuildTool {
 public:
     CMakeBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
         : pkg::BasicBuildTool(node, workspace, package)
+        , mCmakeExecutable(pkg::evaluate(node.property("executable").value_or("cmake"), workspace, package))
+        , mCmakeListsFolder(pkg::evaluate(node.property("src").value_or(sourcePath().string()), workspace, package))
     { }
 
     std::string name() const override {
@@ -40,12 +44,17 @@ public:
     }
 
     pkg::ExecuteResult configure() override {
-       std::vector<std::string> cmd = {
+        auto builddir = buildPath();
+        if (std::filesystem::exists(builddir)) {
+            std::filesystem::remove_all(builddir);
+        }
+
+        std::vector<std::string> cmd = {
             "-B", buildPath().string(),
-            "-S", sourcePath().string(),
+            "-S", mCmakeListsFolder.string(),
             "-DCMAKE_INSTALL_PREFIX=" + installPrefix().string(),
             "-DCMAKE_BUILD_TYPE=MinSizeRel",
-            "-DCMAKE_SYSROOT=" + sysrootPath().string(),
+            // "-DCMAKE_SYSROOT=" + sysrootPath().string(),
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-G", "Ninja"
         };

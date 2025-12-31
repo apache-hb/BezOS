@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pkgtool/download.hpp"
+#include "pkgtool/state.hpp"
 #include <filesystem>
 #include <memory>
 #include <vector>
@@ -25,6 +26,7 @@ namespace pkg {
     };
 
     std::vector<std::shared_ptr<IPackage>> dependencyClosure(IWorkspace& workspace, const std::string& name);
+    std::vector<std::shared_ptr<IPackage>> buildDependencyClosure(IWorkspace& workspace, const std::string& name);
 
     class IPackage {
     public:
@@ -79,6 +81,8 @@ namespace pkg {
      */
     std::filesystem::path packageInstallPath(IWorkspace& workspace, IPackage& package);
 
+    std::filesystem::path packageCachePath(IWorkspace& workspace, IPackage& package);
+
     /**
      * @brief Get the private path for a package
      *
@@ -118,5 +122,7 @@ namespace pkg {
         virtual void installPackageIfNeeded(const std::string& name) = 0;
 
         virtual void createPackageEnvironment(const std::string& name) = 0;
+
+        virtual void lowerPackageState(const std::string& name, PackageState state) = 0;
     };
 }

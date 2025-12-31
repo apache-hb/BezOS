@@ -1,0 +1,247 @@
+diff --git a/clang/include/clang/AST/Type.h b/clang/include/clang/AST/Type.h
+index 1d9743520654..644c8ed81028 100644
+--- a/clang/include/clang/AST/Type.h
++++ b/clang/include/clang/AST/Type.h
+@@ -4727,7 +4727,9 @@ public:
+     NonAllocating,
+     Blocking,
+     Allocating,
+-    Last = Allocating
++    NonReentrant,
++    Reentrant,
++    Last = Reentrant
+   };
+   constexpr static size_t KindCount = static_cast<size_t>(Kind::Last) + 1;
+ 
+@@ -4780,6 +4782,11 @@ public:
+       // Same as NonBlocking, except without FE_ExcludeStaticLocalVars.
+       return FE_InferrableOnCallees | FE_ExcludeThrow | FE_ExcludeCatch |
+              FE_ExcludeObjCMessageSend | FE_ExcludeThreadLocalVars;
++    case Kind::Reentrant:
++      return FE_InferrableOnCallees | FE_ExcludeThrow | FE_ExcludeCatch |
++             FE_ExcludeObjCMessageSend | FE_ExcludeStaticLocalVars |
++             FE_ExcludeThreadLocalVars;
++    case Kind::NonReentrant:
+     case Kind::Blocking:
+     case Kind::Allocating:
+       return 0;
+diff --git a/clang/include/clang/Basic/Attr.td b/clang/include/clang/Basic/Attr.td
+index 65c91ccd75ec..a8ab0fcaf122 100644
+--- a/clang/include/clang/Basic/Attr.td
++++ b/clang/include/clang/Basic/Attr.td
+@@ -1565,6 +1565,18 @@ def CXX11NoReturn : InheritableAttr {
+   let Documentation = [CXX11NoReturnDocs];
+ }
+ 
++def Reentrant : TypeAttr {
++  let Spellings = [Clang<"reentrant">];
++  let Args = [ExprArgument<"Cond", /*optional*/1>];
++  let Documentation = [Undocumented];
++}
++
++def NonReentrant : TypeAttr {
++  let Spellings = [Clang<"nonreentrant">];
++  let Args = [ExprArgument<"Cond", /*optional*/1>];
++  let Documentation = [Undocumented];
++}
++
+ def NonBlocking : TypeAttr {
+   let Spellings = [Clang<"nonblocking">];
+   let Args = [ExprArgument<"Cond", /*optional*/1>];
+diff --git a/clang/lib/AST/Type.cpp b/clang/lib/AST/Type.cpp
+index 8c11ec2e1fe2..c1703c43d8d6 100644
+--- a/clang/lib/AST/Type.cpp
++++ b/clang/lib/AST/Type.cpp
+@@ -5214,6 +5214,10 @@ FunctionEffect::Kind FunctionEffect::oppositeKind() const {
+     return Kind::Allocating;
+   case Kind::Allocating:
+     return Kind::NonAllocating;
++  case Kind::Reentrant:
++    return Kind::NonReentrant;
++  case Kind::NonReentrant:
++    return Kind::Reentrant;
+   }
+   llvm_unreachable("unknown effect kind");
+ }
+@@ -5228,6 +5232,10 @@ StringRef FunctionEffect::name() const {
+     return "blocking";
+   case Kind::Allocating:
+     return "allocating";
++  case Kind::Reentrant:
++    return "reentrant";
++  case Kind::NonReentrant:
++    return "nonreentrant";
+   }
+   llvm_unreachable("unknown effect kind");
+ }
+@@ -5235,6 +5243,13 @@ StringRef FunctionEffect::name() const {
+ std::optional<FunctionEffect> FunctionEffect::effectProhibitingInference(
+     const Decl &Callee, FunctionEffectKindSet CalleeFX) const {
+   switch (kind()) {
++  case Kind::Reentrant:
++    for (FunctionEffect Effect : CalleeFX) {
++      // reentrant cannot call nonreentrant.
++      if (Effect.kind() == Kind::NonReentrant)
++        return Effect;
++    }
++    return std::nullopt;
+   case Kind::NonAllocating:
+   case Kind::NonBlocking: {
+     for (FunctionEffect Effect : CalleeFX) {
+@@ -5250,6 +5265,7 @@ std::optional<FunctionEffect> FunctionEffect::effectProhibitingInference(
+ 
+   case Kind::Allocating:
+   case Kind::Blocking:
++  case Kind::NonReentrant:
+     assert(0 && "effectProhibitingInference with non-inferable effect kind");
+     break;
+   }
+@@ -5259,6 +5275,16 @@ std::optional<FunctionEffect> FunctionEffect::effectProhibitingInference(
+ bool FunctionEffect::shouldDiagnoseFunctionCall(
+     bool Direct, FunctionEffectKindSet CalleeFX) const {
+   switch (kind()) {
++  case Kind::Reentrant: {
++    for (FunctionEffect Effect : CalleeFX) {
++      const Kind EK = Effect.kind();
++      // Does callee have same or stronger constraint?
++      if (EK == Kind::Reentrant) {
++        return false; // no diagnostic
++      }
++    }
++    return true; // warning
++  }
+   case Kind::NonAllocating:
+   case Kind::NonBlocking: {
+     const Kind CallerKind = kind();
+@@ -5272,6 +5298,7 @@ bool FunctionEffect::shouldDiagnoseFunctionCall(
+     }
+     return true; // warning
+   }
++  case Kind::NonReentrant:
+   case Kind::Allocating:
+   case Kind::Blocking:
+     return false;
+diff --git a/clang/lib/AST/TypePrinter.cpp b/clang/lib/AST/TypePrinter.cpp
+index 31695374cb52..05b368f69cb1 100644
+--- a/clang/lib/AST/TypePrinter.cpp
++++ b/clang/lib/AST/TypePrinter.cpp
+@@ -2009,6 +2009,8 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
+   case attr::ArmOut:
+   case attr::ArmInOut:
+   case attr::ArmPreserves:
++  case attr::Reentrant:
++  case attr::NonReentrant:
+   case attr::NonBlocking:
+   case attr::NonAllocating:
+   case attr::Blocking:
+diff --git a/clang/lib/Sema/SemaFunctionEffects.cpp b/clang/lib/Sema/SemaFunctionEffects.cpp
+index 31980abd23fd..97e3dea9f89b 100644
+--- a/clang/lib/Sema/SemaFunctionEffects.cpp
++++ b/clang/lib/Sema/SemaFunctionEffects.cpp
+@@ -1552,6 +1552,11 @@ bool Sema::FunctionEffectDiff::shouldDiagnoseConversion(
+     const FunctionEffectsRef &DstFX) const {
+ 
+   switch (EffectKind) {
++  case FunctionEffect::Kind::Reentrant:
++    // reentrant can't be added (spoofed) during a conversion.
++    if (DiffKind == Kind::Added)
++      return true;
++    return false;
+   case FunctionEffect::Kind::NonAllocating:
+     // nonallocating can't be added (spoofed) during a conversion, unless we
+     // have nonblocking.
+@@ -1577,6 +1582,7 @@ bool Sema::FunctionEffectDiff::shouldDiagnoseConversion(
+       return true;
+     }
+     break;
++  case FunctionEffect::Kind::NonReentrant:
+   case FunctionEffect::Kind::Blocking:
+   case FunctionEffect::Kind::Allocating:
+     return false;
+@@ -1588,6 +1594,7 @@ bool Sema::FunctionEffectDiff::shouldDiagnoseRedeclaration(
+     const FunctionDecl &OldFunction, const FunctionEffectsRef &OldFX,
+     const FunctionDecl &NewFunction, const FunctionEffectsRef &NewFX) const {
+   switch (EffectKind) {
++  case FunctionEffect::Kind::NonReentrant:
+   case FunctionEffect::Kind::NonAllocating:
+   case FunctionEffect::Kind::NonBlocking:
+     // nonblocking/nonallocating can't be removed in a redeclaration.
+@@ -1601,6 +1608,7 @@ bool Sema::FunctionEffectDiff::shouldDiagnoseRedeclaration(
+       return true;
+     }
+     break;
++  case FunctionEffect::Kind::Reentrant:
+   case FunctionEffect::Kind::Blocking:
+   case FunctionEffect::Kind::Allocating:
+     return false;
+@@ -1613,6 +1621,7 @@ Sema::FunctionEffectDiff::shouldDiagnoseMethodOverride(
+     const CXXMethodDecl &OldMethod, const FunctionEffectsRef &OldFX,
+     const CXXMethodDecl &NewMethod, const FunctionEffectsRef &NewFX) const {
+   switch (EffectKind) {
++  case FunctionEffect::Kind::Reentrant:
+   case FunctionEffect::Kind::NonAllocating:
+   case FunctionEffect::Kind::NonBlocking:
+     switch (DiffKind) {
+@@ -1631,6 +1640,7 @@ Sema::FunctionEffectDiff::shouldDiagnoseMethodOverride(
+       return OverrideResult::Warn;
+     }
+     break;
++  case FunctionEffect::Kind::NonReentrant:
+   case FunctionEffect::Kind::Blocking:
+   case FunctionEffect::Kind::Allocating:
+     return OverrideResult::NoAction;
+diff --git a/clang/lib/Sema/SemaType.cpp b/clang/lib/Sema/SemaType.cpp
+index db0177f9750e..86e5553c4447 100644
+--- a/clang/lib/Sema/SemaType.cpp
++++ b/clang/lib/Sema/SemaType.cpp
+@@ -153,6 +153,8 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
+   case ParsedAttr::AT_NonAllocating:                                           \
+   case ParsedAttr::AT_Blocking:                                                \
+   case ParsedAttr::AT_Allocating:                                              \
++  case ParsedAttr::AT_Reentrant:                                               \
++  case ParsedAttr::AT_NonReentrant:                                            \
+   case ParsedAttr::AT_Regparm:                                                 \
+   case ParsedAttr::AT_CmseNSCall:                                              \
+   case ParsedAttr::AT_ArmStreaming:                                            \
+@@ -7676,7 +7678,8 @@ handleNonBlockingNonAllocatingTypeAttr(TypeProcessingState &TPState,
+   Expr *CondExpr = nullptr; // only valid if dependent
+ 
+   if (PAttr.getKind() == ParsedAttr::AT_NonBlocking ||
+-      PAttr.getKind() == ParsedAttr::AT_NonAllocating) {
++      PAttr.getKind() == ParsedAttr::AT_NonAllocating ||
++      PAttr.getKind() == ParsedAttr::AT_Reentrant) {
+     if (!PAttr.checkAtMostNumArgs(S, 1)) {
+       PAttr.setInvalid();
+       return true;
+@@ -7706,12 +7709,19 @@ handleNonBlockingNonAllocatingTypeAttr(TypeProcessingState &TPState,
+     NewMode = FunctionEffectMode::False;
+   }
+ 
+-  const FunctionEffect::Kind FEKind =
++  FunctionEffect::Kind FEKind =
+       (NewMode == FunctionEffectMode::False)
+           ? (IsNonBlocking ? FunctionEffect::Kind::Blocking
+                            : FunctionEffect::Kind::Allocating)
+           : (IsNonBlocking ? FunctionEffect::Kind::NonBlocking
+                            : FunctionEffect::Kind::NonAllocating);
++
++  if (PAttr.getKind() == ParsedAttr::AT_Reentrant) {
++    FEKind = FunctionEffect::Kind::Reentrant;
++  } else if (PAttr.getKind() == ParsedAttr::AT_NonReentrant) {
++    FEKind = FunctionEffect::Kind::NonReentrant;
++  }
++
+   const FunctionEffectWithCondition NewEC{FunctionEffect(FEKind),
+                                           EffectConditionExpr(CondExpr)};
+ 
+@@ -8096,7 +8106,9 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
+   if (attr.getKind() == ParsedAttr::AT_NonBlocking ||
+       attr.getKind() == ParsedAttr::AT_NonAllocating ||
+       attr.getKind() == ParsedAttr::AT_Blocking ||
+-      attr.getKind() == ParsedAttr::AT_Allocating) {
++      attr.getKind() == ParsedAttr::AT_Allocating ||
++      attr.getKind() == ParsedAttr::AT_Reentrant ||
++      attr.getKind() == ParsedAttr::AT_NonReentrant) {
+     return handleNonBlockingNonAllocatingTypeAttr(state, attr, type, unwrapped);
+   }
+ 

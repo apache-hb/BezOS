@@ -1,9 +1,8 @@
 <workspace>
-    <package path="sources/copy-source" />
-
     <package path="packages/downloads/cmake-source" />
-    <package path="packages/cmake-host" />
+    <package path="packages/downloads/llvm-source" />
 
+    <package path="packages/cmake-host" />
     <package path="packages/clang-host" />
 
     <package path="sources/sysapi-headers" />

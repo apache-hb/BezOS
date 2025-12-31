@@ -1,0 +1,39 @@
+diff --git a/clang/bindings/python/clang/cindex.py b/clang/bindings/python/clang/cindex.py
+index 72256222..b83ce92a 100644
+--- a/clang/bindings/python/clang/cindex.py
++++ b/clang/bindings/python/clang/cindex.py
+@@ -2114,6 +2114,25 @@ class Cursor(Structure):
+         conf.lib.clang_visitChildren(self, cursor_visit_callback(visitor), children)
+         return iter(children)
+
++    def get_overridden_cursors(self):
++        """
++        If this cursor is an override method, return an iterator for
++        accessing the cursors that this overrides
++        """
++        cursors = POINTER(Cursor)()
++        num = c_uint()
++        conf.lib.clang_getOverriddenCursors(self, byref(cursors), byref(num))
++
++        updcursors = []
++        for i in xrange(int(num.value)):
++            c = cursors[i]
++            updcursor = Cursor.from_location(self._tu, c.location)
++            updcursors.append(updcursor)
++
++        conf.lib.clang_disposeOverriddenCursors(cursors)
++
++        return updcursors
++
+     def walk_preorder(self):
+         """Depth-first preorder walk over the cursor and its descendants.
+
+@@ -4020,6 +4039,8 @@ functionList: list[LibFunc] = [
+     ),
+     ("clang_visitChildren", [Cursor, cursor_visit_callback, py_object], c_uint),
+     ("clang_visitCXXBaseClasses", [Type, fields_visit_callback, py_object], c_uint),
++    ("clang_getOverriddenCursors", [Cursor, POINTER(POINTER(Cursor)), POINTER(c_uint)], None),
++    ("clang_disposeOverriddenCursors", [POINTER(Cursor)], None),
+     ("clang_Cursor_getNumArguments", [Cursor], c_int),
+     ("clang_Cursor_getArgument", [Cursor, c_uint], Cursor),
+     ("clang_Cursor_getNumTemplateArguments", [Cursor], c_int),

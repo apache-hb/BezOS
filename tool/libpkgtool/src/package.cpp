@@ -62,7 +62,7 @@ class PackageImpl final : public IPackage {
     std::string mVersion;
 public:
     PackageImpl(const fs::path& folder, pkg::IWorkspace& workspace)
-        : mFolder(folder)
+        : mFolder(fs::absolute(folder))
     {
         auto pkginfo = mFolder / "pkg.xml";
         if (!fs::exists(pkginfo)) {
@@ -188,7 +188,7 @@ public:
     }
 
     std::vector<pkg::DownloadInfo> sources() const override {
-        return std::vector<pkg::DownloadInfo>{};
+        return mSources;
     }
 
     std::vector<std::string> buildDependencies() const override {
@@ -245,6 +245,10 @@ std::filesystem::path pkg::packageInstallPath(IWorkspace& workspace, IPackage& p
     return baseBuildPath(workspace) / package.name() / "target/install";
 }
 
+std::filesystem::path pkg::packageCachePath(IWorkspace& workspace, IPackage& package) {
+    return pkg::workspaceCachePath(workspace) / package.name();
+}
+
 std::filesystem::path pkg::packagePrivatePath(IWorkspace& workspace, IPackage& package) {
     return baseBuildPath(workspace) / package.name() / "target/internal";
 }
@@ -261,23 +265,36 @@ std::string pkg::evaluate(const std::string& text, IWorkspace& workspace, IPacka
     replaceAll(result, "${package.path}", package.path().string());
     replaceAll(result, "${package.build}", pkg::packageBuildPath(workspace, package).string());
     replaceAll(result, "${package.sysroot}", pkg::packageSysrootPath(workspace, package).string());
+    replaceAll(result, "${package.prefix}", pkg::packageInstallPath(workspace, package).string());
+    replaceAll(result, "${package.cache}", pkg::packageCachePath(workspace, package).string());
     return result;
 }
 
 void pkg::setupWorkspaceLayout(IWorkspace& workspace) {
-    fs::create_directories(baseBuildPath(workspace));
+    auto basePath = baseBuildPath(workspace);
+    if (!fs::exists(basePath)) {
+        fs::create_directories(basePath);
+    }
 }
 
 void pkg::setupPackageBuildLayout(IWorkspace& workspace, IPackage& package) {
     auto sysroot = pkg::packageSysrootPath(workspace, package);
     auto installdir = pkg::packageInstallPath(workspace, package);
     auto internaldir = pkg::packagePrivatePath(workspace, package);
+    auto builddir = pkg::packageBuildPath(workspace, package);
     auto workdir = internaldir / "work";
 
-    fs::create_directories(sysroot);
-    fs::create_directories(installdir);
-    fs::create_directories(internaldir);
-    fs::create_directories(workdir);
+    auto mkdir = [](const fs::path& path) {
+        if (!fs::exists(path)) {
+            fs::create_directories(path);
+        }
+    };
+
+    mkdir(sysroot);
+    mkdir(installdir);
+    mkdir(internaldir);
+    mkdir(builddir);
+    mkdir(workdir);
 }
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder, pkg::IWorkspace& workspace) {

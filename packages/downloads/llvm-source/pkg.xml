@@ -1,0 +1,14 @@
+<package name='llvm-source' version='21.x'>
+    <download url='https://github.com/llvm/llvm-project/archive/dca73063653ca7d35afb3226ae66623495086204.zip'
+              file='llvm-project.zip'
+              sha256='a92c202db56bf7839363c3b4aaaf753701d2731d20ec2d372f03ab26be915dd0'
+              trim-root-folder='true'
+              archive='zip'>
+
+        <patch file='patches/add-bezos.patch' />
+        <patch file='patches/add-overridden-cursors.patch' />
+        <patch file='patches/add-signal-safe-attributes.patch' />
+    </download>
+
+    <install with='shell' script='copy-source.sh' />
+</package>

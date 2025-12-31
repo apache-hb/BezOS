@@ -102,6 +102,17 @@ public:
 
         auto dst = mCache / info.name;
 
+        if (fs::exists(dst) && !info.sha256Hash.empty()) {
+            try {
+                verifySha256(dst, info.sha256Hash);
+                LOG_INFO(logger(), "Using cached file '{}'", dst.string());
+                return dst;
+            } catch (const std::exception& e) {
+                LOG_WARNING(logger(), "Cached file '{}' is invalid: {}", dst.string(), e.what());
+                fs::remove(dst);
+            }
+        }
+
         if (!download(info.url, dst.string())) {
             throw std::runtime_error("Failed to download file from " + info.url);
         }

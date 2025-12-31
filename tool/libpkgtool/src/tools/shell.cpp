@@ -25,8 +25,12 @@ class ShellBuildTool final : public pkg::BasicBuildTool {
     fs::path mTestScript;
 
     pkg::ExecuteResult runShellScript(const fs::path& script) {
+        if (script.empty()) {
+            return pkg::ExecuteResult{0};
+        }
+
         std::vector<std::string> cmd = {
-            "/bin/sh", script.string()
+            "/bin/sh", (sourcePath() / script).string()
         };
 
         auto source = sourcePath().string();

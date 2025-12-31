@@ -18,6 +18,7 @@ class BasicBuildTool : public ITool {
     std::filesystem::path mInstallPrefix;
     std::filesystem::path mSysrootPath;
     std::filesystem::path mSourcePath;
+    std::filesystem::path mCachePath;
 
 protected:
     const std::map<std::string, std::string>& environment() const;

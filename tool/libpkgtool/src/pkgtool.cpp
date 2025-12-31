@@ -42,6 +42,21 @@ class PkgToolImpl final : public pkg::IPkgTool {
         }
         overlayCommand.workDir = workdir.string();
 
+        //
+        // Destroy any existing overlay at this path first. This is required
+        // if any of the lowerdirs have changed since the last time the overlay
+        // was created. (see https://unix.stackexchange.com/questions/588627/how-do-i-merge-directories-read-only-using-overlayfs)
+        //
+        try {
+            mOverlayClient->destroyOverlay({ .overlayPath = overlayCommand.overlayPath });
+        } catch (const std::exception& e) {
+            // ignore errors
+        }
+
+        if (!fs::exists(workdir)) {
+            fs::create_directories(workdir);
+        }
+
         mOverlayClient->createOverlay(overlayCommand);
     }
 
@@ -125,7 +140,25 @@ public:
         , mState(state)
         , mDownloadClient(downloadClient)
         , mOverlayClient(pkg::IFsOverlayClient::create())
-    { }
+    {
+        for (const auto& [name, package] : mWorkspace->packages()) {
+            mState->addPackage(package->name());
+        }
+
+        for (const auto& [name, package] : mWorkspace->packages()) {
+            for (const auto& depName : package->dependencies()) {
+                mState->addDependency(package->name(), depName, pkg::DependencyScope::eDependency | pkg::DependencyScope::eBuildDependency | pkg::DependencyScope::eTestDependency);
+            }
+
+            for (const auto& depName : package->buildDependencies()) {
+                mState->addDependency(package->name(), depName, pkg::DependencyScope::eBuildDependency);
+            }
+
+            for (const auto& depName : package->testDependencies()) {
+                mState->addDependency(package->name(), depName, pkg::DependencyScope::eTestDependency);
+            }
+        }
+    }
 
     std::shared_ptr<pkg::IWorkspace> workspace() const override {
         return mWorkspace;
@@ -140,6 +173,8 @@ public:
         }
 
         fetchPackageImpl(package);
+
+        mState->setPackageState(name, pkg::PackageState::eFetched, false);
     }
 
     void configurePackage(const std::string& name, const std::vector<std::string>& options) override {
@@ -151,6 +186,8 @@ public:
         }
 
         configurePackageImpl(package, options);
+
+        mState->setPackageState(name, pkg::PackageState::eConfigured, false);
     }
 
     void buildPackage(const std::string& name, const std::vector<std::string>& options) override {
@@ -162,6 +199,8 @@ public:
         }
 
         buildPackageImpl(package, options);
+
+        mState->setPackageState(name, pkg::PackageState::eBuilt, false);
     }
 
     void installPackage(const std::string& name, const std::vector<std::string>& options) override {
@@ -173,6 +212,8 @@ public:
         }
 
         installPackageImpl(package, options);
+
+        mState->setPackageState(name, pkg::PackageState::eInstalled, false);
     }
 
     void fetchPackageIfNeeded(const std::string& name) override {
@@ -235,20 +276,23 @@ public:
             throw std::runtime_error("Package not found: " + name);
         }
 
-        pkg::setupPackageBuildLayout(*mWorkspace, *package);
-
-        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package->name());
+        std::vector dependencies = pkg::buildDependencyClosure(*mWorkspace, package->name());
         if (dependencies.empty()) {
             LOG_TRACE_L1(logger(), "Package '{}' has no dependencies, skipping environment creation", name);
             return;
         }
 
         if (mOverlayClient->isOverlaySupported()) {
+            LOG_TRACE_L1(logger(), "OverlayFS daemon available, creating overlay environment for package '{}'", name);
             createOverlayEnvironment(*package, dependencies);
         } else {
             LOG_WARNING_LIMIT(std::chrono::days(1), logger(), "OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
             createSymlinkEnvironment(*package, dependencies);
         }
+    }
+
+    void lowerPackageState(const std::string& name, pkg::PackageState state) override {
+        mState->lowerPackageState(name, state);
     }
 };
 }

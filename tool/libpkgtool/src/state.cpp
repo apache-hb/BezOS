@@ -165,9 +165,12 @@ public:
 
         if (stmt.executeStep()) {
             auto stateStr = stmt.getColumn(0).getString();
-            return stringToState(stateStr);
+            auto state = stringToState(stateStr);
+            LOG_TRACE_L2(logger(), "Package '{}' has state '{}'", name, stateStr);
+            return state;
         }
 
+        LOG_TRACE_L2(logger(), "Package '{}' has unknown state", name);
         return pkg::PackageState::eUnknown;
     }
 
@@ -177,6 +180,25 @@ public:
         sqlite::Statement stmt{mDatabase, kAddPackage};
         stmt.bind(1, name);
         stmt.exec();
+    }
+
+    void lowerPackageState(const std::string& name, pkg::PackageState state) override {
+        LOG_TRACE_L1(logger(), "Lowering package '{}' state to '{}'", name, stateToString(state));
+
+        sqlite::Statement stmt{mDatabase, kGetPackageState};
+        stmt.bind(1, name);
+
+        if (stmt.executeStep()) {
+            auto currentStateStr = stmt.getColumn(0).getString();
+            auto currentState = stringToState(currentStateStr);
+
+            if (currentState > state) {
+                sqlite::Statement updateStmt{mDatabase, kSetPackageStateSingle};
+                updateStmt.bind(1, stateToString(state));
+                updateStmt.bind(2, name);
+                updateStmt.exec();
+            }
+        }
     }
 
     void setPackageState(const std::string& name, pkg::PackageState state, bool recursive) override {
