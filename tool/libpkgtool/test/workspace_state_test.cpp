@@ -9,6 +9,8 @@
 #include <quill/LogMacros.h>
 #include <quill/sinks/ConsoleSink.h>
 
+#include <fmt/format.h>
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -49,7 +51,7 @@ public:
     void SetUp() override {
         auto unitTest = testing::UnitTest::GetInstance();
         auto info = unitTest->current_test_info();
-        auto tmp = fs::temp_directory_path() / (std::format("{}_{}.db", info->test_suite_name(), info->name()));
+        auto tmp = fs::temp_directory_path() / (fmt::format("{}_{}.db", info->test_suite_name(), info->name()));
         LOG_INFO(gLogger, "Creating workspace state at {}", tmp.string());
         if (fs::exists(tmp)) {
             LOG_INFO(gLogger, "Removing existing temporary database at {}", tmp.string());

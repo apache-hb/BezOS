@@ -11,6 +11,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include <fmt/format.h>
+
 namespace {
 static constexpr size_t kPageSize = 0x1000;
 static constexpr size_t kStackPages = 256;
@@ -63,10 +65,10 @@ void pkg::runCommandInSandbox(
     int status = 0;
     if (int err = waitpid(pid, &status, 0); err == -1) {
         int eno = errno;
-        throw std::runtime_error(std::format("Failed to wait for sandboxed process ({}: {})", eno, strerror(eno)));
+        throw std::runtime_error(fmt::format("Failed to wait for sandboxed process ({}: {})", eno, strerror(eno)));
     }
 
     if (status != 0) {
-        throw std::runtime_error(std::format("Sandboxed process exited with error {}", status));
+        throw std::runtime_error(fmt::format("Sandboxed process exited with error {}", status));
     }
 }

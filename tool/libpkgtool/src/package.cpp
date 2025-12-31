@@ -7,6 +7,8 @@
 #include <quill/Logger.h>
 #include <quill/Frontend.h>
 
+#include <fmt/format.h>
+
 using pkg::IPackage;
 
 namespace fs = std::filesystem;
@@ -73,7 +75,7 @@ public:
 
         XmlNode root = document.root();
         if (root.name() != "package") {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <package>", root.path(), root.line(), root.name(), pkginfo.string()));
+            throw std::runtime_error(fmt::format("ERROR [{}:{}]: Invalid root element <{}> in {}, expected <package>", root.path(), root.line(), root.name(), pkginfo.string()));
         }
 
         mName = root.expect("name");
@@ -138,7 +140,7 @@ public:
 
                 mInstallTool = pkg::getTool(child, workspace, *this);
             } else {
-                throw std::runtime_error(std::format("ERROR {}: Unknown element <{}> in {}", locationToString(child), name, pkginfo.string()));
+                throw std::runtime_error(fmt::format("ERROR {}: Unknown element <{}> in {}", locationToString(child), name, pkginfo.string()));
             }
         }
 

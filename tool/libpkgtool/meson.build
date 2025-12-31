@@ -28,6 +28,10 @@ libpkgtool = library(
     curl,
     openssl,
     libarchive,
+    fmt,
+    absl_span,
+    absl_strings,
+    absl_base,
   ],
   install: true,
 )
@@ -51,7 +55,7 @@ testcases = {
 foreach name, kwargs : testcases
   # Meson doesn't have a dictionary merge operator, so we have to do this manually
   kwargs += {
-    'dependencies': kwargs.get('dependencies', []) + [pkgtool_dep, gtest_main],
+    'dependencies': kwargs.get('dependencies', []) + [pkgtool_dep, gtest_main, fmt, absl_base, absl_strings],
   }
 
   test_exe = executable(

@@ -1,14 +1,17 @@
 #pragma once
 
 #include <filesystem>
-#include <generator>
+#include <map>
 #include <string>
 #include <optional>
+#include <vector>
 
 #include <libxml/parser.h>
 #include <libxml/xinclude.h>
 
 #include <libxml/tree.h>
+
+#include <fmt/format.h>
 
 class XmlNode {
     xmlNodePtr mNode;
@@ -22,18 +25,22 @@ public:
         return mNode;
     }
 
-    std::generator<XmlNode> children() const {
+    std::vector<XmlNode> children() const {
+        std::vector<XmlNode> result;
         for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
-            co_yield child;
+            result.emplace_back(child);
         }
+        return result;
     }
 
-    std::generator<XmlNode> elements() const {
+    std::vector<XmlNode> elements() const {
+        std::vector<XmlNode> result;
         for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
             if (child->type == XML_ELEMENT_NODE) {
-                co_yield child;
+                result.emplace_back(child);
             }
         }
+        return result;
     }
 
     std::optional<std::string> property(const std::string& name) const {
@@ -47,21 +54,23 @@ public:
         return result;
     }
 
-    std::generator<std::pair<std::string, std::string>> properties() const {
+    std::map<std::string, std::string> properties() const {
+        std::map<std::string, std::string> result;
         for (xmlAttrPtr attr = mNode->properties; attr != nullptr; attr = attr->next) {
             const xmlChar *name = attr->name;
             xmlChar *value = xmlGetProp(mNode, name);
 
-            co_yield {reinterpret_cast<const char *>(name), reinterpret_cast<const char *>(value)};
+            result.emplace(reinterpret_cast<const char *>(name), reinterpret_cast<const char *>(value));
 
             xmlFree(value);
         }
+        return result;
     }
 
     std::string expect(const std::string& prop) const {
         auto result = property(prop);
         if (!result.has_value()) {
-            throw std::runtime_error(std::format("ERROR [{}:{}]: Node <{}> is missing required property {}", path(), line(), name(), prop));
+            throw std::runtime_error(fmt::format("ERROR [{}:{}]: Node <{}> is missing required property {}", path(), line(), name(), prop));
         }
 
         return *result;
@@ -104,7 +113,7 @@ public:
 };
 
 inline std::string locationToString(const XmlNode& node) {
-    return std::format("[{}:{}] {}", node.file(), node.line(), node.path());
+    return fmt::format("[{}:{}] {}", node.file(), node.line(), node.path());
 }
 
 class XmlDocument {

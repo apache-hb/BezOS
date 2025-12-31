@@ -9,6 +9,9 @@
 
 #include <quill/Frontend.h>
 
+#include <fmt/format.h>
+
+
 namespace {
 class AutoToolsBuildTool final : public pkg::BasicBuildTool {
     static inline auto logger() {
@@ -71,7 +74,7 @@ public:
         // Specify -Otarget so the build output isnt interleaved
         //
         std::vector<std::string> cmd = {
-            "make", std::format("-j{}", std::thread::hardware_concurrency()), "-Otarget"
+            "make", fmt::format("-j{}", std::thread::hardware_concurrency()), "-Otarget"
         };
 
         return runCommand(cmd);

@@ -9,6 +9,8 @@
 
 #include <filesystem>
 
+#include <fmt/format.h>
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -39,11 +41,11 @@ public:
         grpc::ClientContext context;
         grpc::Status status = mStub->CreateOverlay(&context, request, &response);
         if (!status.ok()) {
-            throw pkg::RpcException{-1, std::format("FsOverlayService::CreateOverlay status failed: {}", status.error_message())};
+            throw pkg::RpcException{-1, fmt::format("FsOverlayService::CreateOverlay status failed: {}", status.error_message())};
         }
 
         if (int err = response.status()) {
-            throw pkg::RpcException{err, std::format("FsOverlayService::CreateOverlay failed: {} ({})", response.detail(), response.status())};
+            throw pkg::RpcException{err, fmt::format("FsOverlayService::CreateOverlay failed: {} ({})", response.detail(), response.status())};
         }
     }
 
@@ -56,11 +58,11 @@ public:
         grpc::ClientContext context;
         grpc::Status status = mStub->DestroyOverlay(&context, request, &response);
         if (!status.ok()) {
-            throw pkg::RpcException{-1, std::format("FsOverlayService::DestroyOverlay failed: {}", status.error_message())};
+            throw pkg::RpcException{-1, fmt::format("FsOverlayService::DestroyOverlay failed: {}", status.error_message())};
         }
 
         if (int err = response.status()) {
-            throw pkg::RpcException{err, std::format("FsOverlayService::DestroyOverlay failed: {} ({})", response.detail(), response.status())};
+            throw pkg::RpcException{err, fmt::format("FsOverlayService::DestroyOverlay failed: {} ({})", response.detail(), response.status())};
         }
     }
 
@@ -73,7 +75,7 @@ public:
 
 std::shared_ptr<pkg::IFsOverlayClient> pkg::IFsOverlayClient::create() {
     auto uds = pkg::pkgtooldUnixSocketPath();
-    std::string target = fs::exists(uds) ? std::format("unix://{}", uds) : "localhost:22081";
+    std::string target = fs::exists(uds) ? fmt::format("unix://{}", uds) : "localhost:22081";
     auto channel = grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
     return std::make_shared<FsOverlayClientImpl>(channel);
 }

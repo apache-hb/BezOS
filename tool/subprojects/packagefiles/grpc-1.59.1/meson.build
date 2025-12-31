@@ -2102,14 +2102,9 @@ meson.override_find_program('grpc_ruby_plugin', grpc_ruby_plugin)
 subdir('src/proto/grpc/reflection/v1alpha')
 
 libgrpcpp_ext_reflection = library('grpc++_reflection',
-  sources: [
-    files(
-      'src/cpp/ext/proto_server_reflection_plugin.cc',
-      'src/cpp/ext/proto_server_reflection.cc',
-    ),
-    v1alpha_reflection[0],
-    v1alpha_reflection[2],
-  ],
+  'src/cpp/ext/proto_server_reflection_plugin.cc',
+  'src/cpp/ext/proto_server_reflection.cc',
+  v1alpha_reflection,
   include_directories: common_include_dirs,
   install: true,
   version: meson.project_version(),

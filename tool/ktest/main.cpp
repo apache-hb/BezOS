@@ -9,10 +9,14 @@
 #include <fstream>
 #include <thread>
 
+#include <absl/types/span.h>
+
+#include <fmt/format.h>
+
 namespace sp = subprocess;
 namespace fs = std::filesystem;
 
-static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::string> extra) {
+static int RunInstances(const argparse::ArgumentParser& parser, absl::Span<std::string> extra) {
     fs::create_directories(parser.get<std::string>("--output"));
 
     auto image = fs::absolute(parser.get<std::string>("--image"));
@@ -23,7 +27,7 @@ static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::s
 
     for (unsigned i = 0; i < instances; i++) {
         threads.emplace_back([image, i, &parser, &results, &extra] {
-            auto output = fs::absolute(parser.get<std::string>("--output")) / std::format("instance{:04d}", i);
+            auto output = fs::absolute(parser.get<std::string>("--output")) / fmt::format("instance{:04d}", i);
             fs::create_directories(output);
 
             std::vector<std::string> args = {
@@ -32,8 +36,8 @@ static int RunInstances(const argparse::ArgumentParser& parser, std::span<std::s
                 "-no-reboot",
                 "-m", "128M",
                 "-smp", "4",
-                "-chardev", std::format("file,id=log,path={},signal=off", (output / "uart.log").string()),
-                "-chardev", std::format("file,id=events,path={},signal=off", (output / "events.bin").string()),
+                "-chardev", fmt::format("file,id=log,path={},signal=off", (output / "uart.log").string()),
+                "-chardev", fmt::format("file,id=events,path={},signal=off", (output / "events.bin").string()),
                 "-serial", "chardev:log",
                 "-serial", "chardev:events",
                 "-cdrom", image.string(),
@@ -143,7 +147,7 @@ int main(int argc, const char **argv) try {
     if (parser.present("--parse")) {
         return ParseEvents(parser);
     } else if (parser.present("--image")) {
-        return RunInstances(parser, unknown);
+        return RunInstances(parser, absl::Span<std::string>{unknown});
     }
 } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

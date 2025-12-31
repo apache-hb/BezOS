@@ -4,6 +4,8 @@
 #include <quill/Frontend.h>
 #include <quill/LogMacros.h>
 
+#include <fmt/format.h>
+
 namespace {
 quill::Logger *logger() {
     static auto it = quill::Frontend::create_or_get_logger("BasicBuildTool", quill::Frontend::get_logger("root"));
@@ -93,5 +95,5 @@ std::shared_ptr<pkg::ITool> pkg::getTool(XmlNode node, IWorkspace& workspace, IP
         return detail::getCustomBuildTool(node, workspace, package);
     }
 
-    throw std::runtime_error(std::format("ERROR {}: Unknown build tool '{}'", locationToString(node), name));
+    throw std::runtime_error(fmt::format("ERROR {}: Unknown build tool '{}'", locationToString(node), name));
 }

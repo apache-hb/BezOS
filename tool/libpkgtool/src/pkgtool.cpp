@@ -7,6 +7,8 @@
 #include <quill/Frontend.h>
 #include <quill/LogMacros.h>
 
+#include <absl/types/span.h>
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -21,7 +23,7 @@ class PkgToolImpl final : public pkg::IPkgTool {
     std::shared_ptr<pkg::IDownloadClient> mDownloadClient;
     std::shared_ptr<pkg::IFsOverlayClient> mOverlayClient;
 
-    void createOverlayEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
+    void createOverlayEnvironment(pkg::IPackage& package, absl::Span<std::shared_ptr<pkg::IPackage>> dependencies) {
         LOG_TRACE_L1(logger(), "Creating overlay environment for package '{}'", package.name());
 
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
@@ -60,7 +62,7 @@ class PkgToolImpl final : public pkg::IPkgTool {
         mOverlayClient->createOverlay(overlayCommand);
     }
 
-    void createSymlinkEnvironment(pkg::IPackage& package, std::span<std::shared_ptr<pkg::IPackage>> dependencies) {
+    void createSymlinkEnvironment(pkg::IPackage& package, absl::Span<std::shared_ptr<pkg::IPackage>> dependencies) {
         LOG_TRACE_L1(logger(), "Creating symlink environment for package '{}'", package.name());
 
         auto sysroot = fs::absolute(pkg::packageSysrootPath(*mWorkspace, package));
@@ -284,10 +286,10 @@ public:
 
         if (mOverlayClient->isOverlaySupported()) {
             LOG_TRACE_L1(logger(), "OverlayFS daemon available, creating overlay environment for package '{}'", name);
-            createOverlayEnvironment(*package, dependencies);
+            createOverlayEnvironment(*package, absl::Span<std::shared_ptr<pkg::IPackage>>{dependencies});
         } else {
             LOG_WARNING_LIMIT(std::chrono::days(1), logger(), "OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
-            createSymlinkEnvironment(*package, dependencies);
+            createSymlinkEnvironment(*package, absl::Span<std::shared_ptr<pkg::IPackage>>{dependencies});
         }
     }
 

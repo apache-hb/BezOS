@@ -13,6 +13,10 @@
 #include <quill/LogMacros.h>
 #include <quill/sinks/ConsoleSink.h>
 
+#include <fmt/format.h>
+
+#include <absl/strings/match.h>
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -49,7 +53,7 @@ public:
         // Ideally we'd use a folder in /tmp but overlayfs doesnt work in tmpfs or procfs
         // so we have to use the build directory as our working space here.
         //
-        auto tmp = fs::absolute(fs::current_path() / "test_environments" / (std::format("{}_{}", info->test_suite_name(), info->name())));
+        auto tmp = fs::absolute(fs::current_path() / "test_environments" / (fmt::format("{}_{}", info->test_suite_name(), info->name())));
         LOG_INFO(gLogger, "Copying test resources to {}", tmp.string());
         if (fs::exists(tmp)) {
             LOG_INFO(gLogger, "Removing old resources at {}", tmp.string());
@@ -61,7 +65,7 @@ public:
                     entry.fstype,
                     entry.options);
 
-                if (entry.mount.starts_with(tmp.string())) {
+                if (absl::StartsWith(entry.mount, tmp.string())) {
                     LOG_INFO(gLogger, "Unmounting old mount at {}", entry.mount);
                     sFsOverlayClient->destroyOverlay({
                         .overlayPath = entry.mount

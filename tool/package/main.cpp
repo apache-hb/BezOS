@@ -30,17 +30,18 @@
 #include <sys/stat.h>
 
 #include <filesystem>
-#include <ranges>
-#include <generator>
 #include <iostream>
 #include <fstream>
+
+#include <fmt/format.h>
+
+#include <absl/strings/str_split.h>
+#include <absl/strings/match.h>
 
 using namespace std::literals;
 
 namespace fs = std::filesystem;
 namespace sp = subprocess;
-namespace stdr = std::ranges;
-namespace stdv = std::views;
 namespace sql = SQLite;
 
 static fs::path gRepoRoot;
@@ -125,19 +126,19 @@ public:
     }
 
     template<typename... A>
-    void logf(const std::format_string<A...>& fmt, A&&... args) {
-        log(std::vformat(fmt.get(), std::make_format_args(args...)));
+    void logf(const fmt::format_string<A...>& fmt, A&&... args) {
+        log(fmt::format(fmt, std::forward<A>(args)...));
     }
 
     template<typename... A>
-    void errf(const std::format_string<A...>& fmt, A&&... args) {
-        err(std::vformat(fmt.get(), std::make_format_args(args...)));
+    void errf(const fmt::format_string<A...>& fmt, A&&... args) {
+        err(fmt::format(fmt, std::forward<A>(args)...));
     }
 
     template<typename... A>
-    void verbosef(const std::format_string<A...>& fmt, A&&... args) {
+    void verbosef(const fmt::format_string<A...>& fmt, A&&... args) {
         if (mVerbose) {
-            logv(std::vformat(fmt.get(), std::make_format_args(args...)));
+            logv(fmt::format(fmt, std::forward<A>(args)...));
         }
     }
 };
@@ -308,7 +309,7 @@ struct PackageInfo {
 
     fs::path GetSourceFolder() const {
         if (source.empty() && imported.empty()) {
-            throw std::runtime_error(std::format("Package {} has no source or imported folder", name));
+            throw std::runtime_error(fmt::format("Package {} has no source or imported folder", name));
         }
 
         return fs::absolute(source.empty() ? imported : source);
@@ -358,7 +359,14 @@ template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<typename... Args>
 static int execute(const std::vector<std::string>& cmd, Args&&... args) {
     if (logger.mVerbose) {
-        logger.logf("{}", (cmd | stdv::join_with(' ') | stdr::to<std::string>()));
+        std::stringstream ss;
+        for (size_t i = 0; i < cmd.size(); i++) {
+            ss << cmd[i];
+            if (i < cmd.size() - 1) {
+                ss << " ";
+            }
+        }
+        logger.logf("Executing: {}", ss.str());
 
         if constexpr (sizeof...(args) > 0) {
             auto visitor = overloaded {
@@ -386,7 +394,7 @@ static int execute(const std::vector<std::string>& cmd, Args&&... args) {
     return sp::call(cmd, std::forward<Args>(args)...);
 }
 
-constexpr static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
+static void ReplaceAll(std::string& str, std::string_view from, std::string_view to) {
     size_t start_pos = 0;
     while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
         str.replace(start_pos, from.length(), to);
@@ -394,12 +402,7 @@ constexpr static void ReplaceAll(std::string& str, std::string_view from, std::s
     }
 }
 
-constexpr static std::string ReplaceText(std::string str, std::string_view from, std::string_view to) {
-    ReplaceAll(str, from, to);
-    return str;
-}
-
-static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/data/image.sh");
+// static_assert(ReplaceText("@REPO@/data/image.sh", "@REPO@", "/repo") == "/repo/data/image.sh");
 
 static void ReplacePathPlaceholders(std::string& str) {
     ReplaceAll(str, "@PREFIX@", fs::absolute(gInstallPrefix).string());
@@ -462,10 +465,22 @@ struct XmlNode {
 
     XmlNode(xmlNodePtr node) : mNode(node) {}
 
-    std::generator<XmlNode> children() const {
+    std::vector<XmlNode> children() const {
+        std::vector<XmlNode> result;
         for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
-            co_yield child;
+            result.emplace_back(child);
         }
+        return result;
+    }
+
+    std::vector<XmlNode> elements() const {
+        std::vector<XmlNode> result;
+        for (xmlNodePtr child = mNode->children; child != nullptr; child = child->next) {
+            if (child->type == XML_ELEMENT_NODE) {
+                result.emplace_back(child);
+            }
+        }
+        return result;
     }
 
     std::map<std::string, std::string> properties() const {
@@ -498,7 +513,7 @@ struct XmlNode {
         auto data = xmlNodeGetContent(mNode);
 
         if (data == nullptr) {
-            throw std::runtime_error(std::format("Node {} has no content", name()));
+            throw std::runtime_error(fmt::format("Node {} has no content", name()));
         }
 
         return reinterpret_cast<const char *>(data);
@@ -513,10 +528,6 @@ struct XmlNode {
 
 static std::string_view NodeName(xmlNodePtr node) {
     return reinterpret_cast<const char *>(node->name);
-}
-
-static auto IsXmlNodeOf(xmlElementType type) {
-    return [type](xmlNodePtr node) { return node->type == type; };
 }
 
 struct Scope {
@@ -556,7 +567,7 @@ struct Scope {
     std::string GetVariable(std::string name) {
         std::string result;
         if (!TryGetVariable(name, result)) {
-            throw std::runtime_error(std::format("Variable {} not found in scope", name));
+            throw std::runtime_error(fmt::format("Variable {} not found in scope", name));
         }
 
         return result;
@@ -565,7 +576,7 @@ struct Scope {
     void AddVariable(std::string name, std::string value) {
         std::string result;
         if (TryGetVariable(name, result)) {
-            throw std::runtime_error(std::format("Variable {} already exists in scope", name));
+            throw std::runtime_error(fmt::format("Variable {} already exists in scope", name));
         }
 
         if (name.empty()) {
@@ -594,7 +605,7 @@ struct Scope {
             return *prop;
         }
 
-        throw std::runtime_error(std::format("Property {} not found in node", key));
+        throw std::runtime_error(fmt::format("Property {} not found in node", key));
     }
 };
 
@@ -686,6 +697,23 @@ public:
         return result;
     }
 
+    void getPackageDepsImpl(
+        std::vector<std::string>& result,
+        std::set<std::string>& visited,
+        const std::string& name
+    ) {
+        if (std::find(result.begin(), result.end(), name) != result.end()) {
+            return;
+        }
+
+        auto dependants = GetPackageDependencies(name);
+        for (const auto& dep : dependants) {
+            getPackageDepsImpl(result, visited, dep);
+        }
+
+        result.push_back(name);
+    }
+
     /// @brief Order the packages in the correct build order
     std::vector<std::string> OrderPackages() {
 
@@ -706,27 +734,8 @@ public:
 
         std::vector<std::string> result;
 
-        // workaround for clang bug, lambdas with deducing this cannot access
-        // member variables.
-        auto getPackageDependencies = [&](const auto& id) {
-            return GetPackageDependencies(id);
-        };
-
-        auto visit = [&](this auto&& self, const std::string& name) {
-            if (stdr::contains(result, name)) {
-                return;
-            }
-
-            auto dependants = getPackageDependencies(name);
-            for (const auto& dep : dependants) {
-                self(dep);
-            }
-
-            result.push_back(name);
-        };
-
         for (const auto& name : root) {
-            visit(name);
+            getPackageDepsImpl(result, root, name);
         }
 
         return result;
@@ -901,6 +910,27 @@ struct Workspace {
         return packages.contains(name);
     }
 
+    static void orderPackagesImpl(
+        std::vector<PackageInfo>& result,
+        std::set<std::string>& visited,
+        const std::map<std::string, PackageInfo>& pkgs,
+        const std::string& name
+    ) {
+        if (visited.contains(name)) {
+            return;
+        }
+
+        visited.insert(name);
+
+        assert(pkgs.contains(name) && "Unknown package");
+        auto& package = pkgs.at(name);
+        for (const auto& dep : package.dependencies) {
+            orderPackagesImpl(result, visited, pkgs, dep.name);
+        }
+
+        result.push_back(package);
+    }
+
     /// @brief Order the packages in the correct build order
     std::vector<PackageInfo> OrderPackages() {
         std::vector<PackageInfo> result;
@@ -909,24 +939,8 @@ struct Workspace {
 
         const auto& pkgs = this->packages;
 
-        auto visit = [&](this auto&& self, const std::string& name) {
-            if (visited.contains(name)) {
-                return;
-            }
-
-            visited.insert(name);
-
-            assert(pkgs.contains(name) && "Unknown package");
-            auto& package = pkgs.at(name);
-            for (const auto& dep : package.dependencies) {
-                self(dep.name);
-            }
-
-            result.push_back(package);
-        };
-
         for (const auto& [name, _] : packages) {
-            visit(name);
+            orderPackagesImpl(result, visited, pkgs, name);
         }
 
         return result;
@@ -1072,7 +1086,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         indicators::option::Start{"["},
         indicators::option::Lead{"*"},
         indicators::option::End{"]"},
-        indicators::option::PrefixText{std::format("Extracting {} ", fname)},
+        indicators::option::PrefixText{fmt::format("Extracting {} ", fname)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
@@ -1095,7 +1109,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
             continue;
         }
 
-        if (entryPath.ends_with('/')) {
+        if (absl::EndsWith(entryPath, "/")) {
             fs::create_directories(dst / entryPath);
             continue;
         }
@@ -1124,7 +1138,7 @@ static void ExtractArchive(std::string_view name, const fs::path& archive, const
         }
 
         int count = archive_file_count(a);
-        bar.set_option(indicators::option::PostfixText{std::format("{}", count)});
+        bar.set_option(indicators::option::PostfixText{fmt::format("{}", count)});
     }
 
     bar.mark_as_completed();
@@ -1152,7 +1166,7 @@ static void VerifySha256(const fs::path& path, const std::string& expected) {
 
     std::string hash;
     for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        hash += std::format("{:02x}", buffer[i]);
+        hash += fmt::format("{:02x}", buffer[i]);
     }
 
     if (hash != expected) {
@@ -1183,7 +1197,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
         indicators::option::Start{"["},
         indicators::option::Lead{"*"},
         indicators::option::End{"]"},
-        indicators::option::PrefixText{std::format("Downloading {} ", url)},
+        indicators::option::PrefixText{fmt::format("Downloading {} ", url)},
         indicators::option::ForegroundColor{indicators::Color::white},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
     };
@@ -1197,7 +1211,7 @@ static void DownloadFile(const std::string& url, const fs::path& dst) {
         }
 
         auto bar = static_cast<indicators::IndeterminateProgressBar *>(clientp);
-        bar->set_option(indicators::option::PostfixText{std::format("{} / {}", dlnow, dltotal)});
+        bar->set_option(indicators::option::PostfixText{fmt::format("{} / {}", dlnow, dltotal)});
         return 0;
     });
 
@@ -1232,7 +1246,7 @@ static bool ReadRequireTag(XmlNode node, Scope& scope, const std::string& name, 
 template<typename F>
 static void EvalSwitchTag(XmlNode node, Scope& scope, F&& func) {
     auto on = scope.GetProperty(node, "on");
-    for (XmlNode child : node.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode child : node.elements()) {
         if (child.name() == "case"sv) {
             auto value = scope.GetProperty(child, "it");
             if (value == on) {
@@ -1244,7 +1258,7 @@ static void EvalSwitchTag(XmlNode node, Scope& scope, F&& func) {
 }
 
 static void ReadConfigureBody(XmlNode action, ConfigureStep& step, Scope& scope) {
-    for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode child : action.elements()) {
         if (child.name() == "options"sv) {
             for (const auto& [key, value] : child.properties()) {
                 std::string option = value;
@@ -1281,7 +1295,7 @@ static ConfigureStep ReadConfigureStep(XmlNode action, const PackageInfo& packag
     auto with = scope.GetProperty(action, "with");
     if (with == "meson") {
         step.configure = eMeson;
-        for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+        for (XmlNode child : action.elements()) {
             if (child.name() == "cross-file"sv) {
                 step.crossFile = scope.GetProperty(child, "path");
             } else if (child.name() == "native-file"sv) {
@@ -1331,9 +1345,7 @@ static Download ReadDownloadTags(XmlNode node, Scope& scope) {
     auto install = scope.TryGetProperty(node, "install").value_or("false") == "true";
     auto sha256 = scope.TryGetProperty(node, "sha256");
 
-    auto file = scope.TryGetProperty(node, "file").or_else([&] {
-        return std::optional{fs::path(url).filename().string()};
-    });
+    auto file = scope.TryGetProperty(node, "file").value_or(fs::path(url).filename().string());
 
     GitRepo repo;
     if (auto git = scope.TryGetProperty(node, "git")) {
@@ -1342,7 +1354,7 @@ static Download ReadDownloadTags(XmlNode node, Scope& scope) {
         repo.commit = scope.TryGetProperty(node, "commit").value_or("");
     }
 
-    return Download{name, url, file.value(), archive.value_or(""), sha256, trimRootFolder, install, repo};
+    return Download{name, url, file, archive.value_or(""), sha256, trimRootFolder, install, repo};
 }
 
 static void ReadDownloadConfig(XmlNode root, Scope& scope) {
@@ -1360,7 +1372,7 @@ static void ReadDownloadConfig(XmlNode root, Scope& scope) {
 
     packageInfo.downloads.push_back(download);
 
-    for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode action : root.elements()) {
         auto step = NodeName(action);
         if (step == "patch"sv) {
             auto file = scope.GetProperty(action, "file");
@@ -1405,7 +1417,7 @@ static BuildStep ReadBuildStep(XmlNode root, PackageInfo& packageInfo, Scope& sc
         throw std::runtime_error("Unknown build type: '" + type + "' in package build step '" + packageInfo.name + "'");
     }();
 
-    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode child : root.elements()) {
         if (child.name() == "env"sv) {
             for (const auto& [key, value] : child.properties()) {
                 std::string option = value;
@@ -1431,7 +1443,7 @@ static BuildStep ReadBuildStep(XmlNode root, PackageInfo& packageInfo, Scope& sc
                 step.options[key] = option;
             }
         } else {
-            throw std::runtime_error(std::format("Unknown build step element '{}' in package '{}'", child.name(), packageInfo.name));
+            throw std::runtime_error(fmt::format("Unknown build step element '{}' in package '{}'", child.name(), packageInfo.name));
         }
     }
 
@@ -1439,7 +1451,7 @@ static BuildStep ReadBuildStep(XmlNode root, PackageInfo& packageInfo, Scope& sc
 }
 
 static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope) {
-    for (XmlNode action : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode action : root.elements()) {
         auto step = NodeName(action);
         if (step == "download"sv) {
             assert(packageInfo.fromSource.empty() && "Package cannot have both source and download steps");
@@ -1472,7 +1484,7 @@ static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope
                 .script = script
             };
 
-            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+            for (XmlNode child : action.elements()) {
                 auto type = child.name();
                 if (type == "arg"sv) {
                     exec.args.push_back(scope.GetProperty(child, "value"));
@@ -1488,7 +1500,7 @@ static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope
             packageInfo.installTargets = scope.GetProperty(action, "targets");
         } else if (step == "artifacts") {
             auto files = scope.GetProperty(action, "files");
-            for (auto file : files | stdv::split(' ')) {
+            for (auto file : absl::StrSplit(files, ' ')) {
                 packageInfo.artifacts.push_back(std::string(file.begin(), file.end()));
             }
         } else if (step == "switch") {
@@ -1498,7 +1510,7 @@ static void ReadPackageBody(XmlNode root, PackageInfo& packageInfo, Scope& scope
         } else if (step == "build") {
             packageInfo.buildSteps.push_back(ReadBuildStep(action, packageInfo, scope));
         } else {
-            throw std::runtime_error(std::format("Unknown package step '{}' in package '{}'", step, packageInfo.name));
+            throw std::runtime_error(fmt::format("Unknown package step '{}' in package '{}'", step, packageInfo.name));
         }
     }
 }
@@ -1541,7 +1553,7 @@ static void ReadArtifactConfig(XmlNode node, Scope& outer) {
 
     Scope scope(&outer);
 
-    for (XmlNode action : node.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode action : node.elements()) {
         auto step = action.name();
         if (step == "require"sv) {
             ReadRequireTag(action, scope, name, artifactInfo.dependencies);
@@ -1551,7 +1563,7 @@ static void ReadArtifactConfig(XmlNode node, Scope& outer) {
                 .script = script
             };
 
-            for (XmlNode child : action.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+            for (XmlNode child : action.elements()) {
                 auto type = child.name();
                 if (type == "arg"sv) {
                     exec.args.push_back(scope.GetProperty(child, "value"));
@@ -1819,7 +1831,7 @@ static void RunConfigureStep(const PackageInfo& package, const ConfigureStep& st
         std::string scriptBody = step.scriptBody;
         ReplacePackagePlaceholders(scriptBody, package);
 
-        auto path = cfgdir / std::format("configure-{}.sh", index);
+        auto path = cfgdir / fmt::format("configure-{}.sh", index);
         {
             std::ofstream file(path);
             file << scriptBody;
@@ -1899,7 +1911,7 @@ static void RunBuildStep(const PackageInfo& package, const BuildStep& step) {
         logger.logf("{}: build program make", package.name);
         std::vector<std::string> args = { "make" };
 
-        for (const auto& target : (step.targets | stdv::split(' '))) {
+        for (const auto& target : absl::StrSplit(step.targets, ' ')) {
             std::string targetString = std::string(target.begin(), target.end());
             ReplacePackagePlaceholders(targetString, package);
             args.push_back(targetString);
@@ -1952,7 +1964,7 @@ static void RunBuildStep(const PackageInfo& package, const BuildStep& step) {
             throw std::runtime_error("Failed to run script " + args[1]);
         }
     } else {
-        throw std::runtime_error(std::format("Unknown build program '{}' for '{}'", ConfigureProgramToString(buildProgram), package.name));
+        throw std::runtime_error(fmt::format("Unknown build program '{}' for '{}'", ConfigureProgramToString(buildProgram), package.name));
     }
 }
 
@@ -2032,7 +2044,15 @@ static void InstallPackage(const PackageInfo& package) {
             std::vector<std::string> args = { "meson", "install", "--no-rebuild", "--skip-subprojects" };
             if (!package.installTargets.empty()) {
                 args.push_back("--tags");
-                args.push_back((package.installTargets | stdv::split(' ') | stdv::join_with(',')) | stdr::to<std::string>());
+                std::vector<std::string> parts{absl::StrSplit(package.installTargets, ' ')};
+                std::stringstream ss;
+                for (size_t i = 0; i < parts.size(); ++i) {
+                    ss << parts[i];
+                    if (i + 1 < parts.size()) {
+                        ss << ",";
+                    }
+                }
+                args.push_back(ss.str());
             }
             auto result = execute({ "meson", "install", "--no-rebuild", "--skip-subprojects" }, sp::cwd{builddir}, sp::output{out.c_str()}, sp::error{err.c_str()});
             if (result != 0) {
@@ -2049,7 +2069,7 @@ static void InstallPackage(const PackageInfo& package) {
             if (package.installTargets.empty()) {
                 args.push_back("install");
             } else {
-                for (auto target : (package.installTargets | stdv::split(' '))) {
+                for (auto target : absl::StrSplit(package.installTargets, ' ')) {
                     args.push_back(std::string(std::string_view(target)));
                 }
             }
@@ -2143,7 +2163,7 @@ static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
     auto shouldIncludeFragment = [&](const std::string& name) {
         if (args.empty()) return true;
 
-        return stdr::find(args, name) != args.end();
+        return std::find(args.begin(), args.end(), name) != args.end();
     };
 
     std::string text = [&] {
@@ -2153,7 +2173,7 @@ static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
         std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
         auto addClangdSection = [&](const fs::path& builddir, const fs::path& workspace) {
-            std::string fragment = std::format(
+            std::string fragment = fmt::format(
                 "If:\n"
                 "  PathMatch: [ {}/.* ]\n"
                 "CompileFlags:\n"
@@ -2196,7 +2216,7 @@ static void GenerateClangDaemonConfig(const std::vector<std::string>& args) {
 }
 
 static void ReadRepoElement(XmlNode root, Scope& scope) {
-    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode child : root.elements()) {
         auto type = child.name();
         if (type == "package"sv) {
             ReadPackageConfig(child, scope);
@@ -2220,7 +2240,7 @@ static void ReadRepoElement(XmlNode root, Scope& scope) {
 }
 
 static void ReadTargetElement(XmlNode root, Scope& scope) {
-    for (XmlNode child : root.children() | stdv::filter(IsXmlNodeOf(XML_ELEMENT_NODE))) {
+    for (XmlNode child : root.elements()) {
         auto type = child.name();
         if (type == "var"sv) {
             ReadVarElement(child, scope);
@@ -2385,7 +2405,7 @@ static int RunPackageTool(argparse::ArgumentParser& parser) {
     Scope rootScope;
 
     for (auto define : parser.get<std::vector<std::string>>("--define")) {
-        auto parts = stdv::split(define, '=') | stdr::to<std::vector<std::string>>();
+        auto parts = std::vector<std::string>{absl::StrSplit(define, "=")};
         if (parts.size() != 2) {
             throw std::runtime_error("Invalid define format '" + define + "', must be name=value");
         }

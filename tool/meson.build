@@ -2,7 +2,7 @@ project(
   'tools',
   'cpp',
   default_options: [
-    'cpp_std=gnu++26',
+    'cpp_std=c++23',
     'default_library=static',
     'force_fallback_for=protoc,grpc_cpp_plugin,absl_base',
   ],
@@ -10,6 +10,9 @@ project(
 
 cpp = meson.get_compiler('cpp')
 
+absl_span = dependency('absl_span')
+absl_strings = dependency('absl_strings')
+absl_base = dependency('absl_base')
 gtest_main = dependency('gtest_main')
 libxml2 = dependency('libxml-2.0')
 openssl = dependency('openssl')
@@ -22,6 +25,8 @@ sqlitecpp = dependency('sqlitecpp')
 indicators = dependency('indicators')
 glob = dependency('glob')
 quill = dependency('quill')
+fmt = dependency('fmt')
+tl_expected = dependency('tl-expected')
 
 subdir('pkgtoold')
 subdir('libpkgtool')
@@ -47,7 +52,15 @@ configure_file(
   install_dir: get_option('prefix') / 'etc',
 )
 
-meson.add_install_script('resources/systemd-pkgtoold-install.sh')
+configure_file(
+  input: 'resources/systemd-pkgtoold-install.sh.in',
+  output: 'systemd-pkgtoold-install.sh',
+  configuration: {
+    'MESON_INSTALL_PREFIX': get_option('prefix'),
+  },
+  install: true,
+  install_dir: get_option('prefix') / 'bin',
+)
 
 src = [
   'package/main.cpp',
@@ -68,6 +81,10 @@ executable(
     sqlitecpp,
     indicators,
     glob,
+    fmt,
+    absl_span,
+    absl_strings,
+    absl_base,
   ],
 )
 
@@ -75,5 +92,5 @@ executable(
   'ktest.elf',
   'ktest/main.cpp',
   install: true,
-  dependencies: [argparse, subprocess],
+  dependencies: [argparse, subprocess, absl_base, fmt],
 )

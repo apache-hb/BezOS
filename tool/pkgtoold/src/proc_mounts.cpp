@@ -4,6 +4,8 @@
 #include <fstream>
 #include <fstab.h>
 
+#include <absl/strings/match.h>
+
 pkg::ProcMounts::ProcMounts(std::istream& is) {
     std::string line;
     while (std::getline(is, line)) {
@@ -37,16 +39,16 @@ std::vector<pkg::OverlayMountEntry> pkg::ProcMounts::overlayEntries() const {
         std::istringstream optionsStream(entry.options);
         std::string option;
         while (std::getline(optionsStream, option, ',')) {
-            if (option.starts_with("lowerdir=")) {
+            if (absl::StartsWith(option, "lowerdir=")) {
                 std::string lowersStr = option.substr(sizeof("lowerdir=") - 1);
                 std::istringstream lowersStream(lowersStr);
                 std::string lower;
                 while (std::getline(lowersStream, lower, ':')) {
                     overlayEntry.lowers.push_back(lower);
                 }
-            } else if (option.starts_with("upperdir=")) {
+            } else if (absl::StartsWith(option, "upperdir=")) {
                 overlayEntry.upper = option.substr(sizeof("upperdir=") - 1);
-            } else if (option.starts_with("workdir=")) {
+            } else if (absl::StartsWith(option, "workdir=")) {
                 overlayEntry.work = option.substr(sizeof("workdir=") - 1);
             }
         }

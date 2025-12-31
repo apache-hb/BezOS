@@ -37,7 +37,7 @@ liboverlayd = library(
   generated,
   src,
   include_directories: inc,
-  dependencies: [grpc, protobuf],
+  dependencies: [grpc, protobuf, fmt],
   cpp_args: cpp.get_supported_arguments('-Wno-inconsistent-missing-override'),
   install: true,
 )
@@ -55,7 +55,7 @@ libpkgtoold_api = library(
   'pkgtoold-api',
   src,
   include_directories: inc,
-  dependencies: [overlayd_dep, grpc, grpcpp],
+  dependencies: [overlayd_dep, grpc, grpcpp, fmt, absl_span],
   install: true,
 )
 
@@ -77,6 +77,11 @@ pkgtoold = executable(
     grpcpp_ext_reflection,
     sqlitecpp,
     quill,
+    fmt,
+    absl_span,
+    absl_strings,
+    absl_base,
+    tl_expected,
   ],
   install: true,
 )

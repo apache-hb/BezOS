@@ -4,7 +4,6 @@
 
 #include <csignal>
 #include <thread>
-#include <expected>
 
 #include <grpcpp/server_builder.h>
 #include <grpcpp/health_check_service_interface.h>
@@ -16,6 +15,12 @@
 
 #include <quill/SimpleSetup.h>
 #include <quill/LogFunctions.h>
+
+#include <fmt/format.h>
+
+#include <absl/strings/match.h>
+
+#include <tl/expected.hpp>
 
 using namespace bezos::pkgtoold::overlay;
 
@@ -67,27 +72,27 @@ public:
         return mLowers;
     }
 
-    static std::expected<Overlay, PosixError> create(
+    static tl::expected<Overlay, PosixError> create(
         const std::string& overlay,
         const std::string& upper,
         const std::string& work,
         const std::vector<std::string>& lowers
     ) {
         if (!fs::path(overlay).is_absolute()) {
-            return std::unexpected(PosixError{EINVAL, "Overlay path must be absolute"});
+            return tl::unexpected(PosixError{EINVAL, "Overlay path must be absolute"});
         }
 
         if (!fs::path(upper).is_absolute()) {
-            return std::unexpected(PosixError{EINVAL, "Upper dir path must be absolute"});
+            return tl::unexpected(PosixError{EINVAL, "Upper dir path must be absolute"});
         }
 
         if (!fs::path(work).is_absolute()) {
-            return std::unexpected(PosixError{EINVAL, "Work dir path must be absolute"});
+            return tl::unexpected(PosixError{EINVAL, "Work dir path must be absolute"});
         }
 
         for (const auto& lower : lowers) {
             if (!fs::path(lower).is_absolute()) {
-                return std::unexpected(PosixError{EINVAL, "Lower dir path must be absolute"});
+                return tl::unexpected(PosixError{EINVAL, "Lower dir path must be absolute"});
             }
         }
 
@@ -99,7 +104,7 @@ public:
         return o;
     }
 
-    static std::expected<Overlay, PosixError> ofGrpcRequest(const CreateOverlayRequest& request) {
+    static tl::expected<Overlay, PosixError> ofGrpcRequest(const CreateOverlayRequest& request) {
         std::vector<std::string> lowers;
         for (const auto& lower : request.lower_dirs()) {
             lowers.push_back(lower);
@@ -326,8 +331,8 @@ bool areLowerDirsEqual(
         return false;
     }
 
-    auto copy1 = auto{dirs1};
-    auto copy2 = auto{dirs2};
+    std::vector<std::string> copy1{dirs1};
+    std::vector<std::string> copy2{dirs2};
 
     std::sort(copy1.begin(), copy1.end());
     std::sort(copy2.begin(), copy2.end());
@@ -494,7 +499,7 @@ bool isInstalled() {
     }
 
     path[len] = '\0';
-    return std::string_view(path).starts_with("/usr/bin/") || std::string_view(path).starts_with("/bin/");
+    return absl::StartsWith(path, "/usr/bin/") || absl::StartsWith(path, "/bin/");
 }
 
 void setupLogging() {
@@ -558,7 +563,7 @@ int main(int argc, const char **argv) try {
         }
     }
 
-    std::string address = installed ? std::format("unix://{}", pkg::pkgtooldUnixSocketPath()) : LOCALHOST_PATH;
+    std::string address = installed ? fmt::format("unix://{}", pkg::pkgtooldUnixSocketPath()) : LOCALHOST_PATH;
 
     FsOverlayServiceImpl service{&storage, &manager};
     grpc::ServerBuilder builder;

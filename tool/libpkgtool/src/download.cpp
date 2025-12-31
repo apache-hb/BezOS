@@ -15,6 +15,10 @@
 
 #include <fstream>
 
+#include <fmt/format.h>
+
+#include <absl/strings/match.h>
+
 #include "defer.hpp" // must be included last, macro `defer` conflicts with cpp-subprocess
 
 namespace fs = std::filesystem;
@@ -82,7 +86,7 @@ class DownloadClientImpl final : public pkg::IDownloadClient {
 
         std::string hash;
         for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-            hash += std::format("{:02x}", buffer[i]);
+            hash += fmt::format("{:02x}", buffer[i]);
         }
 
         if (hash != expected) {
@@ -179,12 +183,12 @@ static void copyArchiveEntry(struct archive *a, struct archive_entry *entry, con
         if (!fs::exists(file.parent_path())) {
             fs::create_directories(file.parent_path());
         } else {
-            throw std::runtime_error(std::format("Failed to open file {}", file.string()));
+            throw std::runtime_error(fmt::format("Failed to open file {}", file.string()));
         }
 
         std::ofstream os2{file, std::ios::binary};
         if (!os2.is_open()) {
-            throw std::runtime_error(std::format("Failed to open file {}", file.string()));
+            throw std::runtime_error(fmt::format("Failed to open file {}", file.string()));
         }
 
         copyArchiveEntryContent(a, entry, os2);
@@ -228,7 +232,7 @@ static void extractArchiveImpl(std::string_view name, const fs::path& archive, c
             continue;
         }
 
-        if (entryPath.ends_with('/')) {
+        if (absl::EndsWith(entryPath, "/")) {
             fs::create_directories(dst / entryPath);
             continue;
         }
@@ -274,7 +278,7 @@ void pkg::applyPatch(const std::filesystem::path& target, const std::filesystem:
 
     auto result = pkg::execute(logger, args, subprocess::cwd{cwd});
     if (result != 0) {
-        throw std::runtime_error(std::format("Failed to apply patch {} to {}", patch.string(), target.string()));
+        throw std::runtime_error(fmt::format("Failed to apply patch {} to {}", patch.string(), target.string()));
     }
 }
 
