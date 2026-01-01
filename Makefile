@@ -11,10 +11,12 @@ PKGTOOL := install/tool/bin/package.elf
 PKGTOOL_MESON := build/tool/build.ninja
 PKGTOOL_SRCDIRS = tool/package tool/pkgtoold tool/pkgtool tool/package tool/resources tool/ktest tool/libpkgtool
 PKGTOOL_SRC := $(strip $(shell find $(PKGTOOL_SRCDIRS) -type f -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.in" -o -name "meson.build"))
-PKGTOOL_BUILD := $(BUILDDIR)/tool
+PWD := $(shell pwd)
+PKGTOOL_BUILD := $(PWD)/$(BUILDDIR)/tool
+PKGTOOL_PREFIX := $(PWD)/$(PREFIX)/tool
 
 $(PKGTOOL_MESON): $(PKGTOOL_SRC)
-	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool)
+	-(cd tool && meson setup $(PKGTOOL_BUILD) --prefix $(PKGTOOL_PREFIX))
 
 $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
 	meson install -C $(PKGTOOL_BUILD) --quiet
@@ -28,6 +30,7 @@ pkgtoold-activate: $(PKGTOOL)
 .PHONY: pkgtool-clean
 pkgtool-clean:
 	@rm -rf $(PKGTOOL_BUILD)
+	@rm -rf $(PKGTOOL_PREFIX)
 
 # repo building with pkgtool
 
