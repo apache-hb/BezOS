@@ -2101,7 +2101,7 @@ meson.override_find_program('grpc_ruby_plugin', grpc_ruby_plugin)
 # PATCH(elliothb): add reflection extension library
 subdir('src/proto/grpc/reflection/v1alpha')
 
-libgrpcpp_ext_reflection = library('grpc++_reflection',
+libgrpcpp_reflection = library('grpc++_reflection',
   'src/cpp/ext/proto_server_reflection_plugin.cc',
   'src/cpp/ext/proto_server_reflection.cc',
   v1alpha_reflection,
@@ -2115,12 +2115,13 @@ libgrpcpp_ext_reflection = library('grpc++_reflection',
     grpcpp_dep,
     protobuf_dep,
     upb_dep])
-grpcpp_ext_reflection_dep = declare_dependency(
-  link_with: libgrpcpp_ext_reflection,
+grpcpp_reflection_dep = declare_dependency(
+  link_with: libgrpcpp_reflection,
   include_directories: common_include_dirs,
   dependencies: [
     grpcpp_dep,
   ]
 )
 
-meson.override_dependency('grpc++_ext_reflection', grpcpp_ext_reflection_dep)
+meson.override_dependency('grpc++_reflection', grpcpp_reflection_dep)
+meson.override_dependency('grpcpp_reflection', grpcpp_reflection_dep)

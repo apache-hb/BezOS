@@ -9,16 +9,21 @@ PREFIX := install
 
 PKGTOOL := install/tool/bin/package.elf
 PKGTOOL_MESON := build/tool/build.ninja
-PKGTOOL_SRC := tool/package/main.cpp tool/meson.build
+PKGTOOL_SRCDIRS = tool/package tool/pkgtoold tool/pkgtool tool/package tool/resources tool/ktest tool/libpkgtool
+PKGTOOL_SRC := $(strip $(shell find $(PKGTOOL_SRCDIRS) -type f -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.in" -o -name "meson.build"))
 PKGTOOL_BUILD := $(BUILDDIR)/tool
 
 $(PKGTOOL_MESON): $(PKGTOOL_SRC)
 	-(cd tool && meson setup $(ROOT)/build/tool --prefix $(ROOT)/install/tool)
 
 $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
-	sudo meson install -C $(PKGTOOL_BUILD) --quiet
+	meson install -C $(PKGTOOL_BUILD) --quiet
 
 pkgtool: $(PKGTOOL)
+
+.PHONY: pkgtoold-activate
+pkgtoold-activate: $(PKGTOOL)
+	$(ROOT)/install/tool/bin/systemd-pkgtoold-install.sh
 
 .PHONY: pkgtool-clean
 pkgtool-clean:

@@ -1,10 +1,10 @@
 inc = include_directories('include')
 
-grpc_cpp_plugin = find_program('grpc_cpp_plugin')
-protoc = find_program('protoc')
+grpc_cpp_plugin = find_program('grpc_cpp_plugin', native: true)
+protoc = find_program('protoc', native: true)
 grpc = dependency('grpc')
 grpcpp = dependency('grpc++')
-grpcpp_ext_reflection = dependency('grpc++_ext_reflection')
+grpcpp_reflection = dependency('grpc++_reflection')
 protobuf = dependency('protobuf')
 
 generated = custom_target(
@@ -74,7 +74,7 @@ pkgtoold = executable(
     overlayd_dep,
     grpc,
     grpcpp,
-    grpcpp_ext_reflection,
+    grpcpp_reflection,
     sqlitecpp,
     quill,
     fmt,

@@ -11,5 +11,6 @@ grpc = grpc_dep
 grpc_unsecure = grpc_unsecure_dep
 grpc++ = grpcpp_dep
 grpc++_unsecure = grpcpp_unsecure_dep
-grpc++_ext_reflection = grpcpp_ext_reflection_dep
+grpc++_reflection = grpcpp_reflection_dep
+grpcpp_reflection = grpcpp_reflection_dep
 program_names = grpc_cpp_plugin, grpc_python_plugin, grpc_ruby_plugin, grpc_php_plugin, grpc_node_plugin

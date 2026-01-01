@@ -4,7 +4,6 @@ project(
   default_options: [
     'cpp_std=c++23',
     'default_library=static',
-    'force_fallback_for=protoc,grpc_cpp_plugin,absl_base',
   ],
 )
 
