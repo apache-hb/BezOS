@@ -1,6 +1,6 @@
 <package name="clang-host" version="21.x">
-    <build-dependency name="llvm-source" version="21.x" />
-    <build-dependency name="cmake-host" version="4.x" />
+    <private-dependency name="llvm-source" version="21.x" />
+    <private-dependency name="cmake-host" version="4.x" />
 
     <configure with="cmake" executable="${package.sysroot}/bin/cmake" src="${package.sysroot}/src/llvm-project/llvm">
         <option name="LLVM_ENABLE_PROJECTS" value="llvm;clang;clang-tools-extra;lld" />

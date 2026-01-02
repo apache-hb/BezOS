@@ -1,4 +1,4 @@
-project('sysapi-headers', 'c')
+project('sysapi-headers', 'c', version: '1.0.0', license: 'Apache-2.0')
 
 inc = include_directories('include')
 

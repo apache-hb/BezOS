@@ -49,9 +49,8 @@ class PackageImpl final : public IPackage {
 
     fs::path mFolder;
 
-    std::vector<PackageName> mDependencies;
-    std::vector<PackageName> mBuildDependencies;
-    std::vector<PackageName> mTestDependencies;
+    std::vector<PackageName> mPublicDependencies;
+    std::vector<PackageName> mPrivateDependencies;
 
     std::shared_ptr<pkg::ITool> mConfigureTool;
     std::shared_ptr<pkg::ITool> mBuildTool;
@@ -115,12 +114,10 @@ public:
                     .patches = patches,
                 };
                 mSources.push_back(info);
-            } else if (name == "dependency") {
-                mDependencies.emplace_back(PackageName::ofXmlNode(child));
-            } else if (name == "build-dependency") {
-                mBuildDependencies.emplace_back(PackageName::ofXmlNode(child));
-            } else if (name == "test-dependency") {
-                mTestDependencies.emplace_back(PackageName::ofXmlNode(child));
+            } else if (name == "public-dependency") {
+                mPublicDependencies.emplace_back(PackageName::ofXmlNode(child));
+            } else if (name == "private-dependency") {
+                mPrivateDependencies.emplace_back(PackageName::ofXmlNode(child));
             } else if (name == "configure") {
                 if (mConfigureTool != nullptr) {
                     throw std::runtime_error("Package " + mName + " has multiple configure tools defined");
@@ -193,25 +190,17 @@ public:
         return mSources;
     }
 
-    std::vector<std::string> buildDependencies() const override {
+    std::vector<std::string> publicDependencies() const override {
         std::vector<std::string> result;
-        for (const auto& dep : mBuildDependencies) {
+        for (const auto& dep : mPublicDependencies) {
             result.push_back(dep.name());
         }
         return result;
     }
 
-    std::vector<std::string> testDependencies() const override {
+    std::vector<std::string> privateDependencies() const override {
         std::vector<std::string> result;
-        for (const auto& dep : mTestDependencies) {
-            result.push_back(dep.name());
-        }
-        return result;
-    }
-
-    std::vector<std::string> dependencies() const override {
-        std::vector<std::string> result;
-        for (const auto& dep : mDependencies) {
+        for (const auto& dep : mPrivateDependencies) {
             result.push_back(dep.name());
         }
         return result;
@@ -265,6 +254,7 @@ std::string pkg::evaluate(const std::string& text, IWorkspace& workspace, IPacka
     std::string result = evaluate(text, workspace);
     replaceAll(result, "${package.name}", package.name());
     replaceAll(result, "${package.path}", package.path().string());
+    replaceAll(result, "${package.src}", package.path().string());
     replaceAll(result, "${package.build}", pkg::packageBuildPath(workspace, package).string());
     replaceAll(result, "${package.sysroot}", pkg::packageSysrootPath(workspace, package).string());
     replaceAll(result, "${package.prefix}", pkg::packageInstallPath(workspace, package).string());
@@ -297,6 +287,14 @@ void pkg::setupPackageBuildLayout(IWorkspace& workspace, IPackage& package) {
     mkdir(internaldir);
     mkdir(builddir);
     mkdir(workdir);
+}
+
+void pkg::setupWorkspace(IWorkspace& workspace) {
+    pkg::setupWorkspaceLayout(workspace);
+    auto packages = workspace.packages();
+    for (const auto& [name, package] : packages) {
+        pkg::setupPackageBuildLayout(workspace, *package);
+    }
 }
 
 std::shared_ptr<IPackage> IPackage::of(const std::filesystem::path& folder, pkg::IWorkspace& workspace) {

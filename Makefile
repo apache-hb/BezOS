@@ -23,6 +23,10 @@ $(PKGTOOL): $(PKGTOOL_MESON) $(PKGTOOL_SRC)
 
 pkgtool: $(PKGTOOL)
 
+.PHONY: pkgtool-check
+pkgtool-check: $(PKGTOOL)
+	meson test -C $(PKGTOOL_BUILD)
+
 .PHONY: pkgtoold-activate
 pkgtoold-activate: $(PKGTOOL)
 	$(ROOT)/install/tool/bin/systemd-pkgtoold-install.sh

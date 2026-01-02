@@ -83,7 +83,7 @@ void visitDependencyClosure(
     }
 
     auto& package = packages.at(name);
-    for (const auto& dep : package->dependencies()) {
+    for (const auto& dep : package->publicDependencies()) {
         visitDependencyClosure(packages, result, visited, dep, packageName);
     }
 
@@ -92,7 +92,7 @@ void visitDependencyClosure(
     }
 }
 
-void visitBuildDependencyClosure(
+void visitTotalDependencyClosure(
     const std::map<std::string, std::shared_ptr<pkg::IPackage>>& packages,
     std::vector<std::shared_ptr<pkg::IPackage>>& result,
     std::set<std::string>& visited,
@@ -110,16 +110,12 @@ void visitBuildDependencyClosure(
     }
 
     auto& package = packages.at(name);
-    for (const auto& dep : package->buildDependencies()) {
-        visitBuildDependencyClosure(packages, result, visited, dep, packageName);
+    for (const auto& dep : package->privateDependencies()) {
+        visitTotalDependencyClosure(packages, result, visited, dep, packageName);
     }
 
-    for (const auto& dep : package->dependencies()) {
-        visitBuildDependencyClosure(packages, result, visited, dep, packageName);
-    }
-
-    for (const auto& dep : package->testDependencies()) {
-        visitBuildDependencyClosure(packages, result, visited, dep, packageName);
+    for (const auto& dep : package->publicDependencies()) {
+        visitTotalDependencyClosure(packages, result, visited, dep, packageName);
     }
 
     if (package->name() != packageName) {
@@ -134,17 +130,28 @@ std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& w
     std::set<std::string> visited;
 
     const auto& packages = workspace.packages();
-    visitDependencyClosure(packages, result, visited, packageName, packageName);
+    auto pkg = packages.find(packageName);
+    if (pkg == packages.end()) {
+        throw std::runtime_error("Unknown package: " + packageName);
+    }
+
+    for (const auto& dep : pkg->second->publicDependencies()) {
+        visitDependencyClosure(packages, result, visited, dep, packageName);
+    }
+
+    for (const auto& dep : pkg->second->privateDependencies()) {
+        visitDependencyClosure(packages, result, visited, dep, packageName);
+    }
 
     return result;
 }
 
-std::vector<std::shared_ptr<pkg::IPackage>> pkg::buildDependencyClosure(IWorkspace& workspace, const std::string& packageName) {
+std::vector<std::shared_ptr<pkg::IPackage>> pkg::totalDependencyClosure(IWorkspace& workspace, const std::string& packageName) {
     std::vector<std::shared_ptr<IPackage>> result;
     std::set<std::string> visited;
 
     const auto& packages = workspace.packages();
-    visitBuildDependencyClosure(packages, result, visited, packageName, packageName);
+    visitTotalDependencyClosure(packages, result, visited, packageName, packageName);
 
     return result;
 }

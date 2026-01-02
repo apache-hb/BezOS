@@ -4,8 +4,18 @@ grpc_cpp_plugin = find_program('grpc_cpp_plugin', native: true)
 protoc = find_program('protoc', native: true)
 grpc = dependency('grpc')
 grpcpp = dependency('grpc++')
-grpcpp_reflection = dependency('grpc++_reflection')
+
+grpcpp_reflection = dependency('grpc++_reflection', required: false)
+if not grpcpp_reflection.found()
+  grpcpp_reflection = cpp.find_library('grpc++_reflection', required: true)
+endif
+
 protobuf = dependency('protobuf')
+
+depends = []
+if grpc_cpp_plugin.full_path().contains(meson.global_build_root())
+  depends += [grpc_cpp_plugin]
+endif
 
 generated = custom_target(
   'overlay-proto',
@@ -25,7 +35,7 @@ generated = custom_target(
     '--plugin=protoc-gen-grpc=' + grpc_cpp_plugin.full_path(),
     '@INPUT@',
   ],
-  depends: [grpc_cpp_plugin],
+  depends: depends,
 )
 
 grpc_inc = include_directories('.')

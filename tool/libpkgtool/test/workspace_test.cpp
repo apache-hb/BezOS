@@ -12,6 +12,8 @@
 #include <quill/Frontend.h>
 #include <quill/LogMacros.h>
 #include <quill/sinks/ConsoleSink.h>
+#include <quill/std/FilesystemPath.h>
+#include <quill/std/Vector.h>
 
 #include <fmt/format.h>
 
@@ -54,7 +56,6 @@ public:
         // so we have to use the build directory as our working space here.
         //
         auto tmp = fs::absolute(fs::current_path() / "test_environments" / (fmt::format("{}_{}", info->test_suite_name(), info->name())));
-        LOG_INFO(gLogger, "Copying test resources to {}", tmp.string());
         if (fs::exists(tmp)) {
             LOG_INFO(gLogger, "Removing old resources at {}", tmp.string());
             auto mounts = pkg::ProcMounts::ofCurrentMachine();
@@ -74,6 +75,8 @@ public:
             }
             fs::remove_all(tmp);
         }
+
+        LOG_INFO(gLogger, "Copying test resources to {}", tmp.string());
 
         fs::create_directories(tmp);
 
@@ -110,6 +113,8 @@ TEST_F(WorkspaceTest, BuildPackage) {
 
     auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
 
+    pkg::setupWorkspace(*workspace);
+
     pkgtool->configurePackageIfNeeded("package001");
 
     ASSERT_TRUE(fs::exists(mResourceDir / "workspace/build/env/package001/target/install/bin/package001"));
@@ -125,6 +130,8 @@ TEST_F(WorkspaceTest, BuildDependantPackage) {
     auto downloadClient = pkg::IDownloadClient::create(mResourceDir / "workspace/packagecache");
 
     auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
+
+    pkg::setupWorkspace(*workspace);
 
     pkgtool->configurePackageIfNeeded("package001");
     pkgtool->configurePackageIfNeeded("package002");

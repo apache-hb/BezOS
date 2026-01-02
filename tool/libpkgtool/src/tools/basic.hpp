@@ -29,6 +29,7 @@ protected:
     const std::filesystem::path& installPrefix() const;
     const std::filesystem::path& sysrootPath() const;
     const std::filesystem::path& sourcePath() const;
+    const std::filesystem::path& cachePath() const;
 
     BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package);
 };

@@ -37,6 +37,10 @@ const std::filesystem::path& pkg::BasicBuildTool::sourcePath() const {
     return mSourcePath;
 }
 
+const std::filesystem::path& pkg::BasicBuildTool::cachePath() const {
+    return mCachePath;
+}
+
 pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackage& package)
     : mBuildPath(pkg::packageBuildPath(workspace, package))
     , mInstallPrefix(pkg::packageInstallPath(workspace, package))

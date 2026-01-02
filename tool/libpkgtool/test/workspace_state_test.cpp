@@ -82,15 +82,12 @@ TEST_F(WorkspaceStateTest, AddDependencySingleScope) {
     mState->addPackage("package-a");
     mState->addPackage("package-b");
 
-    mState->addDependency("package-a", "package-b", pkg::DependencyScope::eDependency);
+    mState->addDependency("package-a", "package-b", pkg::DependencyScope::ePublicDependency);
 
-    auto buildDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::eBuildDependency);
-    ASSERT_TRUE(buildDeps.empty()) << "Expected no build dependencies, got: " << joinStrings(buildDeps, ", ");
+    auto buildDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::ePrivateDependency);
+    ASSERT_TRUE(buildDeps.empty()) << "Expected no private dependencies, got: " << joinStrings(buildDeps, ", ");
 
-    auto testDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::eTestDependency);
-    ASSERT_TRUE(testDeps.empty()) << "Expected no test dependencies, got: " << joinStrings(testDeps, ", ");
-
-    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::eDependency);
+    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::ePublicDependency);
     ASSERT_EQ(deps.size(), 1u) << "Expected one dependency, got: " << joinStrings(deps, ", ");
     ASSERT_EQ(deps.at(0), "package-b");
 }
@@ -100,21 +97,17 @@ TEST_F(WorkspaceStateTest, AddDependencyMultipleScopes) {
     mState->addPackage("package-b");
     mState->addPackage("package-c");
 
-    mState->addDependency("package-a", "package-b", pkg::DependencyScope::eDependency);
-    mState->addDependency("package-a", "package-c", pkg::DependencyScope::eBuildDependency);
-    mState->addDependency("package-a", "package-c", pkg::DependencyScope::eTestDependency);
+    mState->addDependency("package-a", "package-b", pkg::DependencyScope::ePublicDependency);
+    mState->addDependency("package-a", "package-c", pkg::DependencyScope::ePrivateDependency);
+    mState->addDependency("package-a", "package-c", pkg::DependencyScope::ePrivateDependency);
 
-    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::eDependency);
+    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::ePublicDependency);
     ASSERT_EQ(deps.size(), 1u) << "Expected one dependency, got: " << joinStrings(deps, ", ");
     ASSERT_EQ(deps.at(0), "package-b");
 
-    auto buildDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::eBuildDependency);
-    ASSERT_EQ(buildDeps.size(), 1u) << "Expected one build dependency, got: " << joinStrings(buildDeps, ", ");
+    auto buildDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::ePrivateDependency);
+    ASSERT_EQ(buildDeps.size(), 1u) << "Expected one private dependency, got: " << joinStrings(buildDeps, ", ");
     ASSERT_EQ(buildDeps.at(0), "package-c");
-
-    auto testDeps = mState->getAllDependencies("package-a", pkg::DependencyScope::eTestDependency);
-    ASSERT_EQ(testDeps.size(), 1u) << "Expected one test dependency, got: " << joinStrings(testDeps, ", ");
-    ASSERT_EQ(testDeps.at(0), "package-c");
 }
 
 TEST_F(WorkspaceStateTest, TransitiveDependency) {
@@ -122,11 +115,49 @@ TEST_F(WorkspaceStateTest, TransitiveDependency) {
     mState->addPackage("package-b");
     mState->addPackage("package-c");
 
-    mState->addDependency("package-a", "package-b", pkg::DependencyScope::eDependency);
-    mState->addDependency("package-b", "package-c", pkg::DependencyScope::eDependency);
+    mState->addDependency("package-a", "package-b", pkg::DependencyScope::ePublicDependency);
+    mState->addDependency("package-b", "package-c", pkg::DependencyScope::ePublicDependency);
 
-    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::eDependency);
+    auto deps = mState->getAllDependencies("package-a", pkg::DependencyScope::ePublicDependency);
     ASSERT_EQ(deps.size(), 2u) << "Expected two dependencies, got: " << joinStrings(deps, ", ");
     ASSERT_EQ(std::find(deps.begin(), deps.end(), "package-b") != deps.end(), true);
     ASSERT_EQ(std::find(deps.begin(), deps.end(), "package-c") != deps.end(), true);
+}
+
+TEST_F(WorkspaceStateTest, GetReverseDependencies) {
+    mState->addPackage("package-a");
+    mState->addPackage("package-b");
+    mState->addPackage("package-c");
+
+    mState->addDependency("package-a", "package-b", pkg::DependencyScope::ePublicDependency);
+    mState->addDependency("package-b", "package-c", pkg::DependencyScope::ePublicDependency);
+
+    auto rev = mState->getReverseDependencies("package-c", pkg::DependencyScope::ePublicDependency);
+    ASSERT_EQ(rev.size(), 2u) << "Expected two reverse dependencies, got: " << joinStrings(rev, ", ");
+    ASSERT_TRUE(std::find_if(rev.begin(), rev.end(), [](const std::string& name) { return name == "package-b"; }) != rev.end());
+    ASSERT_TRUE(std::find_if(rev.begin(), rev.end(), [](const std::string& name) { return name == "package-a"; }) != rev.end());
+}
+
+TEST_F(WorkspaceStateTest, GetReverseDependenciesEmpty) {
+    mState->addPackage("package-a");
+    mState->addPackage("package-b");
+
+    mState->addDependency("package-a", "package-b", pkg::DependencyScope::ePublicDependency);
+
+    auto rev = mState->getReverseDependencies("package-a", pkg::DependencyScope::ePublicDependency);
+    ASSERT_TRUE(rev.empty()) << "Expected no reverse dependencies, got: " << joinStrings(rev, ", ");
+}
+
+TEST_F(WorkspaceStateTest, GetReverseDependenciesMultipleScopes) {
+    mState->addPackage("package-a");
+    mState->addPackage("package-b");
+    mState->addPackage("package-c");
+
+    mState->addDependency("package-a", "package-c", pkg::DependencyScope::ePublicDependency);
+    mState->addDependency("package-b", "package-c", pkg::DependencyScope::ePrivateDependency);
+
+    auto rev = mState->getReverseDependencies("package-c", pkg::DependencyScope::ePublicDependency | pkg::DependencyScope::ePrivateDependency);
+    ASSERT_EQ(rev.size(), 2u) << "Expected two reverse dependencies, got: " << joinStrings(rev, ", ");
+    ASSERT_TRUE(std::find_if(rev.begin(), rev.end(), [](const std::string& name) { return name == "package-a"; }) != rev.end());
+    ASSERT_TRUE(std::find_if(rev.begin(), rev.end(), [](const std::string& name) { return name == "package-b"; }) != rev.end());
 }

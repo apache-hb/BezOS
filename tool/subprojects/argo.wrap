@@ -1,9 +1,9 @@
 [wrap-file]
-directory = argo-0c64d96dda0043fc66a287d75b9dbd001b4be415
+directory = argo-3c9fbe70b5cc5e04ffd1076c7242ec1bd69dcffc
 
-source_url = https://github.com/apache-hb/argo/archive/0c64d96dda0043fc66a287d75b9dbd001b4be415.zip
-source_filename = argo-0c64d96dda0043fc66a287d75b9dbd001b4be415.zip
-source_hash = a4f062dbddecefa7c02292b054d53a1928cb89984456a28e31ecba6ce1ba222c
+source_url = https://github.com/andrewhaisley/argo/archive/3c9fbe70b5cc5e04ffd1076c7242ec1bd69dcffc.zip
+source_filename = argo-3c9fbe70b5cc5e04ffd1076c7242ec1bd69dcffc.zip
+source_hash = 641b086d7cedaa9c576f5c82c58c9cac2c13ea04fb71565d000cf0f8d78fb148
 
 patch_directory = argo
 

@@ -3,5 +3,5 @@
     <build with="shell" script="build.sh" />
     <install with="shell" script="install.sh" />
 
-    <build-dependency name="cmake-source" version="4.x" />
+    <private-dependency name="cmake-source" version="4.x" />
 </package>

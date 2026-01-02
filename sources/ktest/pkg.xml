@@ -1,6 +1,6 @@
 <package name="ktest" version="1.x">
     <build with="meson" />
 
-    <dependency name="sysapi" version="1.x" />
-    <dependency name="libkernel" version="1.x" />
+    <public-dependency name="sysapi" version="1.x" />
+    <public-dependency name="libkernel" version="1.x" />
 </package>

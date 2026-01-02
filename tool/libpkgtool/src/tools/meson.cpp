@@ -6,7 +6,11 @@
 
 #include "basic.hpp"
 
+#include <fstream>
+
 #include <quill/Frontend.h>
+
+namespace fs = std::filesystem;
 
 namespace {
 class MesonBuildTool final : public pkg::BasicBuildTool {
@@ -31,10 +35,43 @@ class MesonBuildTool final : public pkg::BasicBuildTool {
         return pkg::ExecuteResult{result};
     }
 
+    std::filesystem::path processConfigFile(const std::filesystem::path& path, pkg::IWorkspace& workspace, pkg::IPackage& package) const {
+        std::string content = [&]() {
+            std::ifstream file{path};
+            if (!file.is_open()) {
+                throw std::runtime_error("Failed to open meson config file: " + path.string());
+            }
+
+            return std::string{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+        }();
+
+        auto processed = pkg::evaluate(content, workspace, package);
+        auto cached = cachePath() / "meson" / path.filename();
+        if (!fs::exists(cached.parent_path())) {
+            fs::create_directories(cached.parent_path());
+        }
+
+        std::ofstream out{cached};
+        out << processed;
+        out.close();
+
+        return cached;
+    }
+
 public:
     MesonBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
         : pkg::BasicBuildTool(node, workspace, package)
-    { }
+        , mCrossFile(pkg::evaluate(node.property("cross-file").value_or(""), workspace, package))
+        , mNativeFile(pkg::evaluate(node.property("native-file").value_or(""), workspace, package))
+    {
+        if (!mCrossFile.empty()) {
+            mCrossFile = processConfigFile(mCrossFile, workspace, package);
+        }
+
+        if (!mNativeFile.empty()) {
+            mNativeFile = processConfigFile(mNativeFile, workspace, package);
+        }
+    }
 
     std::string name() const override {
         return "meson";

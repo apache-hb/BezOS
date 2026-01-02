@@ -9,12 +9,6 @@ project('sysapi', [ 'c', 'cpp' ],
     version : '0.1.0',
 )
 
-inc = include_directories('include')
-
-sysapi_dep = declare_dependency(
-    include_directories : inc,
-)
-
 add_project_arguments(
     '-ffile-prefix-map=' + meson.current_source_dir() + '=/',
     '-ffile-prefix-map=../../../=/',
@@ -26,14 +20,6 @@ add_project_arguments(
     '-Wno-missing-designated-field-initializers',
     language : 'cpp'
 )
-
-install_subdir('include/posix', install_dir : 'include', install_tag : 'headers')
-install_subdir('include/bezos', install_dir : 'include', install_tag : 'headers')
-install_subdir('include/rtld', install_dir : 'include', install_tag : 'headers')
-
-if get_option('headers') or meson.is_subproject()
-    subdir_done()
-endif
 
 pkgconfig = import('pkgconfig')
 
@@ -56,8 +42,8 @@ src = [
 ]
 
 inc = include_directories(
-    sys_root / 'llvm-libcxx/include/c++/v1',
-    sys_root / 'llvm/lib/clang/21/include',
+    sys_root / 'include/c++/v1',
+    sys_root / 'lib/clang/21/include',
     'include/posix',
     'include'
 )
@@ -157,7 +143,7 @@ posix_dep = declare_dependency(
     include_directories : [ inc ],
 )
 
-meson.override_dependency('sysapi', sysapi_dep)
+meson.override_dependency('posix', posix_dep)
 
 pkgconfig.generate(libbezos,
     name : 'bezos-sysapi',

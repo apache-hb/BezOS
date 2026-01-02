@@ -85,7 +85,37 @@ class PkgToolImpl final : public pkg::IPkgTool {
         }
     }
 
-    void fetchPackageImpl(std::shared_ptr<pkg::IPackage> package) {
+    fs::path getSinglePackage(const pkg::DownloadInfo &source, std::shared_ptr<pkg::IPackage> package, bool clone) {
+        if (clone) {
+            if (fs::exists(package->path())) {
+                if (fs::exists(package->path() / ".git")) {
+                    LOG_TRACE_L1(logger(), "Package '{}' already cloned at '{}', skipping clone", package->name(), package->path().string());
+                    return package->path();
+                } else {
+                    LOG_INFO(logger(), "Package '{}' path '{}' exists but is not a git repository, removing old content", package->name(), package->path().string());
+                    fs::remove_all(package->path());
+                }
+            }
+
+            auto path = mDownloadClient->clone(source, package->path());
+            LOG_TRACE_L1(logger(), "Cloned source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
+
+            return package->path();
+        } else {
+            if (fs::exists(package->path())) {
+                LOG_TRACE_L1(logger(), "Package '{}' path '{}' exists, skipping fetch", package->name(), package->path().string());
+                return package->path();
+            }
+
+            auto path = mDownloadClient->fetch(source);
+            LOG_TRACE_L1(logger(), "Fetched source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
+            pkg::extractArchive(path, pkg::workspaceCachePath(*mWorkspace) / package->name(), source.format, source.trimRootFolder);
+
+            return pkg::workspaceCachePath(*mWorkspace) / package->name();
+        }
+    }
+
+    void fetchPackageImpl(std::shared_ptr<pkg::IPackage> package, bool clone) {
         auto sources = package->sources();
         if (sources.empty()) {
             LOG_TRACE_L1(logger(), "Package '{}' has no sources, skipping fetch", package->name());
@@ -93,12 +123,10 @@ class PkgToolImpl final : public pkg::IPkgTool {
         }
 
         for (const auto& source : sources) {
-            auto path = mDownloadClient->fetch(source);
-            LOG_TRACE_L1(logger(), "Fetched source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
-            pkg::extractArchive(path, pkg::workspaceCachePath(*mWorkspace) / package->name(), source.format, source.trimRootFolder);
+            auto dir = getSinglePackage(source, package, clone);
 
             for (const auto& patch : source.patches) {
-                pkg::applyPatch(pkg::workspaceCachePath(*mWorkspace) / package->name(), patch);
+                pkg::applyPatch(dir, patch);
                 LOG_TRACE_L1(logger(), "Applied patch '{}' to package '{}'", patch.string(), package->name());
             }
         }
@@ -148,16 +176,12 @@ public:
         }
 
         for (const auto& [name, package] : mWorkspace->packages()) {
-            for (const auto& depName : package->dependencies()) {
-                mState->addDependency(package->name(), depName, pkg::DependencyScope::eDependency | pkg::DependencyScope::eBuildDependency | pkg::DependencyScope::eTestDependency);
+            for (const auto& depName : package->publicDependencies()) {
+                mState->addDependency(package->name(), depName, pkg::DependencyScope::ePublicDependency | pkg::DependencyScope::ePrivateDependency);
             }
 
-            for (const auto& depName : package->buildDependencies()) {
-                mState->addDependency(package->name(), depName, pkg::DependencyScope::eBuildDependency);
-            }
-
-            for (const auto& depName : package->testDependencies()) {
-                mState->addDependency(package->name(), depName, pkg::DependencyScope::eTestDependency);
+            for (const auto& depName : package->privateDependencies()) {
+                mState->addDependency(package->name(), depName, pkg::DependencyScope::ePrivateDependency);
             }
         }
     }
@@ -166,7 +190,7 @@ public:
         return mWorkspace;
     }
 
-    void fetchPackage(const std::string& name) override {
+    void fetchPackage(const std::string& name, bool clone) override {
         createPackageEnvironment(name);
 
         auto package = mWorkspace->package(name);
@@ -174,7 +198,7 @@ public:
             throw std::runtime_error("Package not found: " + name);
         }
 
-        fetchPackageImpl(package);
+        fetchPackageImpl(package, clone);
 
         mState->setPackageState(name, pkg::PackageState::eFetched, false);
     }
@@ -218,20 +242,20 @@ public:
         mState->setPackageState(name, pkg::PackageState::eInstalled, false);
     }
 
-    void fetchPackageIfNeeded(const std::string& name) override {
+    void fetchPackageIfNeeded(const std::string& name, bool clone) override {
         auto state = mState->getPackageState(name);
         if (state >= pkg::PackageState::eFetched) {
             LOG_TRACE_L1(logger(), "Package '{}' is already fetched, skipping", name);
             return;
         }
 
-        fetchPackage(name);
+        fetchPackage(name, clone);
 
         mState->setPackageState(name, pkg::PackageState::eFetched, false);
     }
 
     void configurePackageIfNeeded(const std::string& name) override {
-        fetchPackageIfNeeded(name);
+        fetchPackageIfNeeded(name, false);
 
         auto state = mState->getPackageState(name);
         if (state >= pkg::PackageState::eConfigured) {
@@ -278,7 +302,7 @@ public:
             throw std::runtime_error("Package not found: " + name);
         }
 
-        std::vector dependencies = pkg::buildDependencyClosure(*mWorkspace, package->name());
+        std::vector dependencies = pkg::dependencyClosure(*mWorkspace, package->name());
         if (dependencies.empty()) {
             LOG_TRACE_L1(logger(), "Package '{}' has no dependencies, skipping environment creation", name);
             return;

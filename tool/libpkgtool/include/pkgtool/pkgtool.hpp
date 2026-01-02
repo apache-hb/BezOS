@@ -26,7 +26,7 @@ namespace pkg {
     };
 
     std::vector<std::shared_ptr<IPackage>> dependencyClosure(IWorkspace& workspace, const std::string& name);
-    std::vector<std::shared_ptr<IPackage>> buildDependencyClosure(IWorkspace& workspace, const std::string& name);
+    std::vector<std::shared_ptr<IPackage>> totalDependencyClosure(IWorkspace& workspace, const std::string& name);
 
     class IPackage {
     public:
@@ -45,9 +45,8 @@ namespace pkg {
 
         virtual std::vector<DownloadInfo> sources() const = 0;
 
-        virtual std::vector<std::string> buildDependencies() const = 0;
-        virtual std::vector<std::string> testDependencies() const = 0;
-        virtual std::vector<std::string> dependencies() const = 0;
+        virtual std::vector<std::string> publicDependencies() const = 0;
+        virtual std::vector<std::string> privateDependencies() const = 0;
     };
 
     std::filesystem::path workspaceCachePath(IWorkspace& workspace);
@@ -98,6 +97,7 @@ namespace pkg {
 
     void setupWorkspaceLayout(IWorkspace& workspace);
     void setupPackageBuildLayout(IWorkspace& workspace, IPackage& package);
+    void setupWorkspace(IWorkspace& workspace);
 
     class IPkgTool {
     public:
@@ -111,12 +111,12 @@ namespace pkg {
 
         virtual std::shared_ptr<IWorkspace> workspace() const = 0;
 
-        virtual void fetchPackage(const std::string& name) = 0;
+        virtual void fetchPackage(const std::string& name, bool clone = false) = 0;
         virtual void configurePackage(const std::string& name, const std::vector<std::string>& options) = 0;
         virtual void buildPackage(const std::string& name, const std::vector<std::string>& options) = 0;
         virtual void installPackage(const std::string& name, const std::vector<std::string>& options) = 0;
 
-        virtual void fetchPackageIfNeeded(const std::string& name) = 0;
+        virtual void fetchPackageIfNeeded(const std::string& name, bool clone = false) = 0;
         virtual void configurePackageIfNeeded(const std::string& name) = 0;
         virtual void buildPackageIfNeeded(const std::string& name) = 0;
         virtual void installPackageIfNeeded(const std::string& name) = 0;

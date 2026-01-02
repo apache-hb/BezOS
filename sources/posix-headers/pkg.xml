@@ -1,5 +1,5 @@
 <package name="posix-headers" version="1.x">
     <build with="meson" />
 
-    <dependency name="sysapi-headers" version="1.x" />
+    <public-dependency name="sysapi-headers" version="1.x" />
 </package>

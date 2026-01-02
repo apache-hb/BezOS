@@ -117,36 +117,31 @@ class WorkspaceStateImpl final : public pkg::IWorkspaceState {
 
     static std::string scopeToString(pkg::DependencyScope scope) {
         switch (scope) {
-            case pkg::DependencyScope::eDependency: return "dependency";
-            case pkg::DependencyScope::eBuildDependency: return "build_dependency";
-            case pkg::DependencyScope::eTestDependency: return "test_dependency";
+            case pkg::DependencyScope::ePublicDependency: return "public_dependency";
+            case pkg::DependencyScope::ePrivateDependency: return "private_dependency";
             default: return "dependency";
         }
     }
 
     static pkg::DependencyScope stringToScope(const std::string& str) {
-        if (str == "build_dependency") return pkg::DependencyScope::eBuildDependency;
-        if (str == "test_dependency") return pkg::DependencyScope::eTestDependency;
-        return pkg::DependencyScope::eDependency;
+        if (str == "public_dependency") return pkg::DependencyScope::ePublicDependency;
+        if (str == "private_dependency") return pkg::DependencyScope::ePrivateDependency;
+        return pkg::DependencyScope::ePublicDependency; // default
     }
 
     void addScopesToQuery(pkg::DependencyScope scopes) const {
         sqlite::Statement clear{mDatabase, kClearScopes};
         clear.exec();
 
-        sqlite::Statement insert{mDatabase, kAddScope};
-        if (pkg::testBit(scopes, pkg::DependencyScope::eDependency)) {
-            insert.bind(1, "dependency");
+        if (pkg::testBit(scopes, pkg::DependencyScope::ePublicDependency)) {
+            sqlite::Statement insert{mDatabase, kAddScope};
+            insert.bind(1, "public_dependency");
             insert.exec();
         }
 
-        if (pkg::testBit(scopes, pkg::DependencyScope::eBuildDependency)) {
-            insert.bind(1, "build_dependency");
-            insert.exec();
-        }
-
-        if (pkg::testBit(scopes, pkg::DependencyScope::eTestDependency)) {
-            insert.bind(1, "test_dependency");
+        if (pkg::testBit(scopes, pkg::DependencyScope::ePrivateDependency)) {
+            sqlite::Statement insert{mDatabase, kAddScope};
+            insert.bind(1, "private_dependency");
             insert.exec();
         }
     }

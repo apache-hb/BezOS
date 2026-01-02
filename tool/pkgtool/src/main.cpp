@@ -25,9 +25,11 @@ class ArgOptions {
     static constexpr char kWorkspaceKey[] = "--vsc-workspace";
 
     static constexpr char kFetchKey[] = "--fetch";
+    static constexpr char kCloneKey[] = "--clone";
     static constexpr char kConfigureKey[] = "--configure";
     static constexpr char kBuildKey[] = "--build";
     static constexpr char kInstallKey[] = "--install";
+    static constexpr char kRecursiveKey[] = "--recursive";
 
     static constexpr char kLogLevelKey[] = "--log-level";
 
@@ -69,6 +71,11 @@ public:
             .append()
             .nargs(argparse::nargs_pattern::any);
 
+        parser.add_argument(kRecursiveKey)
+            .help("Recursively process dependencies")
+            .default_value(false)
+            .implicit_value(true);
+
         parser.add_argument(kLogLevelKey)
             .help("Set the logging level (tracel3, tracel2, tracel1, debug, info, warning, error, critical)")
             .default_value(std::string{"info"});
@@ -94,6 +101,10 @@ public:
         return parser.get<std::vector<std::string>>(kFetchKey);
     }
 
+    std::vector<std::string> clonePackages() const {
+        return parser.get<std::vector<std::string>>(kCloneKey);
+    }
+
     std::vector<std::string> configurePackages() const {
         return parser.get<std::vector<std::string>>(kConfigureKey);
     }
@@ -104,6 +115,10 @@ public:
 
     std::vector<std::string> installPackages() const {
         return parser.get<std::vector<std::string>>(kInstallKey);
+    }
+
+    bool recursive() const {
+        return parser.get<bool>(kRecursiveKey);
     }
 
     std::string logLevel() const {
@@ -142,13 +157,8 @@ int run(int argc, const char** argv) try {
     fs::path configPath = options.config();
 
     auto workspace = pkg::IWorkspace::ofRootPath(configPath);
-    pkg::setupWorkspaceLayout(*workspace);
 
-    auto packages = workspace->packages();
-    for (const auto& [name, package] : packages) {
-        LOG_TRACE_L2(gLogger, "Found package: {} at {}", name, package->path());
-        pkg::setupPackageBuildLayout(*workspace, *package);
-    }
+    pkg::setupWorkspace(*workspace);
 
     auto state = pkg::IWorkspaceState::ofSqlite(configPath.parent_path() / "build/workspace.db");
 
@@ -156,59 +166,65 @@ int run(int argc, const char** argv) try {
 
     auto pkgtool = pkg::IPkgTool::create(workspace, state, downloadClient);
 
+    auto cloneList = options.clonePackages();
     auto fetchList = options.fetchPackages();
     auto configureList = options.configurePackages();
     auto buildList = options.buildPackages();
     auto installList = options.installPackages();
 
+    LOG_INFO(gLogger, "Clone list: {}", cloneList);
     LOG_INFO(gLogger, "Fetching {}", fetchList);
     LOG_INFO(gLogger, "Configuring {}", configureList);
     LOG_INFO(gLogger, "Building {}", buildList);
     LOG_INFO(gLogger, "Installing {}", installList);
 
+    auto shouldClone = [&](const std::string& name) {
+        return std::find(cloneList.begin(), cloneList.end(), name) != cloneList.end();
+    };
+
     for (const auto& name : fetchList) {
         pkgtool->lowerPackageState(name, pkg::PackageState::eUnknown);
 
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
-            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eUnknown);
+        for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eUnknown);
         }
     }
 
     for (const auto& name : configureList) {
         pkgtool->lowerPackageState(name, pkg::PackageState::eFetched);
 
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
-            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eFetched);
+        for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eFetched);
         }
     }
 
     for (const auto& name : buildList) {
         pkgtool->lowerPackageState(name, pkg::PackageState::eConfigured);
 
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
-            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eConfigured);
+        for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eConfigured);
         }
     }
 
     for (const auto& name : installList) {
         pkgtool->lowerPackageState(name, pkg::PackageState::eBuilt);
 
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, name)) {
-            pkgtool->lowerPackageState(depName->name(), pkg::PackageState::eBuilt);
+        for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eBuilt);
         }
     }
 
     for (const auto& fetchName : fetchList) {
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, fetchName)) {
+        for (const auto& depName : pkg::totalDependencyClosure(*workspace, fetchName)) {
             pkgtool->fetchPackageIfNeeded(depName->name());
         }
 
         LOG_INFO(gLogger, "Fetching package '{}'", fetchName);
-        pkgtool->fetchPackageIfNeeded(fetchName);
+        pkgtool->fetchPackageIfNeeded(fetchName, shouldClone(fetchName));
     }
 
     for (const auto& configureName : configureList) {
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, configureName)) {
+        for (const auto& depName : pkg::totalDependencyClosure(*workspace, configureName)) {
             pkgtool->configurePackageIfNeeded(depName->name());
         }
 
@@ -217,7 +233,7 @@ int run(int argc, const char** argv) try {
     }
 
     for (const auto& buildName : buildList) {
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, buildName)) {
+        for (const auto& depName : pkg::totalDependencyClosure(*workspace, buildName)) {
             pkgtool->buildPackageIfNeeded(depName->name());
         }
 
@@ -226,7 +242,7 @@ int run(int argc, const char** argv) try {
     }
 
     for (const auto& installName : installList) {
-        for (const auto& depName : pkg::buildDependencyClosure(*workspace, installName)) {
+        for (const auto& depName : pkg::totalDependencyClosure(*workspace, installName)) {
             pkgtool->installPackageIfNeeded(depName->name());
         }
 

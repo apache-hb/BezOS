@@ -87,9 +87,9 @@ executable(
   ],
 )
 
-executable(
-  'ktest.elf',
-  'ktest/main.cpp',
-  install: true,
-  dependencies: [argparse, subprocess, absl_base, fmt],
-)
+# executable(
+#   'ktest.elf',
+#   'ktest/main.cpp',
+#   install: true,
+#   dependencies: [argparse, subprocess, absl_base, fmt],
+# )

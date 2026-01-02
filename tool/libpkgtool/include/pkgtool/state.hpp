@@ -16,9 +16,8 @@ namespace pkg {
     };
 
     enum class DependencyScope : uint8_t {
-        eDependency = (1 << 0),
-        eBuildDependency = (1 << 1),
-        eTestDependency = (1 << 2),
+        ePublicDependency = (1 << 0),
+        ePrivateDependency = (1 << 1),
     };
 
     constexpr DependencyScope operator|(DependencyScope a, DependencyScope b) {
