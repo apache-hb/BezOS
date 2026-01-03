@@ -9,6 +9,10 @@
 
 #include <absl/types/span.h>
 
+#include "src/exec.hpp"
+
+#include <fmt/format.h>
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -86,32 +90,41 @@ class PkgToolImpl final : public pkg::IPkgTool {
     }
 
     fs::path getSinglePackage(const pkg::DownloadInfo &source, std::shared_ptr<pkg::IPackage> package, bool clone) {
+        auto cachePath = pkg::workspaceCachePath(*mWorkspace) / package->name();
         if (clone) {
-            if (fs::exists(package->path())) {
-                if (fs::exists(package->path() / ".git")) {
-                    LOG_TRACE_L1(logger(), "Package '{}' already cloned at '{}', skipping clone", package->name(), package->path().string());
-                    return package->path();
-                } else {
-                    LOG_INFO(logger(), "Package '{}' path '{}' exists but is not a git repository, removing old content", package->name(), package->path().string());
-                    fs::remove_all(package->path());
-                }
+            if (source.git.empty()) {
+                throw std::runtime_error(fmt::format("Package {} source does not specify a git repository to clone", package->name()));
             }
 
-            auto path = mDownloadClient->clone(source, package->path());
+            if (fs::exists(cachePath)) {
+                if (fs::exists(cachePath / ".git")) {
+                    LOG_TRACE_L1(logger(), "Package '{}' already cloned at '{}', skipping clone", package->name(), cachePath.string());
+                    auto pwd = cachePath.string();
+                    pkg::execute(logger(), { "git", "restore", "." }, subprocess::cwd{pwd});
+                    return cachePath;
+                } else {
+                    LOG_INFO(logger(), "Package '{}' path '{}' exists but is not a git repository, removing old content", package->name(), cachePath.string());
+                    fs::remove_all(cachePath);
+                }
+            } else {
+                fs::create_directories(cachePath);
+            }
+
+            auto path = mDownloadClient->clone(source, cachePath);
             LOG_TRACE_L1(logger(), "Cloned source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
 
-            return package->path();
+            return cachePath;
         } else {
-            if (fs::exists(package->path())) {
-                LOG_TRACE_L1(logger(), "Package '{}' path '{}' exists, skipping fetch", package->name(), package->path().string());
-                return package->path();
+            if (fs::exists(cachePath)) {
+                LOG_INFO(logger(), "Package '{}' path '{}' exists, skipping fetch", package->name(), cachePath.string());
+                return cachePath;
             }
 
             auto path = mDownloadClient->fetch(source);
-            LOG_TRACE_L1(logger(), "Fetched source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
-            pkg::extractArchive(path, pkg::workspaceCachePath(*mWorkspace) / package->name(), source.format, source.trimRootFolder);
+            LOG_INFO(logger(), "Fetched source '{}' for package '{}' to '{}'", source.url, package->name(), path.string());
+            pkg::extractArchive(path, cachePath, source.format, source.trimRootFolder);
 
-            return pkg::workspaceCachePath(*mWorkspace) / package->name();
+            return cachePath;
         }
     }
 
@@ -122,7 +135,13 @@ class PkgToolImpl final : public pkg::IPkgTool {
             return;
         }
 
+        auto builddir = pkg::packageBuildPath(*mWorkspace, *package);
+        fs::create_directories(builddir);
+
+        LOG_INFO(logger(), "Package {} has {} source(s) to fetch", package->name(), sources.size());
+
         for (const auto& source : sources) {
+            LOG_INFO(logger(), "Fetching source '{}' for package '{}'", source.url, package->name());
             auto dir = getSinglePackage(source, package, clone);
 
             for (const auto& patch : source.patches) {
@@ -137,6 +156,13 @@ class PkgToolImpl final : public pkg::IPkgTool {
         if (tool == nullptr) {
             LOG_TRACE_L1(logger(), "Package '{}' has no configure tool, skipping", package->name());
             return;
+        }
+
+        if (!fs::exists(package->path() / "builddir")) {
+            fs::create_symlink(
+                pkg::packageBuildPath(*mWorkspace, *package),
+                package->path() / "builddir"
+            );
         }
 
         LOG_TRACE_L1(logger(), "Configuring package '{}' using tool '{}'", package->name(), tool->name());
@@ -163,6 +189,15 @@ class PkgToolImpl final : public pkg::IPkgTool {
 
         LOG_TRACE_L1(logger(), "Installing package '{}' using tool '{}'", package->name(), tool->name());
         tool->install().throwIfFailed();
+
+        auto installPath = pkg::packageInstallPath(*mWorkspace, *package);
+        auto toplevel = mWorkspace->path() / "install" / package->name();
+        if (!fs::exists(toplevel)) {
+            fs::create_symlink(
+                pkg::packageInstallPath(*mWorkspace, *package),
+                toplevel
+            );
+        }
     }
 public:
     PkgToolImpl(std::shared_ptr<pkg::IWorkspace> workspace, std::shared_ptr<pkg::IWorkspaceState> state, std::shared_ptr<pkg::IDownloadClient> downloadClient)

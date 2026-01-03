@@ -1,0 +1,15 @@
+<package name="libcxx-cross" version="21.x">
+    <private-dependency name="llvm-source" version="21.x" />
+    <private-dependency name="cmake-host" version="4.x" />
+    <private-dependency name="clang-host" version="21.x" />
+    <public-dependency name="sysapi-headers" version="1.x" />
+
+    <configure with="cmake" executable="${package.sysroot}/bin/cmake" src="${package.sysroot}/src/llvm-project/llvm">
+        <option name="LLVM_ENABLE_RUNTIMES" value="compiler-rt;libunwind;libcxx;libcxxabi" />
+        <option name="CMAKE_C_COMPILER" value="${package.sysroot}/bin/clang" />
+        <option name="CMAKE_CXX_COMPILER" value="${package.sysroot}/bin/clang++" />
+        <option name="CMAKE_LINKER" value="${package.sysroot}/bin/ld.lld" />
+        <option name="CMAKE_SYSROOT" value="${package.sysroot}" />
+        <option name="LLVM_DEFAULT_TARGET_TRIPLE" value="x86_64-unknown-bezos-jlibc" />
+    </configure>
+</package>

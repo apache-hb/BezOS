@@ -56,6 +56,11 @@ public:
             .append()
             .nargs(argparse::nargs_pattern::any);
 
+        parser.add_argument(kCloneKey)
+            .help("List of packages to clone from git")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
+
         parser.add_argument(kConfigureKey)
             .help("List of packages to configure or reconfigure")
             .append()
@@ -172,6 +177,10 @@ int run(int argc, const char** argv) try {
     auto buildList = options.buildPackages();
     auto installList = options.installPackages();
 
+    fetchList.insert(fetchList.end(), cloneList.begin(), cloneList.end());
+    std::sort(fetchList.begin(), fetchList.end());
+    fetchList.erase(std::unique(fetchList.begin(), fetchList.end()), fetchList.end());
+
     LOG_INFO(gLogger, "Clone list: {}", cloneList);
     LOG_INFO(gLogger, "Fetching {}", fetchList);
     LOG_INFO(gLogger, "Configuring {}", configureList);
@@ -216,15 +225,18 @@ int run(int argc, const char** argv) try {
 
     for (const auto& fetchName : fetchList) {
         for (const auto& depName : pkg::totalDependencyClosure(*workspace, fetchName)) {
+            LOG_INFO(gLogger, "Fetching package '{}'", depName->name());
             pkgtool->fetchPackageIfNeeded(depName->name());
         }
 
         LOG_INFO(gLogger, "Fetching package '{}'", fetchName);
         pkgtool->fetchPackageIfNeeded(fetchName, shouldClone(fetchName));
+        LOG_INFO(gLogger, "Fetched package '{}'", fetchName);
     }
 
     for (const auto& configureName : configureList) {
         for (const auto& depName : pkg::totalDependencyClosure(*workspace, configureName)) {
+            LOG_INFO(gLogger, "Configuring package '{}'", depName->name());
             pkgtool->configurePackageIfNeeded(depName->name());
         }
 
@@ -234,6 +246,7 @@ int run(int argc, const char** argv) try {
 
     for (const auto& buildName : buildList) {
         for (const auto& depName : pkg::totalDependencyClosure(*workspace, buildName)) {
+            LOG_INFO(gLogger, "Building package '{}'", depName->name());
             pkgtool->buildPackageIfNeeded(depName->name());
         }
 
@@ -243,6 +256,7 @@ int run(int argc, const char** argv) try {
 
     for (const auto& installName : installList) {
         for (const auto& depName : pkg::totalDependencyClosure(*workspace, installName)) {
+            LOG_INFO(gLogger, "Installing package '{}'", depName->name());
             pkgtool->installPackageIfNeeded(depName->name());
         }
 

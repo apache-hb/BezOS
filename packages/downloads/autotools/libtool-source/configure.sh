@@ -1,0 +1,7 @@
+#!/bin/sh
+
+set -e
+
+cd $PKGTOOL_CACHEDIR
+
+PATH=$PKGTOOL_SYSROOT/bin:$PATH $PKGTOOL_CACHEDIR/configure --prefix=$PKGTOOL_PREFIX

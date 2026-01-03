@@ -1,0 +1,9 @@
+<package name='gnulib-source' version='2026.01'>
+    <download file='stable-202601.zip'
+              url='https://github.com/coreutils/gnulib/archive/refs/heads/stable-202601.zip'
+              sha256='b8152414ab3f5e38eba0059cad914430f6e3f0e40e3ca890476ee0267f2596f1'
+              trim-root-folder='true'
+              archive='zip' />
+
+    <install with='shell' script='copy-source.sh' />
+</package>

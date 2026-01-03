@@ -3,9 +3,13 @@
               file='llvm-project.zip'
               sha256='a92c202db56bf7839363c3b4aaaf753701d2731d20ec2d372f03ab26be915dd0'
               trim-root-folder='true'
-              archive='zip'>
+              archive='zip'
+              git='https://github.com/llvm/llvm-project.git'
+              commit='dca73063653ca7d35afb3226ae66623495086204'>
 
         <patch file='patches/add-bezos.patch' />
+        <patch file='patches/add-bezos-cpp.patch' />
+        <patch file='patches/add-bezos-h.patch' />
         <patch file='patches/add-overridden-cursors.patch' />
         <patch file='patches/add-signal-safe-attributes.patch' />
     </download>

@@ -8,6 +8,8 @@
 
 #include <quill/Frontend.h>
 
+namespace fs = std::filesystem;
+
 namespace {
 class CMakeBuildTool final : public pkg::BasicBuildTool {
     static inline auto logger() {
@@ -16,7 +18,6 @@ class CMakeBuildTool final : public pkg::BasicBuildTool {
     }
 
     std::filesystem::path mCmakeExecutable;
-    std::filesystem::path mCmakeListsFolder;
     std::filesystem::path mToolchainFile;
 
     pkg::ExecuteResult runCMakeCommand(const std::vector<std::string>& args) {
@@ -36,7 +37,6 @@ public:
     CMakeBuildTool(XmlNode node, pkg::IWorkspace& workspace, pkg::IPackage& package)
         : pkg::BasicBuildTool(node, workspace, package)
         , mCmakeExecutable(pkg::evaluate(node.property("executable").value_or("cmake"), workspace, package))
-        , mCmakeListsFolder(pkg::evaluate(node.property("src").value_or(sourcePath().string()), workspace, package))
     { }
 
     std::string name() const override {
@@ -51,7 +51,7 @@ public:
 
         std::vector<std::string> cmd = {
             "-B", buildPath().string(),
-            "-S", mCmakeListsFolder.string(),
+            "-S", externalSourcePath().string(),
             "-DCMAKE_INSTALL_PREFIX=" + installPrefix().string(),
             "-DCMAKE_BUILD_TYPE=MinSizeRel",
             // "-DCMAKE_SYSROOT=" + sysrootPath().string(),
@@ -67,7 +67,16 @@ public:
             cmd.push_back("-DCMAKE_TOOLCHAIN_FILE=" + mToolchainFile.string());
         }
 
-        return runCMakeCommand(cmd);
+        auto result = runCMakeCommand(cmd);
+
+        if (!fs::exists(sourcePath() / "builddir")) {
+            std::filesystem::create_symlink(
+                buildPath(),
+                sourcePath() / "builddir"
+            );
+        }
+
+        return result;
     }
 
     pkg::ExecuteResult build() override {

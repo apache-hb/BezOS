@@ -1,20 +1,32 @@
 <workspace>
-    <package path="packages/downloads/cmake-source" />
-    <package path="packages/downloads/llvm-source" />
+    <package path='packages/downloads/cmake-source' />
+    <package path='packages/downloads/llvm-source' />
+    <package path='packages/downloads/gcc-source' />
+    <package path='packages/downloads/gnulib-source' />
 
-    <package path="packages/cmake-host" />
-    <package path="packages/clang-host" />
+    <package path='packages/downloads/autotools/autoconf-source' />
+    <package path='packages/downloads/autotools/automake-source' />
+    <package path='packages/downloads/help2man' />
+    <package path='packages/downloads/autotools/libtool-source' />
 
-    <package path="sources/sysapi-headers" />
-    <package path="sources/posix-headers" />
-    <package path="sources/sysapi" />
-    <package path="sources/posix" />
-    <package path="sources/system" />
+    <!-- Packages that will run on the host machine and target the host machine -->
+    <package path='packages/host/cmake-host' />
+    <package path='packages/host/clang-host' />
+    <package path='packages/host/gcc-host' />
 
-    <package path="sources/libkernel" />
-    <package path="sources/ktest" />
-    <package path="sources/bezos" />
+    <package path='packages/cross/clang-cross' />
+    <package path='packages/cross/libcxx-cross' />
 
-    <package path="sources/initrd" />
-    <package path="sources/image" />
+    <package path='sources/sysapi-headers' />
+    <package path='sources/posix-headers' />
+    <package path='sources/sysapi' />
+    <package path='sources/posix' />
+    <package path='sources/system' />
+
+    <package path='sources/libkernel' />
+    <package path='sources/ktest' />
+    <package path='sources/bezos' />
+
+    <package path='sources/initrd' />
+    <package path='sources/image' />
 </workspace>

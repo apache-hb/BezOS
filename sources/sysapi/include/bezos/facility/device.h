@@ -96,8 +96,6 @@ struct OsDeviceInfo {
 /// Open a device in the filesystem, equivalent to opening a vnode and querying for an interface in one step.
 ///
 /// @param CreateInfo The create information for the device.
-/// @param Data Data to pass to the device during creation.
-/// @param DataSize The size of the data to pass to the device creation.
 /// @param[out] OutHandle The device handle.
 ///
 /// @return The status of the operation.

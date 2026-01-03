@@ -1,5 +1,7 @@
 #!/bin/sh
 
+alias pkgtool='install/tool/bin/pkgtool.elf --profile a.xml'
+
 alias repopkg='install/tool/bin/package.elf --config repo/repo.xml --target repo/targets/x86_64.xml --output build --prefix install --workspace repo.code-workspace --clangd kernel sysapi system common'
 alias repobld='repopkg --rebuild'
 alias repocnf='repopkg --reconfigure'

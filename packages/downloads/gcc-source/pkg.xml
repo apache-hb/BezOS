@@ -1,0 +1,12 @@
+<package name='gcc-source' version='15.x'>
+    <download url='https://mirror.csclub.uwaterloo.ca/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.gz'
+              file='gcc-15.tar.gz'
+              sha256='7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723'
+              trim-root-folder='true'
+              archive='tar.gz' />
+
+    <private-dependency name='libtool-source' version='2.5.4' />
+    <private-dependency name='automake-source' version='1.17' />
+
+    <install with='shell' script='copy-source.sh' />
+</package>

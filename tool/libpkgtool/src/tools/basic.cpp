@@ -21,6 +21,10 @@ const std::map<std::string, std::string>& pkg::BasicBuildTool::options() const {
     return mOptions;
 }
 
+const std::vector<std::string>& pkg::BasicBuildTool::flags() const {
+    return mFlags;
+}
+
 const std::filesystem::path& pkg::BasicBuildTool::buildPath() const {
     return mBuildPath;
 }
@@ -47,6 +51,8 @@ pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackag
     , mSysrootPath(pkg::packageSysrootPath(workspace, package))
     , mSourcePath(std::filesystem::absolute(package.path()))
     , mCachePath(pkg::packageCachePath(workspace, package))
+    , mWorkPath(pkg::evaluate(node.property("workdir").value_or(""), workspace, package))
+    , mExternalSourcePath(pkg::evaluate(node.property("src").value_or(""), workspace, package))
 {
     mEnvironment.emplace("PKGTOOL_PREFIX", mInstallPrefix.string());
     mEnvironment.emplace("PKGTOOL_SYSROOT", mSysrootPath.string());
@@ -60,14 +66,14 @@ pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackag
                 if (mEnvironment.contains(key)) {
                     LOG_WARNING(logger(), "{} Duplicate environment variable {}", locationToString(child), key);
                 }
-                mEnvironment.emplace(key, value);
+                mEnvironment.emplace(key, pkg::evaluate(value, workspace, package));
             }
         } else if (child.name() == "options") {
             for (const auto& [key, value] : child.properties()) {
                 if (mOptions.contains(key)) {
                     LOG_WARNING(logger(), "{} Duplicate option {}", locationToString(child), key);
                 }
-                mOptions.emplace(key, value);
+                mOptions.emplace(key, pkg::evaluate(value, workspace, package));
             }
         } else if (child.name() == "option") {
             auto key = child.expect("name");
@@ -75,7 +81,10 @@ pkg::BasicBuildTool::BasicBuildTool(XmlNode node, IWorkspace& workspace, IPackag
             if (mOptions.contains(key)) {
                 LOG_WARNING(logger(), "{} Duplicate option {}", locationToString(child), key);
             }
-            mOptions.emplace(key, value);
+            mOptions.emplace(key, pkg::evaluate(value, workspace, package));
+        } else if (child.name() == "flag") {
+            auto value = child.expect("line");
+            mFlags.push_back(pkg::evaluate(value, workspace, package));
         } else {
             LOG_WARNING(logger(), "{} Unknown build tool configuration element {}", locationToString(child), child.name());
         }

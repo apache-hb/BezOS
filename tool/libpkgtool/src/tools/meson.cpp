@@ -78,6 +78,10 @@ public:
     }
 
     pkg::ExecuteResult configure() override {
+        if (fs::exists(buildPath())) {
+            fs::remove_all(buildPath());
+        }
+
         std::vector<std::string> cmd = {
             "setup", buildPath().string(), sourcePath().string(),
             "--prefix", installPrefix().string(),

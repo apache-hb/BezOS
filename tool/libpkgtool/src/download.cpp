@@ -44,6 +44,8 @@ class DownloadClientImpl final : public pkg::IDownloadClient {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
+        LOG_INFO(logger(), "Downloading '{}' to '{}'", url, dst);
+
         FILE *file = fopen(dst.c_str(), "wb");
         if (file == nullptr) {
             LOG_ERROR(logger(), "Failed to open file '{}' for writing", dst);
@@ -58,6 +60,8 @@ class DownloadClientImpl final : public pkg::IDownloadClient {
             LOG_ERROR(logger(), "Failed to download '{}': {}", url, curl_easy_strerror(res) ?: "unknown error");
             return false;
         }
+
+        LOG_INFO(logger(), "Finished downloading {} bytes", fs::file_size(dst));
 
         return true;
     }
@@ -129,8 +133,10 @@ public:
     std::filesystem::path clone(const pkg::DownloadInfo& info, const std::filesystem::path& dst) override {
         std::string dir = fs::absolute(dst).string();
 
+        LOG_INFO(logger(), "Cloning '{}' to '{}'", info.git, dir);
+
         std::vector<std::string> args = {
-            "git", "clone", info.url, dir
+            "git", "clone", info.git, dir
         };
 
         if (!info.branch.empty()) {
@@ -140,7 +146,7 @@ public:
 
         auto result = pkg::execute(logger(), args);
         if (result != 0) {
-            throw std::runtime_error("Failed to clone " + info.url);
+            throw std::runtime_error("Failed to clone " + info.git);
         }
 
         if (!info.commit.empty()) {
@@ -149,6 +155,8 @@ public:
                 throw std::runtime_error("Failed to checkout commit " + info.commit);
             }
         }
+
+        pkg::execute(logger(), { "git", "restore", "." }, subprocess::cwd{dir});
 
         return dst;
     }
@@ -275,6 +283,8 @@ void pkg::applyPatch(const std::filesystem::path& target, const std::filesystem:
     };
 
     auto cwd = target.string();
+
+    LOG_INFO(logger, "Applying patch '{}' to '{}'", patch.string(), target.string());
 
     auto result = pkg::execute(logger, args, subprocess::cwd{cwd});
     if (result != 0) {
