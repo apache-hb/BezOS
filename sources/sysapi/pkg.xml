@@ -1,7 +1,8 @@
 <package name="sysapi" version="1.x">
     <configure with="meson" cross-file="${package.src}/data/bezos.ini" />
 
-    <private-dependency name="clang-cross" version="21.x" />
+    <private-dependency name="clang-host" version="21.x" />
+    <private-dependency name="libcxx-cross" version="21.x" />
 
     <public-dependency name="sysapi-headers" version="1.x" />
 </package>

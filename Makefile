@@ -29,6 +29,7 @@ pkgtool-check: $(PKGTOOL)
 
 .PHONY: pkgtoold-activate
 pkgtoold-activate: $(PKGTOOL)
+	chmod +x $(ROOT)/install/tool/bin/systemd-pkgtoold-install.sh
 	$(ROOT)/install/tool/bin/systemd-pkgtoold-install.sh
 
 .PHONY: pkgtool-clean

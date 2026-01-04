@@ -2,14 +2,45 @@
     <private-dependency name="llvm-source" version="21.x" />
     <private-dependency name="cmake-host" version="4.x" />
     <private-dependency name="clang-host" version="21.x" />
+
+    <!-- for libgcc -->
+    <private-dependency name="gcc-host" version="15.x" />
+
     <public-dependency name="sysapi-headers" version="1.x" />
 
     <configure with="cmake" executable="${package.sysroot}/bin/cmake" src="${package.sysroot}/src/llvm-project/llvm">
-        <option name="LLVM_ENABLE_RUNTIMES" value="compiler-rt;libunwind;libcxx;libcxxabi" />
+        <option name="LLVM_ENABLE_RUNTIMES" value="libunwind;libcxx;libcxxabi" />
+        <option name="LLVM_DEFAULT_TARGET_TRIPLE" value="x86_64-unknown-bezos-jlibc" />
+        <option name="LLVM_ENABLE_LIBCXX" value="ON" />
+        <option name="LLVM_INCLUDE_TESTS" value="OFF" />
+        <option name="LIBCXX_CXX_ABI" value="libcxxabi" />
+
+        <options LIBCXX_PSTL_BACKEND="serial"
+                 LIBCXX_ENABLE_THREADS="OFF"
+                 LIBCXX_ENABLE_MONOTONIC_CLOCK="OFF"
+                 LIBCXX_ENABLE_FILESYSTEM="OFF"
+                 LIBCXX_ENABLE_RANDOM_DEVICE="OFF"
+                 LIBCXX_ENABLE_LOCALIZATION="OFF"
+                 LIBCXX_ENABLE_SHARED="OFF"
+                 LIBCXX_ENABLE_TIME_ZONE_DATABASE="OFF"
+                 LIBCXX_ENABLE_EXCEPTIONS="ON" />
+
+        <options LIBCXXABI_ENABLE_THREADS="OFF"
+                 LIBCXXABI_ENABLE_SHARED="OFF"
+                 LIBCXXABI_ENABLE_EXCEPTIONS="ON"
+                 LIBCXXABI_ENABLE_STATIC_UNWINDER="ON" />
+
         <option name="CMAKE_C_COMPILER" value="${package.sysroot}/bin/clang" />
         <option name="CMAKE_CXX_COMPILER" value="${package.sysroot}/bin/clang++" />
         <option name="CMAKE_LINKER" value="${package.sysroot}/bin/ld.lld" />
         <option name="CMAKE_SYSROOT" value="${package.sysroot}" />
-        <option name="LLVM_DEFAULT_TARGET_TRIPLE" value="x86_64-unknown-bezos-jlibc" />
+
+        <option name="CMAKE_C_COMPILER_WORKS" value="1" />
+        <option name="CMAKE_CXX_COMPILER_WORKS" value="1" />
+
+        <!-- <option name="CMAKE_C_COMPILER_TARGET" value="x86_64-unknown-bezos-jlibc" />
+        <option name="CMAKE_CXX_COMPILER_TARGET" value="x86_64-unknown-bezos-jlibc" /> -->
+
+        <env LD_LIBRARY_PATH="${package.sysroot}/lib:${package.sysroot}/lib64" />
     </configure>
 </package>

@@ -1,0 +1,9 @@
+<package name='libstdcxx-host' version='15.x'>
+    <private-dependency name='gcc-source' version='15.x' />
+    <private-dependency name='automake-source' version='1.17' />
+    <private-dependency name='libtool-source' version='2.5.4' />
+
+    <configure with='shell' script='configure.sh' />
+    <build with='shell' script='build.sh' />
+    <install with='shell' script='install.sh' />
+</package>

@@ -1,0 +1,15 @@
+<package name='m4-source' version='1.4.20'>
+    <download url='https://github.com/autotools-mirror/m4/archive/refs/tags/v1.4.20.tar.gz'
+              file='m4-1.4.20.tar.gz'
+              sha256='ed6bb3dbad4af475a9ce96107a722617372f6d725e3dcf5fe33a33d8981fd41c'
+              trim-root-folder='true'
+              archive='tar.gz' />
+
+    <private-dependency name='gnulib-source' version='2.40' />
+    <private-dependency name='autoconf-source' version='2.71' />
+    <private-dependency name='automake-source' version='1.17' />
+    <private-dependency name='help2man' version='1.49.3' />
+    <private-dependency name='texinfo-host' version='7.2' />
+
+    <install with='shell' script='copy-source.sh' />
+</package>

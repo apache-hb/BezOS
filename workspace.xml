@@ -1,20 +1,25 @@
 <workspace>
     <package path='packages/downloads/cmake-source' />
     <package path='packages/downloads/llvm-source' />
+    <package path='packages/downloads/binutils-source' />
     <package path='packages/downloads/gcc-source' />
     <package path='packages/downloads/gnulib-source' />
+    <package path='packages/downloads/m4-source' />
+    <package path='packages/downloads/help2man' />
 
     <package path='packages/downloads/autotools/autoconf-source' />
     <package path='packages/downloads/autotools/automake-source' />
-    <package path='packages/downloads/help2man' />
     <package path='packages/downloads/autotools/libtool-source' />
 
     <!-- Packages that will run on the host machine and target the host machine -->
+    <package path='packages/host/gcc-host' />
+    <package path='packages/host/binutils-host' />
     <package path='packages/host/cmake-host' />
     <package path='packages/host/clang-host' />
-    <package path='packages/host/gcc-host' />
+    <package path='packages/host/libstdcxx-host' />
+    <package path='packages/host/m4-host' />
+    <package path='packages/host/texinfo-host' />
 
-    <package path='packages/cross/clang-cross' />
     <package path='packages/cross/libcxx-cross' />
 
     <package path='sources/sysapi-headers' />

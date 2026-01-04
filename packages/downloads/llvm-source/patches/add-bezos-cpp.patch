@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/BezOS.cpp b/clang/lib/Driver/ToolChains/BezOS.cpp
 new file mode 100644
-index 000000000000..9b7cd8d076cb
+index 000000000000..2563402c0b79
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/BezOS.cpp
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,284 @@
 +//===--- BezOS.cpp - BezOS ToolChain Implementations --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,6 +20,7 @@ index 000000000000..9b7cd8d076cb
 +#include "clang/Driver/Options.h"
 +#include "llvm/Support/Path.h"
 +#include "llvm/Support/VirtualFileSystem.h"
++#include "clang/Basic/Version.h"
 +
 +using namespace clang::driver;
 +using namespace clang::driver::toolchains;
@@ -46,10 +47,6 @@ index 000000000000..9b7cd8d076cb
 +  bool isPICDefault() const override { return true; }
 +  bool isPIEDefault(const llvm::opt::ArgList &Args) const override { return true; }
 +  bool isPICDefaultForced() const override { return true; }
-+
-+  std::string getCompilerRTPath() const override {
-+    return getDriver().SysRoot + "/lib";
-+  }
 +
 +  void AddClangCXXStdlibIncludeArgs(
 +    const llvm::opt::ArgList &DriverArgs,
@@ -142,7 +139,7 @@ index 000000000000..9b7cd8d076cb
 +  }
 +
 +  if (!DriverArgs.hasArg(options::OPT_nostdinc)) {
-+    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/include/posix");
++    addSystemInclude(DriverArgs, CC1Args, SysRoot + "/include");
 +  }
 +
 +  if (!DriverArgs.hasArg(options::OPT_nostdlibinc)) {
@@ -260,10 +257,10 @@ index 000000000000..9b7cd8d076cb
 +  }
 +
 +  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-+    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/lib/generic/libclang_rt.builtins-" + TC.getArchName() + ".a"));
-+
-+    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/lib/libbezos-sysapi.a"));
-+    CmdArgs.push_back(Args.MakeArgString(D.SysRoot + "/lib/libbezos-posix.a"));
++    CmdArgs.push_back(Args.MakeArgString("-L" + D.SysRoot + "/lib"));
++    CmdArgs.push_back(Args.MakeArgString("-L" + D.SysRoot + "/lib64"));
++    CmdArgs.push_back(Args.MakeArgString("-L" + D.SysRoot + "/lib/clang/" + CLANG_VERSION_MAJOR_STRING + "/lib/" + TC.getArchName()));
++    CmdArgs.push_back(Args.MakeArgString("libclang_rt.builtins-" + TC.getArchName() + ".a"));
 +  }
 +
 +  if (D.isUsingLTO()) {

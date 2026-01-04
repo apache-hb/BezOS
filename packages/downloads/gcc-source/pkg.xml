@@ -1,9 +1,11 @@
 <package name='gcc-source' version='15.x'>
-    <download url='https://mirror.csclub.uwaterloo.ca/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.gz'
-              file='gcc-15.tar.gz'
-              sha256='7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723'
+    <download url='https://github.com/gcc-mirror/gcc/archive/refs/tags/releases/gcc-15.2.0.tar.gz'
+              file='gcc-15.2.0.tar.gz'
+              sha256='c1ec5cb4ed8031c93fb602cd7bc5117c66b4f9ef18f7d4cd788e5eb9b9b3e7c9'
               trim-root-folder='true'
-              archive='tar.gz' />
+              archive='tar.gz'>
+        <patch file='patches/001-set-autoconf-version.patch' />
+    </download>
 
     <private-dependency name='libtool-source' version='2.5.4' />
     <private-dependency name='automake-source' version='1.17' />

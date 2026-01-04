@@ -1,0 +1,9 @@
+<package name='texinfo-host' version='7.2'>
+    <download file='texinfo-7.2.tar.gz'
+                url='https://mirror.csclub.uwaterloo.ca/gnu/texinfo/texinfo-7.2.tar.gz'
+                sha256='e86de7dfef6b352aa1bf647de3a6213d1567c70129eccbf8977706d9c91919c8'
+                trim-root-folder='true'
+                archive='tar.gz' />
+
+    <configure with='autotools' src='${package.cache}' workdir='${package.build}' />
+</package>
