@@ -30,6 +30,9 @@ class ArgOptions {
     static constexpr char kBuildKey[] = "--build";
     static constexpr char kInstallKey[] = "--install";
     static constexpr char kRecursiveKey[] = "--recursive";
+    static constexpr char kCleanKey[] = "--clean";
+
+    static constexpr char kAllKey[] = "--all";
 
     static constexpr char kLogLevelKey[] = "--log-level";
 
@@ -76,6 +79,16 @@ public:
             .append()
             .nargs(argparse::nargs_pattern::any);
 
+        parser.add_argument(kCleanKey)
+            .help("Clean build artifacts")
+            .append()
+            .nargs(argparse::nargs_pattern::any);
+
+        parser.add_argument(kAllKey)
+            .help("Process all packages")
+            .default_value(false)
+            .implicit_value(true);
+
         parser.add_argument(kRecursiveKey)
             .help("Recursively process dependencies")
             .default_value(false)
@@ -120,6 +133,19 @@ public:
 
     std::vector<std::string> installPackages() const {
         return parser.get<std::vector<std::string>>(kInstallKey);
+    }
+
+    std::vector<std::string> cleanPackages() const {
+        return parser.get<std::vector<std::string>>(kCleanKey);
+    }
+
+    bool all() const {
+        return parser.get<bool>(kAllKey);
+    }
+
+    bool cleanAll() const {
+        auto cleans = cleanPackages();
+        return cleans.size() == 1 && cleans[0] == "all";
     }
 
     bool recursive() const {
@@ -176,6 +202,13 @@ int run(int argc, const char** argv) try {
     auto configureList = options.configurePackages();
     auto buildList = options.buildPackages();
     auto installList = options.installPackages();
+    auto cleanList = options.cleanPackages();
+    if (options.cleanAll()) {
+        cleanList.clear();
+        for (const auto& [name, package] : workspace->packages()) {
+            cleanList.push_back(name);
+        }
+    }
 
     fetchList.insert(fetchList.end(), cloneList.begin(), cloneList.end());
     std::sort(fetchList.begin(), fetchList.end());
@@ -186,6 +219,7 @@ int run(int argc, const char** argv) try {
     LOG_INFO(gLogger, "Configuring {}", configureList);
     LOG_INFO(gLogger, "Building {}", buildList);
     LOG_INFO(gLogger, "Installing {}", installList);
+    LOG_INFO(gLogger, "Cleaning {}", cleanList);
 
     auto shouldClone = [&](const std::string& name) {
         return std::find(cloneList.begin(), cloneList.end(), name) != cloneList.end();
@@ -195,7 +229,15 @@ int run(int argc, const char** argv) try {
         pkgtool->lowerPackageState(name, pkg::PackageState::eUnknown);
 
         for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
-            pkgtool->lowerPackageState(depName, pkg::PackageState::eUnknown);
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eFetched);
+        }
+    }
+
+    for (const auto& name : cleanList) {
+        pkgtool->lowerPackageState(name, pkg::PackageState::eFetched);
+
+        for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eFetched);
         }
     }
 
@@ -221,6 +263,11 @@ int run(int argc, const char** argv) try {
         for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
             pkgtool->lowerPackageState(depName, pkg::PackageState::eBuilt);
         }
+    }
+
+    for (const auto& name : cleanList) {
+        LOG_INFO(gLogger, "Cleaning package '{}'", name);
+        pkgtool->cleanPackageBuildArtifacts(name);
     }
 
     for (const auto& fetchName : fetchList) {

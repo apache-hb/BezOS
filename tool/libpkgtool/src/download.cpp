@@ -205,7 +205,7 @@ static void copyArchiveEntry(struct archive *a, struct archive_entry *entry, con
     }
 }
 
-static void extractArchiveImpl(std::string_view name, const fs::path& archive, const fs::path& dst, bool trimRootFolder) {
+static void extractArchiveImpl(quill::Logger *logger, std::string_view name, const fs::path& archive, const fs::path& dst, bool trimRootFolder) {
     fs::remove_all(dst);
     fs::create_directories(dst);
 
@@ -237,6 +237,16 @@ static void extractArchiveImpl(std::string_view name, const fs::path& archive, c
         }
 
         if (entryPath.empty()) {
+            continue;
+        }
+
+        bool isSymlink = archive_entry_filetype(entry) == AE_IFLNK;
+        if (isSymlink) {
+            std::string target = archive_entry_symlink(entry);
+            LOG_TRACE_L1(logger, "Creating symlink for entry '{}' to '{}'", entryPath, target);
+            fs::path linkPath = dst / entryPath;
+            fs::create_directories(linkPath.parent_path());
+            fs::create_symlink(target, linkPath);
             continue;
         }
 
@@ -296,5 +306,5 @@ void pkg::extractArchive(const std::filesystem::path& archive, const std::filesy
     static auto logger = quill::Frontend::create_or_get_logger("ExtractArchive", quill::Frontend::get_logger("root"));
 
     LOG_INFO(logger, "Extracting archive '{}' to '{}'", archive.string(), dst.string());
-    extractArchiveImpl(archive.filename().string(), archive, dst, trimRootFolder);
+    extractArchiveImpl(logger, archive.filename().string(), archive, dst, trimRootFolder);
 }

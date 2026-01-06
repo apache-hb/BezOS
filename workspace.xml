@@ -12,6 +12,8 @@
     <package path='packages/downloads/autotools/libtool-source' />
 
     <!-- Packages that will run on the host machine and target the host machine -->
+    <package path='packages/host/glibc-host' />
+    <package path='packages/host/libgcc-host' />
     <package path='packages/host/gcc-host' />
     <package path='packages/host/binutils-host' />
     <package path='packages/host/cmake-host' />

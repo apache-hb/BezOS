@@ -1,12 +1,13 @@
 #pragma once
 
 #include <functional>
+#include <filesystem>
+#include <optional>
 
 namespace pkg {
     enum class SandboxCapability {
         eNone = 0,
         eNetworkAccess = 1 << 0,
-        eWritableSourceDir = 1 << 1,
     };
 
     inline SandboxCapability operator|(SandboxCapability a, SandboxCapability b) {
@@ -17,20 +18,25 @@ namespace pkg {
         return (static_cast<int>(capabilities) & static_cast<int>(capability)) != 0;
     }
 
+    struct Sandbox {
+        std::optional<std::filesystem::path> chroot;
+        SandboxCapability capabilities;
+    };
+
     void runCommandInSandbox(
-        SandboxCapability capabilities,
+        const Sandbox& sandbox,
         std::function<void()> run
     );
 
     template<typename F> requires std::is_invocable_v<F>
     auto runInSandbox(
-        SandboxCapability capabilities,
+        const Sandbox& sandbox,
         F&& run
     ) -> decltype(run()) {
         using ReturnType = decltype(run());
 
         ReturnType result;
-        runCommandInSandbox(capabilities, [&] {
+        runCommandInSandbox(sandbox, [&] {
             result = run();
         });
 

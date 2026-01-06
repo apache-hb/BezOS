@@ -224,16 +224,20 @@ std::filesystem::path pkg::workspaceCachePath(IWorkspace& workspace) {
     return baseBuildPath(workspace) / "packagecache";
 }
 
+std::filesystem::path pkg::basePackagePath(IWorkspace& workspace, IPackage& package) {
+    return baseBuildPath(workspace) / package.name();
+}
+
 std::filesystem::path pkg::packageBuildPath(IWorkspace& workspace, IPackage& package) {
-    return baseBuildPath(workspace) / package.name() / "target/build";
+    return pkg::basePackagePath(workspace, package) / "target/build";
 }
 
 std::filesystem::path pkg::packageSysrootPath(IWorkspace& workspace, IPackage& package) {
-    return baseBuildPath(workspace) / package.name() / "target/sysroot";
+    return pkg::basePackagePath(workspace, package) / "target/sysroot";
 }
 
 std::filesystem::path pkg::packageInstallPath(IWorkspace& workspace, IPackage& package) {
-    return baseBuildPath(workspace) / package.name() / "target/install";
+    return pkg::basePackagePath(workspace, package) / "target/install";
 }
 
 std::filesystem::path pkg::packageCachePath(IWorkspace& workspace, IPackage& package) {
@@ -241,7 +245,7 @@ std::filesystem::path pkg::packageCachePath(IWorkspace& workspace, IPackage& pac
 }
 
 std::filesystem::path pkg::packagePrivatePath(IWorkspace& workspace, IPackage& package) {
-    return baseBuildPath(workspace) / package.name() / "target/internal";
+    return pkg::basePackagePath(workspace, package) / "target/internal";
 }
 
 std::string pkg::evaluate(const std::string& text, IWorkspace& workspace) {

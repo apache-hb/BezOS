@@ -1,0 +1,13 @@
+<package name='glibc-host' version='2.42'>
+    <download file='globc-2.42.tar.gz'
+              url='https://github.com/bminor/glibc/archive/refs/tags/glibc-2.42.tar.gz'
+              sha256='90267bbbcfb8f631021a6c3ecc898514958948f4f43d6178d40be2da437b192d'
+              trim-root-folder='true'
+              archive='tar.gz' />
+
+    <private-dependency name='gcc-host' version='15.x' />
+
+    <configure with='shell' script='configure.sh' />
+    <build with='shell' script='build.sh' />
+    <install with='shell' script='install.sh' />
+</package>

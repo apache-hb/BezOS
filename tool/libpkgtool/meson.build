@@ -3,6 +3,7 @@ src = files(
   'src/package.cpp',
   'src/pkgtool.cpp',
   'src/state.cpp',
+  'src/sandbox.cpp',
   'src/tools/autotools.cpp',
   'src/tools/basic.cpp',
   'src/tools/cmake.cpp',
@@ -50,6 +51,9 @@ testcases = {
     'sources': files('test/workspace_test.cpp'),
     'dependencies': [pkgtoold_api_dep],
   },
+  'sandbox_test': {
+    'sources': files('test/sandbox_test.cpp'),
+  }
 }
 
 foreach name, kwargs : testcases

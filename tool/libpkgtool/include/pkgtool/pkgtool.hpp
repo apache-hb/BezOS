@@ -51,6 +51,8 @@ namespace pkg {
 
     std::filesystem::path workspaceCachePath(IWorkspace& workspace);
 
+    std::filesystem::path basePackagePath(IWorkspace& workspace, IPackage& package);
+
     /**
      * @brief Get the build path for a package
      * This is the folder where the package is configured and built to.
@@ -122,6 +124,7 @@ namespace pkg {
         virtual void installPackageIfNeeded(const std::string& name) = 0;
 
         virtual void createPackageEnvironment(const std::string& name) = 0;
+        virtual void cleanPackageBuildArtifacts(const std::string& name) = 0;
 
         virtual void lowerPackageState(const std::string& name, PackageState state) = 0;
     };

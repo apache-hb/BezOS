@@ -9,9 +9,12 @@
 
 #include <absl/types/span.h>
 
+#include "pkgtoold/proc_mounts.hpp"
 #include "src/exec.hpp"
 
 #include <fmt/format.h>
+
+#include <absl/strings/match.h>
 
 namespace fs = std::filesystem;
 
@@ -349,6 +352,41 @@ public:
         } else {
             LOG_WARNING_LIMIT(std::chrono::days(1), logger(), "OverlayFS daemon not available, falling back to symlink environment for package '{}'", name);
             createSymlinkEnvironment(*package, absl::Span<std::shared_ptr<pkg::IPackage>>{dependencies});
+        }
+    }
+
+    void cleanPackageBuildArtifacts(const std::string& name) override {
+        auto package = mWorkspace->package(name);
+        if (!package) {
+            throw std::runtime_error("Package not found: " + name);
+        }
+
+        pkg::ProcMounts mounts = pkg::ProcMounts::ofCurrentMachine();
+        auto base = pkg::basePackagePath(*mWorkspace, *package);
+
+        for (const auto& entry : mounts.overlayEntries()) {
+            if (absl::StartsWith(entry.overlay, base.string())) {
+                LOG_INFO(logger(), "Removing overlay mount at '{}' for package '{}'", entry.overlay, name);
+                mOverlayClient->destroyOverlay({ .overlayPath = entry.overlay });
+            }
+        }
+
+        if (fs::exists(base)) {
+            fs::remove_all(base);
+            LOG_INFO(logger(), "Removed build artifacts at '{}' for package '{}'", base.string(), name);
+        } else {
+            LOG_TRACE_L1(logger(), "No build artifacts found at '{}' for package '{}', skipping", base.string(), name);
+        }
+
+        if (fs::exists(mWorkspace->path() / "install" / package->name())) {
+            fs::remove(mWorkspace->path() / "install" / package->name());
+            LOG_INFO(logger(), "Removed install symlink at '{}' for package '{}'", (mWorkspace->path() / "install" / package->name()).string(), name);
+        }
+
+        auto cache = pkg::packageCachePath(*mWorkspace, *package);
+        if (fs::exists(cache)) {
+            fs::remove_all(cache);
+            LOG_INFO(logger(), "Removed package cache at '{}' for package '{}'", cache.string(), name);
         }
     }
 

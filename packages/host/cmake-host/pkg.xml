@@ -5,6 +5,7 @@
 
     <private-dependency name="cmake-source" version="4.x" />
     <private-dependency name="gcc-host" version="15.x" />
-    <private-dependency name="libstdcxx-host" version="15.x" />
     <private-dependency name='binutils-host' version='2.45' />
+    <private-dependency name='glibc-host' version='2.42' />
+    <public-dependency name="libstdcxx-host" version="15.x" />
 </package>
