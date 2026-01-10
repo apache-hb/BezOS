@@ -125,6 +125,36 @@ void visitTotalDependencyClosure(
 
 }
 
+std::vector<std::shared_ptr<pkg::IPackage>> pkg::directDependencySet(IWorkspace& workspace, const std::string& name, pkg::DependencyScope scope) {
+    std::vector<std::shared_ptr<IPackage>> result;
+
+    const auto& packages = workspace.packages();
+    auto pkg = packages.find(name);
+    if (pkg == packages.end()) {
+        throw std::runtime_error("Unknown package: " + name);
+    }
+
+    if (testBit(scope, pkg::DependencyScope::ePublicDependency)) {
+        for (const auto& dep : pkg->second->publicDependencies()) {
+            if (!packages.contains(dep)) {
+                throw std::runtime_error("Unknown package: " + dep);
+            }
+            result.push_back(packages.at(dep));
+        }
+    }
+
+    if (testBit(scope, pkg::DependencyScope::ePrivateDependency)) {
+        for (const auto& dep : pkg->second->privateDependencies()) {
+            if (!packages.contains(dep)) {
+                throw std::runtime_error("Unknown package: " + dep);
+            }
+            result.push_back(packages.at(dep));
+        }
+    }
+
+    return result;
+}
+
 std::vector<std::shared_ptr<pkg::IPackage>> pkg::dependencyClosure(IWorkspace& workspace, const std::string& packageName) {
     std::vector<std::shared_ptr<IPackage>> result;
     std::set<std::string> visited;

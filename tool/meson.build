@@ -30,6 +30,7 @@ tl_expected = dependency('tl-expected')
 subdir('pkgtoold')
 subdir('libpkgtool')
 subdir('pkgtool')
+subdir('pkgviz')
 
 configure_file(
   input: 'resources/pkgtoold.service.in',

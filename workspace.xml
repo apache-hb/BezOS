@@ -18,10 +18,12 @@
     <package path='packages/host/binutils-host' />
     <package path='packages/host/cmake-host' />
     <package path='packages/host/clang-host' />
+    <package path='packages/host/libcxx-host' />
     <package path='packages/host/libstdcxx-host' />
     <package path='packages/host/m4-host' />
     <package path='packages/host/texinfo-host' />
 
+    <package path='packages/cross/llvm-compiler-rt-cross' />
     <package path='packages/cross/libcxx-cross' />
 
     <package path='sources/sysapi-headers' />
@@ -29,6 +31,7 @@
     <package path='sources/sysapi' />
     <package path='sources/posix' />
     <package path='sources/system' />
+    <package path='sources/kernel' />
 
     <package path='sources/libkernel' />
     <package path='sources/ktest' />

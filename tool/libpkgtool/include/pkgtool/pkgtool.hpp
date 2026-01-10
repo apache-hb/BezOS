@@ -25,6 +25,7 @@ namespace pkg {
         virtual std::filesystem::path path() const = 0;
     };
 
+    std::vector<std::shared_ptr<IPackage>> directDependencySet(IWorkspace& workspace, const std::string& name, pkg::DependencyScope scope);
     std::vector<std::shared_ptr<IPackage>> dependencyClosure(IWorkspace& workspace, const std::string& name);
     std::vector<std::shared_ptr<IPackage>> totalDependencyClosure(IWorkspace& workspace, const std::string& name);
 

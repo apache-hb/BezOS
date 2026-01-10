@@ -6,6 +6,7 @@
 #include <detail/file.h>
 #include <detail/attributes.h>
 #include <detail/cxx.h>
+#include <detail/types/wint_t.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,8 +15,6 @@ extern "C" {
 struct tm;
 
 typedef struct mbstate_t { void *state; } mbstate_t;
-
-typedef __WINT_TYPE__ wint_t;
 
 #ifndef WEOF
 #   define WEOF (0xffffffffu)

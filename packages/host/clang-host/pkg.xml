@@ -6,7 +6,7 @@
 
     <configure with="cmake" executable="${package.sysroot}/bin/cmake" src="${package.sysroot}/src/llvm-project/llvm">
         <option name="LLVM_ENABLE_PROJECTS" value="llvm;clang;clang-tools-extra;lld" />
-        <option name="LLVM_ENABLE_RUNTIMES" value="compiler-rt;libcxx;libcxxabi;libunwind" />
+        <option name="LLVM_ENABLE_RUNTIMES" value="compiler-rt" />
         <option name="CMAKE_C_COMPILER" value="clang" />
         <option name="CMAKE_CXX_COMPILER" value="clang++" />
         <option name="CMAKE_LINKER" value="ld.lld" />

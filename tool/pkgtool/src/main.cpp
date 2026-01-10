@@ -32,8 +32,6 @@ class ArgOptions {
     static constexpr char kRecursiveKey[] = "--recursive";
     static constexpr char kCleanKey[] = "--clean";
 
-    static constexpr char kAllKey[] = "--all";
-
     static constexpr char kLogLevelKey[] = "--log-level";
 
     argparse::ArgumentParser parser;
@@ -84,11 +82,6 @@ public:
             .append()
             .nargs(argparse::nargs_pattern::any);
 
-        parser.add_argument(kAllKey)
-            .help("Process all packages")
-            .default_value(false)
-            .implicit_value(true);
-
         parser.add_argument(kRecursiveKey)
             .help("Recursively process dependencies")
             .default_value(false)
@@ -137,10 +130,6 @@ public:
 
     std::vector<std::string> cleanPackages() const {
         return parser.get<std::vector<std::string>>(kCleanKey);
-    }
-
-    bool all() const {
-        return parser.get<bool>(kAllKey);
     }
 
     bool cleanAll() const {
@@ -234,10 +223,10 @@ int run(int argc, const char** argv) try {
     }
 
     for (const auto& name : cleanList) {
-        pkgtool->lowerPackageState(name, pkg::PackageState::eFetched);
+        pkgtool->lowerPackageState(name, pkg::PackageState::eUnknown);
 
         for (const auto& depName : state->getReverseDependencies(name, pkg::DependencyScope::ePrivateDependency | pkg::DependencyScope::ePublicDependency)) {
-            pkgtool->lowerPackageState(depName, pkg::PackageState::eFetched);
+            pkgtool->lowerPackageState(depName, pkg::PackageState::eUnknown);
         }
     }
 
@@ -278,7 +267,6 @@ int run(int argc, const char** argv) try {
 
         LOG_INFO(gLogger, "Fetching package '{}'", fetchName);
         pkgtool->fetchPackageIfNeeded(fetchName, shouldClone(fetchName));
-        LOG_INFO(gLogger, "Fetched package '{}'", fetchName);
     }
 
     for (const auto& configureName : configureList) {

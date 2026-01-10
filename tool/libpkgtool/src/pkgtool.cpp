@@ -378,9 +378,11 @@ public:
             LOG_TRACE_L1(logger(), "No build artifacts found at '{}' for package '{}', skipping", base.string(), name);
         }
 
-        if (fs::exists(mWorkspace->path() / "install" / package->name())) {
-            fs::remove(mWorkspace->path() / "install" / package->name());
-            LOG_INFO(logger(), "Removed install symlink at '{}' for package '{}'", (mWorkspace->path() / "install" / package->name()).string(), name);
+        auto prefix = mWorkspace->path() / "install" / package->name();
+
+        if (fs::exists(prefix)) {
+            fs::remove(prefix);
+            LOG_INFO(logger(), "Removed install symlink at '{}' for package '{}'", prefix.string(), name);
         }
 
         auto cache = pkg::packageCachePath(*mWorkspace, *package);

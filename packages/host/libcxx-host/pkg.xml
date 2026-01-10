@@ -1,0 +1,16 @@
+<package name='libcxx-host' version='21.x'>
+    <private-dependency name='llvm-source' version='21.x' />
+    <private-dependency name='cmake-host' version='4.x' />
+    <private-dependency name='clang-host' version='21.x' />
+
+    <configure with='cmake' src='${package.sysroot}/src/llvm-project/runtimes'>
+        <option name='LLVM_ENABLE_RUNTIMES' value='libunwind;libcxx;libcxxabi' />
+        <option name='LLVM_INCLUDE_TESTS' value='OFF' />
+
+        <option name='CMAKE_C_COMPILER' value='${package.sysroot}/bin/clang' />
+        <option name='CMAKE_CXX_COMPILER' value='${package.sysroot}/bin/clang++' />
+        <option name='CMAKE_LINKER' value='${package.sysroot}/bin/ld.lld' />
+
+        <env LD_LIBRARY_PATH="${package.sysroot}/lib:${package.sysroot}/lib64" />
+    </configure>
+</package>

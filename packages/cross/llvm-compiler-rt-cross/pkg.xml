@@ -1,0 +1,48 @@
+<package name='llvm-compiler-rt-cross' from='llvm-project-src'>
+    <private-dependency name="llvm-source" version="21.x" />
+    <private-dependency name="cmake-host" version="4.x" />
+    <private-dependency name="clang-host" version="21.x" />
+
+    <public-dependency name="sysapi-headers" version="1.x" />
+    <public-dependency name="posix-headers" version="1.x" />
+
+    <configure with="cmake"
+               executable="${package.sysroot}/bin/cmake"
+               src="${package.sysroot}/src/llvm-project/compiler-rt">
+
+        <option name="LLVM_ENABLE_RUNTIMES" value="compiler-rt" />
+        <option name="LLVM_RUNTIME_TARGETS" value="x86_64-unknown-bezos-jlibc" />
+
+        <options COMPILER_RT_BUILD_BUILTINS="ON"
+                 COMPILER_RT_BUILD_SANITIZERS="ON"
+                 COMPILER_RT_BUILD_CTX_PROFILE="OFF"
+                 COMPILER_RT_BUILD_LIBFUZZER="OFF"
+                 COMPILER_RT_BUILD_MEMPROF="OFF"
+                 COMPILER_RT_BUILD_PROFILE="OFF"
+                 COMPILER_RT_BUILD_XRAY="OFF"
+                 COMPILER_RT_BUILD_ORC="OFF"
+                 COMPILER_RT_DEFAULT_TARGET_ONLY="ON"
+                 COMPILER_RT_DEFAULT_TARGET_ARCH="x86_64"
+                 COMPILER_RT_BAREMETAL_BUILD="ON" />
+
+        <option name="CMAKE_C_COMPILER" value="${package.sysroot}/bin/clang" />
+        <option name="CMAKE_CXX_COMPILER" value="${package.sysroot}/bin/clang++" />
+        <option name="CMAKE_LINKER" value="${package.sysroot}/bin/ld.lld" />
+        <!-- <option name="CMAKE_SYSROOT" value="${package.sysroot}" /> -->
+
+        <option name="CMAKE_C_FLAGS" value="--sysroot=${package.sysroot}" />
+        <option name="CMAKE_CXX_FLAGS" value="--sysroot=${package.sysroot}" />
+        <option name="CMAKE_EXE_LINKER_FLAGS" value="--sysroot=${package.sysroot}" />
+
+        <!-- TODO: patch cmake to recognize -DCMAKE_SYSTEM_NAME="BezOS" -->
+        <option name="CMAKE_SYSTEM_NAME" value="Generic" />
+
+        <option name="CMAKE_C_COMPILER_WORKS" value="1" />
+        <option name="CMAKE_CXX_COMPILER_WORKS" value="1" />
+
+        <option name="CMAKE_C_COMPILER_TARGET" value="x86_64-unknown-bezos-jlibc" />
+        <option name="CMAKE_CXX_COMPILER_TARGET" value="x86_64-unknown-bezos-jlibc" />
+
+        <env LD_LIBRARY_PATH="${package.sysroot}/lib:${package.sysroot}/lib64" />
+    </configure>
+</package>

@@ -8,4 +8,5 @@ posix_headers_dep = declare_dependency(
 
 meson.override_dependency('posix-headers', posix_headers_dep)
 
-install_subdir('include', install_dir: get_option('includedir'))
+install_subdir('include/posix', install_dir: 'include', strip_directory: true)
+install_subdir('include/rtld', install_dir: 'include', strip_directory: true)

@@ -1,0 +1,9 @@
+<package name='limine'>
+    <download file='limine-9.3.4.zip'
+              archive='zip'
+              trim-root-folder='true'
+              url='https://github.com/limine-bootloader/limine/archive/refs/tags/v9.3.4-binary.zip'
+              sha256='64c66ef2406e53a0dad73288c36b0dac29f312be2dc1a063d074ece59b65e928' />
+
+    <configure with='meson' />
+</package>
